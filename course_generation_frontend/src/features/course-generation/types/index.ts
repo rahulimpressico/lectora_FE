@@ -1,0 +1,188 @@
+// ─── Primitive JSON value tree ────────────────────────────────────────────────
+export type JsonPrimitive = string | number | boolean | null
+export type JsonValue = JsonPrimitive | JsonObject | JsonArray
+export interface JsonObject { [key: string]: JsonValue }
+export type JsonArray = JsonValue[]
+
+// ─── Workflow ──────────────────────────────────────────────────────────────────
+export type WorkflowPhase =
+  | 'upload'       // file drop + A0 TO generation
+  | 'three-panel'  // review TO / rules, trigger generation
+  | 'pipeline'     // A1→S1→A2→S2 processing view
+  | 'course-editor'// post-generation rich editor
+
+export type * from './pipeline'
+export type * from './editor'
+
+// ─── File upload ───────────────────────────────────────────────────────────────
+export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'
+
+export interface UploadedFile {
+  id: string
+  file: File
+  name: string
+  sizeBytes: number
+  status: UploadStatus
+  errorMessage?: string
+  previewHtml?: string
+  blobPath?: string
+}
+
+// ─── Training Outline (TO) ────────────────────────────────────────────────────
+export interface TOModule {
+  id: string
+  title: string
+  duration: string
+  objectives: string[]
+  chapters: TOChapter[]
+}
+
+export interface TOChapter {
+  id: string
+  title: string
+  duration: string
+  topics: TOTopic[]
+}
+
+export interface TOTopic {
+  id: string
+  title: string
+  duration: string
+  description: string
+}
+
+export interface ParsedTO {
+  courseTitle: string
+  totalDuration: string
+  description: string
+  modules: TOModule[]
+}
+
+// ─── Generate TO API response ─────────────────────────────────────────────────
+export interface GenerateTOResponse {
+  to: JsonObject
+  rules: JsonObject
+  /** Blob path of the saved generated-TO JSON file. Pass as timedOutline.blobPath
+   *  in POST /jobs so the pipeline reuses this TO instead of re-generating it. */
+  toBlobPath?: string
+}
+
+/** HTTP 202 from POST /documents/generate-to (async mode). */
+export interface GenerateTOJobAccepted {
+  jobId: string
+  status: string
+  message: string
+  pollUrl: string
+}
+
+/** GET /documents/generate-to/jobs/{jobId} */
+export interface GenerateTOJobPollResponse {
+  jobId: string
+  status: 'processing' | 'completed' | 'failed'
+  message?: string
+  error?: string
+  to?: JsonObject
+  rules?: JsonObject
+  toBlobPath?: string
+}
+
+// ─── Rule pack ────────────────────────────────────────────────────────────────
+export type RulePackValue = string | number | boolean | string[]
+export interface RulePack { [key: string]: RulePackValue }
+
+// ─── Job ──────────────────────────────────────────────────────────────────────
+export type JobStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'COMPLETED'
+  | 'FAILED'
+
+export interface JobResponse {
+  jobId: string
+  status: JobStatus
+  createdAt: string
+  updatedAt: string
+  artifactUrl?: string
+  errorMessage?: string
+  progress?: number
+}
+
+// Full job detail including per-stage progress — matches backend JobDetailResponse
+export interface JobStageProgress {
+  stage: string          // PipelineStep: A0 | A1 | S1 | A2 | S2 | …
+  status: string         // StageStatus: PENDING | PROCESSING | COMPLETED | FAILED
+  startedAt: string | null
+  completedAt: string | null
+  outcome: string | null // ValidationOutcome: PASS | WARNING | RECOVERABLE_FAIL | CRITICAL_FAIL
+}
+
+export interface JobErrorDetail {
+  code: string
+  message: string
+  stage: string | null
+  retryable: boolean
+}
+
+export interface JobDetail {
+  jobId: string
+  status: JobStatus
+  createdAt: string
+  updatedAt: string
+  stages: JobStageProgress[]
+  error: JobErrorDetail | null
+}
+
+export interface GenerateCoursePayload {
+  courseTitle: string
+  courseType: string
+  inputs: {
+    studyGuide: { blobPath: string }
+    timedOutline?: { blobPath: string }
+  }
+  /** User-edited Training Outline JSON from the three-panel TO editor.
+   *  The backend injects this into shared_state so A1 uses the reviewed version. */
+  toOverride?: JsonObject
+}
+
+// ─── SSE Pipeline Events (GET /jobs/{jobId}/events) ───────────────────────────
+
+/** A single structured log entry streamed from the orchestrator. */
+export interface SSELogEntry {
+  id: number
+  level: 'info' | 'warn' | 'error' | 'success'
+  message: string
+  stageId: string | null
+  createdAt: string
+}
+
+/** A validation issue surfaced inline per-stage during S1/S2 retry cycles. */
+export interface SSEStageBlocker {
+  severity: string
+  field?: string | null
+  message: string
+}
+
+/** Per-stage snapshot included in every SSE event. */
+export interface SSEStage {
+  stage: string
+  status: string
+  startedAt: string | null
+  completedAt: string | null
+  outcome: string | null
+  /** Validation blockers for this stage (populated during S1/S2 retry cycles). */
+  blockers: SSEStageBlocker[]
+  /** Which gate cycle is currently active (1-based). */
+  retryAttempt: number
+}
+
+/** Full SSE `stage_update` event payload. */
+export interface SSEPipelineEvent {
+  type: 'stage_update'
+  jobId: string
+  status: string
+  updatedAt: string | null
+  stages: SSEStage[]
+  error: JobErrorDetail | null
+  /** New log entries since the previous event (delta, not full history). */
+  logs: SSELogEntry[]
+}

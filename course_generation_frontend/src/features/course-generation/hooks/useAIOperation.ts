@@ -1,0 +1,41 @@
+import { useMutation } from '@tanstack/react-query'
+import { useEditorStore } from '../store/editorStore'
+import { courseApi } from '../api/courseApi'
+import type { AIOperationType } from '../types/editor'
+
+/**
+ * Drives an AI operation on a single section.
+ * Manages the loading + result-apply lifecycle via the editor store.
+ */
+export function useAIOperation(jobId: string) {
+  const { setAIProcessing, applyAIResult, clearAIOperation } = useEditorStore()
+
+  const mutation = useMutation({
+    mutationFn: ({
+      sectionId,
+      operation,
+      content,
+    }: {
+      sectionId: string
+      operation: AIOperationType
+      content: string
+    }) => {
+      setAIProcessing(sectionId, operation)
+      return courseApi.performAIOperation({ jobId, sectionId, operation, content })
+    },
+
+    onSuccess: (result) => {
+      applyAIResult(result.sectionId, result.content)
+    },
+
+    onError: (_err, variables) => {
+      clearAIOperation(variables.sectionId)
+    },
+  })
+
+  return {
+    triggerOperation: mutation.mutate,
+    isPending: mutation.isPending,
+    error: mutation.error,
+  }
+}

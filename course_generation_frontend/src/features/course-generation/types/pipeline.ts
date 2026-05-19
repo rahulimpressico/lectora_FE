@@ -1,0 +1,56 @@
+// ─── Pipeline Stage IDs ────────────────────────────────────────────────────────
+// A1/S1/A2/S2 map directly to backend PipelineStep values.
+// FINALIZATION / EXPORT are virtual front-end-only stages.
+export type PipelineStageId =
+  | 'A1'
+  | 'S1'
+  | 'A2'
+  | 'S2'
+  | 'FINALIZATION'
+  | 'EXPORT'
+
+export type PipelineStageStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'retrying'
+
+export type BlockerSeverity = 'blocker' | 'critical' | 'warning'
+
+export interface StageBlocker {
+  id: string
+  severity: BlockerSeverity
+  code: string
+  message: string
+  retryable: boolean
+}
+
+export interface PipelineStageState {
+  id: PipelineStageId
+  backendId: string
+  status: PipelineStageStatus
+  label: string
+  description: string
+  isGate: boolean
+  startedAt?: string
+  completedAt?: string
+  durationMs?: number
+  outcome?: 'PASS' | 'WARNING' | 'RECOVERABLE_FAIL' | 'CRITICAL_FAIL'
+  blockers: StageBlocker[]
+  retryAttempt: number
+  estimatedDurationSec: number
+}
+
+export interface PipelineOverview {
+  jobId: string
+  overallStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  stages: PipelineStageState[]
+  activeStageId: PipelineStageId | null
+  error?: {
+    code: string
+    message: string
+    stage?: string
+    retryable: boolean
+  }
+}
