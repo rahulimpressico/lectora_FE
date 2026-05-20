@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   CheckCircle2,
@@ -7,6 +8,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   ShieldCheck,
+  Info,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { usePipelineStore } from '../../store/pipelineStore'
@@ -14,11 +16,125 @@ import { useCourseStore } from '../../store/courseStore'
 import { courseApi } from '../../api/courseApi'
 import { useJobPipeline } from '../../hooks/useJobPipeline'
 import { BookLoader } from './BookLoader'
-import { LiveLogPanel } from './LiveLogPanel'
 import type { PipelineStageState } from '../../types/pipeline'
+import type { LogEntry } from '../../store/pipelineStore'
 
 interface PipelineViewProps {
   jobId: string
+}
+
+// ── Log level styles ───────────────────────────────────────────────────────────
+
+const LEVEL_STYLE = {
+  info: {
+    icon: Info,
+    iconClass: 'text-slate-400',
+    textClass: 'text-slate-600',
+    rowClass: '',
+  },
+  warn: {
+    icon: AlertTriangle,
+    iconClass: 'text-amber-500',
+    textClass: 'text-amber-700',
+    rowClass: 'bg-amber-50/60',
+  },
+  error: {
+    icon: XCircle,
+    iconClass: 'text-red-500',
+    textClass: 'text-red-700',
+    rowClass: 'bg-red-50/60',
+  },
+  success: {
+    icon: CheckCircle2,
+    iconClass: 'text-emerald-500',
+    textClass: 'text-emerald-700',
+    rowClass: '',
+  },
+} as const
+
+// ── Left panel: Activity Log ───────────────────────────────────────────────────
+
+function ActivityLogPanel({
+  logs,
+  isLive,
+}: {
+  logs: LogEntry[]
+  isLive: boolean
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    if (isNearBottom) el.scrollTop = el.scrollHeight
+  }, [logs.length])
+
+  return (
+    <div className="w-[360px] min-w-[280px] flex flex-col bg-white border-r border-slate-200 overflow-hidden">
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/80 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+            Activity Log
+          </span>
+          {isLive && (
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400"
+              style={{ animation: 'pulse-ring 1.8s ease-out infinite' }}
+            />
+          )}
+        </div>
+        <span className="text-[10px] text-slate-400 tabular-nums">
+          {logs.length} {logs.length === 1 ? 'event' : 'events'}
+        </span>
+      </div>
+
+      {/* Entries */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto divide-y divide-slate-50/80"
+      >
+        {logs.length === 0 ? (
+          <div className="flex items-center justify-center h-24 text-xs text-slate-300">
+            Waiting for events…
+          </div>
+        ) : (
+          logs.map((log) => {
+            const style = LEVEL_STYLE[log.level]
+            const Icon = style.icon
+            return (
+              <div
+                key={log.id}
+                className={cn(
+                  'flex items-start gap-3 px-5 py-2.5 text-xs',
+                  style.rowClass,
+                )}
+              >
+                <Icon size={11} className={cn('shrink-0 mt-0.5', style.iconClass)} />
+                <span
+                  className={cn(
+                    'flex-1 min-w-0 break-words leading-relaxed',
+                    style.textClass,
+                  )}
+                >
+                  {log.message}
+                </span>
+                <span className="shrink-0 text-[10px] text-slate-300 tabular-nums mt-0.5">
+                  {new Date(log.timestamp).toLocaleTimeString([], {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </span>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
 }
 
 // ── Stage dot ──────────────────────────────────────────────────────────────────
@@ -157,7 +273,7 @@ function StageBlockerCard({ stage }: { stage: PipelineStageState }) {
   )
 }
 
-// ── Dynamic status messages per visible stage ──────────────────────────────────
+// ── Dynamic status messages per active stage ───────────────────────────────────
 
 const STAGE_MESSAGES: Record<string, string[]> = {
   A1: [
@@ -200,7 +316,7 @@ function useRotatingMessage(activeStageId: string | null): string {
   return msgs[idx]
 }
 
-// ── Stage progress checklist (shown during generation) ─────────────────────────
+// ── Stage checklist (inline progress milestones) ───────────────────────────────
 
 function StageChecklist({ stages }: { stages: PipelineStageState[] }) {
   const visible = stages.filter((s) =>
@@ -209,7 +325,7 @@ function StageChecklist({ stages }: { stages: PipelineStageState[] }) {
   if (visible.length === 0) return null
 
   return (
-    <div className="w-full max-w-xs space-y-1.5 fade-in">
+    <div className="w-full space-y-2 fade-in">
       {visible.map((stage) => (
         <div key={stage.id} className="flex items-center gap-2.5">
           {stage.status === 'completed' && (
@@ -223,7 +339,7 @@ function StageChecklist({ stages }: { stages: PipelineStageState[] }) {
           )}
           <span
             className={cn(
-              'text-xs font-medium',
+              'text-sm font-medium',
               stage.status === 'completed' && 'text-emerald-700',
               stage.status === 'processing' && 'text-indigo-700',
               stage.status === 'retrying' && 'text-amber-700',
@@ -308,13 +424,18 @@ export function PipelineView({ jobId }: PipelineViewProps) {
   )
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-      <div className="relative flex-1 flex flex-col items-center justify-between overflow-y-auto py-10 px-4">
+    <div className="flex-1 flex overflow-hidden bg-slate-50">
 
-        {/* ── Status badge ──────────────────────────────────────────────── */}
+      {/* ── LEFT PANEL: Activity Log ───────────────────────────────────────── */}
+      <ActivityLogPanel logs={logs} isLive={isProcessing} />
+
+      {/* ── RIGHT PANEL: Book + Status ─────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col items-center justify-between overflow-y-auto py-12 px-8 gap-8">
+
+        {/* Status badge */}
         <div className="text-center slide-up">
           {isProcessing && (
-            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest bg-indigo-50 border border-indigo-200 text-indigo-600">
+            <div className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-widest bg-indigo-50 border border-indigo-200 text-indigo-600">
               <span
                 className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500"
                 style={{ animation: 'pulse-ring 1.6s ease-out infinite' }}
@@ -323,26 +444,30 @@ export function PipelineView({ jobId }: PipelineViewProps) {
             </div>
           )}
           {isCompleted && (
-            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest bg-emerald-50 border border-emerald-200 text-emerald-700">
+            <div className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-widest bg-emerald-50 border border-emerald-200 text-emerald-700">
               <CheckCircle2 size={13} />
               Course ready
             </div>
           )}
           {isFailed && (
-            <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest bg-red-50 border border-red-200 text-red-600">
+            <div className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold uppercase tracking-widest bg-red-50 border border-red-200 text-red-600">
               <XCircle size={13} />
               Generation failed
             </div>
           )}
         </div>
 
-        {/* ── Book hero + status text ────────────────────────────────────── */}
-        <div className="flex flex-col items-center gap-5 my-4">
-          <BookLoader activeStageId={activeStageId} overallStatus={overallStatus} />
+        {/* Book hero — larger on the right panel */}
+        <div className="flex flex-col items-center gap-6">
+          <BookLoader
+            activeStageId={activeStageId}
+            overallStatus={overallStatus}
+            size="large"
+          />
 
           {isProcessing && (
             <p
-              className="shimmer-text text-sm font-medium text-center max-w-xs"
+              className="shimmer-text text-base font-medium text-center max-w-xs"
               key={statusMessage}
             >
               {statusMessage}
@@ -359,16 +484,20 @@ export function PipelineView({ jobId }: PipelineViewProps) {
             </p>
           )}
 
-          {/* Stage checklist — inline progress milestones */}
-          {isProcessing && <StageChecklist stages={stages} />}
+          {/* Stage checklist */}
+          {isProcessing && (
+            <div className="w-full max-w-xs">
+              <StageChecklist stages={stages} />
+            </div>
+          )}
         </div>
 
-        {/* ── Stage dots + progress bar ──────────────────────────────────── */}
+        {/* Stage dots + progress */}
         <div className="flex flex-col items-center gap-5 w-full max-w-lg">
           <StagePillRow stages={stages} />
 
           {isProcessing && (
-            <div className="w-64 fade-in">
+            <div className="w-72 fade-in">
               <div className="flex justify-between text-xs mb-1.5 text-slate-400">
                 <span>{completedCount} of {totalCount} stages complete</span>
                 <span className="tabular-nums font-semibold text-indigo-500">{progressPct}%</span>
@@ -387,7 +516,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
 
           {/* Validation issue cards */}
           {stagesWithBlockers.length > 0 && (
-            <div className="w-full space-y-2 mt-1">
+            <div className="w-full max-w-md space-y-2 mt-1">
               {stagesWithBlockers.map((stage) => (
                 <StageBlockerCard key={stage.id} stage={stage} />
               ))}
@@ -424,13 +553,6 @@ export function PipelineView({ jobId }: PipelineViewProps) {
             </div>
           )}
         </div>
-
-        {/* ── Activity log ──────────────────────────────────────────────── */}
-        {logs.length > 0 && (
-          <div className="w-full max-w-2xl mt-4 fade-in">
-            <LiveLogPanel logs={logs} />
-          </div>
-        )}
       </div>
     </div>
   )

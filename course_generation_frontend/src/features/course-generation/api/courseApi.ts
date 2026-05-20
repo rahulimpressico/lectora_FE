@@ -139,29 +139,37 @@ export const courseApi = {
 
   // ── Artifact download ─────────────────────────────────────────────────────────
   /**
-   * Resolves and opens the download URL for the generated study guide DOCX.
-   * In production: backend returns a signed blob URL.
-   * In dev: falls back gracefully.
+   * Downloads the generated study guide DOCX.
+   * Handles two response shapes:
+   *   - Local dev: FileResponse (binary blob)
+   *   - Production: JSON { url: string } (signed blob URL)
    */
   downloadCourseArtifact: async (jobId: string): Promise<void> => {
     try {
-      const { data } = await axiosInstance.get<{ url: string }>(
+      const { data, headers } = await axiosInstance.get(
         `/jobs/${jobId}/artifacts/download`,
+        { responseType: 'blob' },
       )
-      window.open(data.url, '_blank')
-    } catch {
-      // Fallback: try the raw artifacts list
-      try {
-        const artifacts = await courseApi.getArtifacts(jobId)
-        const docx = artifacts.find(
-          (a) =>
-            a.filename?.endsWith('.docx') ||
-            a.artifactUrl?.endsWith('.docx'),
-        )
-        if (docx?.artifactUrl) window.open(docx.artifactUrl, '_blank')
-      } catch {
-        console.warn('Could not resolve artifact download URL for job', jobId)
+      const contentType = String(headers['content-type'] ?? '')
+
+      if (contentType.includes('application/json')) {
+        // Production: JSON response with a signed URL
+        const text = await (data as Blob).text()
+        const json = JSON.parse(text) as { url?: string }
+        if (json.url) window.open(json.url, '_blank')
+      } else {
+        // Local dev: binary DOCX blob — trigger browser download
+        const blobUrl = URL.createObjectURL(data as Blob)
+        const anchor = document.createElement('a')
+        anchor.href = blobUrl
+        anchor.download = `course_${jobId}.docx`
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(blobUrl)
       }
+    } catch {
+      console.warn('Could not download artifact for job', jobId)
     }
   },
 }

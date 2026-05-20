@@ -3,6 +3,7 @@ import type { PipelineStageId } from '../../types/pipeline'
 interface BookLoaderProps {
   activeStageId: PipelineStageId | null
   overallStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  size?: 'normal' | 'large'
 }
 
 // Per-stage accent colours (used for page tint + glow)
@@ -20,22 +21,26 @@ const DEFAULT_COLOR = { glow: '#6366f1', line: '#a5b4fc', label: 'Preparing' }
 // Floating particles — educational symbols
 const PARTICLES = ['📖', '✏️', '🎓', '📝', '💡', '🔬']
 
-export function BookLoader({ activeStageId, overallStatus }: BookLoaderProps) {
+export function BookLoader({ activeStageId, overallStatus, size = 'normal' }: BookLoaderProps) {
   const colors =
     (activeStageId && STAGE_COLORS[activeStageId]) ?? DEFAULT_COLOR
 
   const isCompleted = overallStatus === 'completed'
   const isFailed = overallStatus === 'failed'
+  const scale = size === 'large' ? 1.45 : 1
 
   return (
-    <div className="relative flex items-center justify-center select-none" style={{ width: 280, height: 280 }}>
+    <div
+      className="relative flex items-center justify-center select-none"
+      style={{ width: 280 * scale, height: 280 * scale }}
+    >
 
       {/* ── Ambient glow behind book ──────────────────────────────────── */}
       <div
         className="book-glow absolute rounded-full blur-3xl pointer-events-none"
         style={{
-          width: 220,
-          height: 180,
+          width: 220 * scale,
+          height: 180 * scale,
           background: isFailed
             ? 'radial-gradient(ellipse, rgba(239,68,68,0.25) 0%, transparent 70%)'
             : isCompleted
@@ -65,13 +70,15 @@ export function BookLoader({ activeStageId, overallStatus }: BookLoaderProps) {
       )}
 
       {/* ── The Book ───────────────────────────────────────────────────── */}
-      {isCompleted ? (
-        <CompletedBook />
-      ) : isFailed ? (
-        <FailedBook />
-      ) : (
-        <AnimatedBook lineColor={colors.line} glowColor={colors.glow} />
-      )}
+      <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}>
+        {isCompleted ? (
+          <CompletedBook />
+        ) : isFailed ? (
+          <FailedBook />
+        ) : (
+          <AnimatedBook lineColor={colors.line} glowColor={colors.glow} />
+        )}
+      </div>
 
       {/* ── Stage label badge ──────────────────────────────────────────── */}
       {!isCompleted && !isFailed && activeStageId && (
