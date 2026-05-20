@@ -1,5 +1,5 @@
-node_modules
-dist
+course_generation_frontend/node_modules
+course_generation_frontend/dist
 .git
 .gitignore
 *.md

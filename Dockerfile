@@ -3,10 +3,10 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY course_generation_frontend/package.json course_generation_frontend/package-lock.json ./
 RUN npm ci
 
-COPY . .
+COPY course_generation_frontend/ .
 RUN npm run build
 
 # ── Serve (nginx) ─────────────────────────────────────────────────────────────

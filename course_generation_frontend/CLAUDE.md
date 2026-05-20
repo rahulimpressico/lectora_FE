@@ -13,7 +13,10 @@ npm run preview    # serve production build locally
 
 ### Docker
 
+Docker files live in the parent `lectora_FE/` directory. From there:
+
 ```bash
+cd ..   # lectora_FE root
 cp .env.example .env   # optional: FE_PORT, BACKEND_HOST
 docker compose up --build -d
 # App: http://localhost:8080  (proxies /api → BACKEND_HOST)
