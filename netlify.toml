@@ -1,0 +1,22 @@
+# Repo root is lectora_FE/; the Vite app lives in course_generation_frontend/
+[build]
+  base = "course_generation_frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# React Router — client-side routes (assets are served first when present)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Uncomment and set your deployed FastAPI URL (no trailing slash).
+# Strips /api/ prefix, same as the Vite dev proxy.
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://YOUR-BACKEND.example.com/:splat"
+#   status = 200
+#   force = true
