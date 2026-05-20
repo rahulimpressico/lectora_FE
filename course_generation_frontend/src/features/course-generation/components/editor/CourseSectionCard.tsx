@@ -1,11 +1,11 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import {
   ChevronDown,
   ChevronRight,
   Pencil,
   Check,
   X,
-  BookOpen,
   CheckSquare,
   Clock,
   Hash,
@@ -13,8 +13,10 @@ import {
 import { cn } from '@/lib/cn'
 import { useEditorStore } from '../../store/editorStore'
 import { useAIOperation } from '../../hooks/useAIOperation'
+import { courseApi } from '../../api/courseApi'
 import { AIToolbar } from './AIToolbar'
-import type { CourseSection } from '../../types/editor'
+import { AIOperationModal } from './AIOperationModal'
+import type { AIOperationType, CourseSection } from '../../types/editor'
 
 interface CourseSectionCardProps {
   section: CourseSection
@@ -37,6 +39,8 @@ export function CourseSectionCard({
     updateEditContent,
     saveSection,
     cancelEditing,
+    setAIProcessing,
+    clearAIOperation,
   } = useEditorStore()
 
   const editState = sectionEditStates.get(section.id)
@@ -45,6 +49,49 @@ export function CourseSectionCard({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { triggerOperation } = useAIOperation(jobId)
+
+  const [isSavingToBackend, setIsSavingToBackend] = useState(false)
+  const [modalOp, setModalOp] = useState<'rewrite' | 'improve_tone' | null>(null)
+  const [modalResult, setModalResult] = useState<string | null>(null)
+
+  // Separate mutation for modal ops — does NOT auto-apply to the editor on success
+  const modalMutation = useMutation({
+    mutationFn: ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
+      setAIProcessing(section.id, op)
+      return courseApi.performAIOperation({
+        jobId,
+        sectionId: section.id,
+        operation: op,
+        content: editState?.currentContent ?? '',
+        userPrompt,
+      })
+    },
+    onSuccess: (result) => {
+      clearAIOperation(section.id)
+      setModalResult(result.content)
+    },
+    onError: () => {
+      clearAIOperation(section.id)
+    },
+  })
+
+  async function handleSave() {
+    const content = editState?.currentContent ?? ''
+    setIsSavingToBackend(true)
+    try {
+      await courseApi.saveSectionContent(
+        jobId,
+        section.id,
+        content,
+        section.sectionType,
+      )
+    } catch {
+      // Network error — still update local state so user doesn't lose work
+    } finally {
+      setIsSavingToBackend(false)
+    }
+    saveSection(section.id, content)
+  }
 
   // Auto-focus textarea when editing starts
   useEffect(() => {
@@ -128,7 +175,7 @@ export function CourseSectionCard({
 
           {/* Meta chips */}
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            {section.wordCount > 0 && (
+            {section.wordCount > 0 && section.sectionType !== 'learning-objectives' && (
               <span className="flex items-center gap-1 text-[11px] text-slate-400">
                 <Hash size={10} />
                 {section.wordCount.toLocaleString()} words
@@ -177,6 +224,10 @@ export function CourseSectionCard({
                 onTrigger={(op, content) =>
                   triggerOperation({ sectionId: section.id, operation: op, content })
                 }
+                onOpenModal={(op) => {
+                  setModalResult(null)
+                  setModalOp(op)
+                }}
               />
             </>
           )}
@@ -185,11 +236,12 @@ export function CourseSectionCard({
             <>
               <button
                 type="button"
-                onClick={() => saveSection(section.id, editState.currentContent)}
+                onClick={() => { void handleSave() }}
+                disabled={isSavingToBackend}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
               >
                 <Check size={11} />
-                Save
+                {isSavingToBackend ? 'Saving…' : 'Save'}
               </button>
               <button
                 type="button"
@@ -204,68 +256,94 @@ export function CourseSectionCard({
         </div>
       </div>
 
+      {/* ── AI operation modal (Rewrite by AI / Improve Tone) ─────────── */}
+      {modalOp && (
+        <AIOperationModal
+          operation={modalOp}
+          sectionTitle={section.title}
+          currentContent={editState.currentContent}
+          isProcessing={isAIProcessing}
+          result={modalResult}
+          onConfirm={(userPrompt) => {
+            setModalResult(null)
+            modalMutation.mutate({ op: modalOp as AIOperationType, userPrompt })
+          }}
+          onApply={() => {
+            if (modalResult) {
+              updateEditContent(section.id, modalResult)
+            }
+            setModalOp(null)
+            setModalResult(null)
+          }}
+          onDiscard={() => {
+            setModalResult(null)
+          }}
+          onClose={() => {
+            setModalOp(null)
+            setModalResult(null)
+          }}
+        />
+      )}
+
       {/* ── Section body (collapsible) ─────────────────────────────────── */}
       {(isExpanded || !hasChildren) && (
         <div className={cn('px-5 pb-5', hasChildren && 'pt-0')}>
-          {/* Learning objectives */}
-          {section.learningObjectives.length > 0 && (
-            <div className="mb-4 p-3.5 bg-brand-50/50 border border-brand-100 rounded-lg">
-              <div className="flex items-center gap-1.5 mb-2">
-                <BookOpen size={11} className="text-brand-500" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-500">
-                  Learning Objectives
-                </span>
-              </div>
-              <ul className="space-y-1">
-                {section.learningObjectives.map((obj, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
-                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-brand-300 shrink-0" />
-                    {obj}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
-          {/* Content: editable textarea or display */}
-          {isEditing ? (
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                value={editState.currentContent}
-                onChange={(e) => updateEditContent(section.id, e.target.value)}
-                className="w-full text-sm text-slate-700 leading-relaxed bg-white border border-brand-300 rounded-lg px-4 py-3 resize-none outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition-colors min-h-[120px]"
-                placeholder="Section content…"
-              />
-              <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 tabular-nums">
-                {editState.currentContent.trim().split(/\s+/).filter(Boolean).length} words
-              </div>
-            </div>
+          {/* ── Learning Objectives special section — numbered list ────────── */}
+          {section.sectionType === 'learning-objectives' && !isEditing ? (
+            <ol className="space-y-3">
+              {section.learningObjectives.map((obj, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm text-slate-700 leading-relaxed">{obj}</span>
+                </li>
+              ))}
+            </ol>
           ) : (
-            <div
-              className={cn(
-                'text-sm text-slate-600 leading-relaxed prose-sm max-w-none',
-                isAIProcessing && 'opacity-50',
-              )}
-            >
-              {isAIProcessing ? (
-                <div className="space-y-2">
-                  <div className="skeleton h-4 rounded" style={{ width: '92%' }} />
-                  <div className="skeleton h-4 rounded" style={{ width: '85%' }} />
-                  <div className="skeleton h-4 rounded" style={{ width: '78%' }} />
+            /* ── Overview / Content / LO edit mode ───────────────────────── */
+            <>
+              {isEditing ? (
+                <div className="relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={editState.currentContent}
+                    onChange={(e) => updateEditContent(section.id, e.target.value)}
+                    className="w-full text-sm text-slate-700 leading-relaxed bg-white border border-brand-300 rounded-lg px-4 py-3 resize-none outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 transition-colors min-h-[120px]"
+                    placeholder="Section content…"
+                  />
+                  <div className="absolute bottom-2 right-3 text-[10px] text-slate-400 tabular-nums">
+                    {editState.currentContent.trim().split(/\s+/).filter(Boolean).length} words
+                  </div>
                 </div>
               ) : (
-                editState.currentContent.split('\n').map((para, i) =>
-                  para.trim() ? (
-                    <p key={i} className="mb-2 last:mb-0">
-                      {para}
-                    </p>
+                <div
+                  className={cn(
+                    'text-sm text-slate-600 leading-relaxed prose-sm max-w-none',
+                    isAIProcessing && 'opacity-50',
+                  )}
+                >
+                  {isAIProcessing ? (
+                    <div className="space-y-2">
+                      <div className="skeleton h-4 rounded" style={{ width: '92%' }} />
+                      <div className="skeleton h-4 rounded" style={{ width: '85%' }} />
+                      <div className="skeleton h-4 rounded" style={{ width: '78%' }} />
+                    </div>
                   ) : (
-                    <br key={i} />
-                  ),
-                )
+                    editState.currentContent.split('\n').map((para, i) =>
+                      para.trim() ? (
+                        <p key={i} className="mb-2 last:mb-0">
+                          {para}
+                        </p>
+                      ) : (
+                        <br key={i} />
+                      ),
+                    )
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
 
           {/* Child sections */}

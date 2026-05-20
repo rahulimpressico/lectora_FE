@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   X,
   Download,
-  BookOpen,
   ChevronRight,
   CheckSquare,
 } from 'lucide-react'
@@ -83,38 +82,32 @@ function PreviewSection({
       {/* Heading */}
       <h2 className={headingClass}>{section.title}</h2>
 
-      {/* Learning objectives */}
-      {section.learningObjectives.length > 0 && (
-        <div className="mb-4 p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <BookOpen size={12} className="text-indigo-500" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-500">
-              Learning Objectives
-            </span>
-          </div>
-          <ul className="space-y-1.5">
-            {section.learningObjectives.map((obj, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-indigo-800">
-                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0" />
-                {obj}
-              </li>
-            ))}
-          </ul>
+      {/* Learning Objectives section — numbered list only, no prose */}
+      {section.sectionType === 'learning-objectives' ? (
+        <ol className="space-y-3 mb-6">
+          {section.learningObjectives.map((obj, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold mt-0.5">
+                {i + 1}
+              </span>
+              <span className="text-sm text-slate-700 leading-relaxed">{obj}</span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        /* Overview / Conclusion / Content — prose rendering */
+        <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
+          {section.content.split('\n').map((para, i) =>
+            para.trim() ? (
+              <p key={i} className="mb-3">
+                {para}
+              </p>
+            ) : (
+              <br key={i} />
+            ),
+          )}
         </div>
       )}
-
-      {/* Body paragraphs */}
-      <div className="prose prose-sm max-w-none text-slate-700 leading-relaxed">
-        {section.content.split('\n').map((para, i) =>
-          para.trim() ? (
-            <p key={i} className="mb-3">
-              {para}
-            </p>
-          ) : (
-            <br key={i} />
-          ),
-        )}
-      </div>
 
       {/* Knowledge check badge */}
       {section.hasKnowledgeCheck && (

@@ -39,10 +39,14 @@ function isCompletedResponse(
 // ─── API surface ──────────────────────────────────────────────────────────────
 export const courseApi = {
   // ── Document upload ──────────────────────────────────────────────────────────
-  uploadDocument: async (file: File): Promise<{ blobPath: string }> => {
+  uploadDocument: async (
+    file: File,
+    courseTopic: string,
+  ): Promise<{ blobPath: string; uploadFolder: string }> => {
     const form = new FormData()
     form.append('file', file)
-    const { data } = await axiosInstance.post<{ blobPath: string }>(
+    form.append('courseTopic', courseTopic.trim())
+    const { data } = await axiosInstance.post<{ blobPath: string; uploadFolder: string }>(
       '/documents/upload',
       form,
       { headers: { 'Content-Type': 'multipart/form-data' } },
@@ -131,10 +135,23 @@ export const courseApi = {
   ): Promise<AIOperationResponse> => {
     const { data } = await axiosInstance.post<AIOperationResponse>(
       `/jobs/${req.jobId}/ai`,
-      { sectionId: req.sectionId, operation: req.operation, content: req.content },
-      { timeout: 60_000 },
+      { sectionId: req.sectionId, operation: req.operation, content: req.content, userPrompt: req.userPrompt },
+      { timeout: 120_000 },
     )
     return data
+  },
+
+  // ── Persist section edit back to shared_state ────────────────────────────
+  saveSectionContent: async (
+    jobId: string,
+    sectionId: string,
+    content: string,
+    sectionType?: string,
+  ): Promise<void> => {
+    await axiosInstance.patch(`/jobs/${jobId}/sections/${sectionId}`, {
+      content,
+      sectionType,
+    })
   },
 
   // ── Artifact download ─────────────────────────────────────────────────────────

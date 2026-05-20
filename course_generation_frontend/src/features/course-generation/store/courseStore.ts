@@ -36,9 +36,15 @@ interface CourseState {
   /** Blob path of the LLM-generated TO from the generate-to preview step.
    *  Passed as timedOutline.blobPath in POST /jobs so the pipeline reuses it. */
   generatedToBlobPath: string | null
+  /** User-provided course topic — becomes uploads/{folder}/ in Azure Blob. */
+  courseTopic: string
+  /** Sanitized folder name returned by the server after first upload. */
+  uploadFolder: string | null
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
+  setCourseTopic: (topic: string) => void
+  setUploadFolder: (folder: string | null) => void
 
   addRawDocument: (file: UploadedFile) => void
   updateRawDocument: (id: string, patch: Partial<UploadedFile>) => void
@@ -79,6 +85,8 @@ const initialState = {
   activeJob:            null as JobResponse | null,
   activeJobId:          null as string | null,
   generatedToBlobPath:  null as string | null,
+  courseTopic:          '',
+  uploadFolder:         null as string | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -88,6 +96,9 @@ export const useCourseStore = create<CourseState>()(
         ...initialState,
 
         setPhase: (phase) => set({ phase }),
+
+        setCourseTopic: (topic) => set({ courseTopic: topic }),
+        setUploadFolder: (folder) => set({ uploadFolder: folder }),
 
         addRawDocument: (file) =>
           set((s) => ({

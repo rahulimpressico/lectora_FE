@@ -19,6 +19,7 @@ interface AIToolbarProps {
   isProcessing: boolean
   currentOperation?: AIOperationType
   onTrigger: (operation: AIOperationType, content: string) => void
+  onOpenModal: (operation: 'rewrite' | 'improve_tone', content: string) => void
   disabled?: boolean
 }
 
@@ -40,15 +41,15 @@ const AI_OPERATIONS: OperationDef[] = [
   },
   {
     type: 'rewrite',
-    label: 'Rewrite',
-    description: 'Rephrase while preserving meaning',
+    label: 'Rewrite by AI',
+    description: 'Rewrite with custom instructions',
     Icon: PenLine,
     group: 'primary',
   },
   {
     type: 'improve_tone',
     label: 'Improve Tone',
-    description: 'Make language clearer and more engaging',
+    description: 'Set a custom tone or style',
     Icon: SmilePlus,
     group: 'secondary',
   },
@@ -90,6 +91,7 @@ export function AIToolbar({
   isProcessing,
   currentOperation,
   onTrigger,
+  onOpenModal,
   disabled,
 }: AIToolbarProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -149,7 +151,11 @@ export function AIToolbar({
                 op={op}
                 onSelect={() => {
                   setIsOpen(false)
-                  onTrigger(op.type, content)
+                  if (op.type === 'rewrite') {
+                    onOpenModal('rewrite', content)
+                  } else {
+                    onTrigger(op.type, content)
+                  }
                 }}
               />
             ))}
@@ -165,7 +171,11 @@ export function AIToolbar({
                 op={op}
                 onSelect={() => {
                   setIsOpen(false)
-                  onTrigger(op.type, content)
+                  if (op.type === 'improve_tone') {
+                    onOpenModal('improve_tone', content)
+                  } else {
+                    onTrigger(op.type, content)
+                  }
                 }}
               />
             ))}

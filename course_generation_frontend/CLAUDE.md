@@ -60,7 +60,7 @@ Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are 
 
 ### Dev-mode fallbacks
 
-When the backend is unreachable, `useFileUpload` silently assigns a `__mock__/<uuid>` blob path, and `useGenerateTO` returns hardcoded `MOCK_TO` / `MOCK_RULES` after a 1.2 s delay. This allows full UI development without a running backend.
+When the backend is unreachable, `useFileUpload` marks the file with `status: 'error'` and message `'Upload failed — server unreachable'`. `useGenerateTO` detects a `__mock__/` blob path and returns hardcoded `MOCK_TO` / `MOCK_RULES` after a 1.2 s delay, allowing the three-panel phase to be reached without a running backend.
 
 ### Path alias
 

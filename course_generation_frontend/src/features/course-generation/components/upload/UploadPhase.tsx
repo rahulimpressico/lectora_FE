@@ -11,9 +11,22 @@ import { TOGenerationLoader } from './TOGenerationLoader'
 const STEPS = ['Upload', 'Review & Edit', 'Generate']
 
 export function UploadPhase() {
-  const { rawDocuments, removeRawDocument, openPreview } = useCourseStore()
-  const { enqueueFiles } = useFileUpload('raw')
+  const {
+    rawDocuments,
+    removeRawDocument,
+    openPreview,
+    courseTopic,
+    setCourseTopic,
+    uploadFolder,
+  } = useCourseStore()
+  const { enqueueFiles, isTopicValid } = useFileUpload('raw')
   const generateTO = useGenerateTO()
+
+  const topicLocked = rawDocuments.length > 0
+  const topicError =
+    courseTopic.trim().length > 0 && !isTopicValid
+      ? 'Enter at least 2 characters with a letter or number'
+      : null
 
   const successFiles   = rawDocuments.filter((f) => f.status === 'success')
   const processingFiles = rawDocuments.filter(
@@ -88,10 +101,53 @@ export function UploadPhase() {
             </div>
 
             <div className="px-6 py-5 space-y-5">
+              <div className="space-y-2">
+                <label
+                  htmlFor="course-topic"
+                  className="block text-xs font-bold uppercase tracking-widest text-slate-500"
+                >
+                  Course topic <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="course-topic"
+                  type="text"
+                  value={courseTopic}
+                  onChange={(e) => setCourseTopic(e.target.value)}
+                  disabled={topicLocked}
+                  placeholder="e.g. Enhanced Flood Insurance"
+                  className={cn(
+                    'w-full rounded-xl border px-4 py-2.5 text-sm text-slate-800 outline-none transition-shadow',
+                    'placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300',
+                    topicLocked && 'bg-slate-50 text-slate-500 cursor-not-allowed',
+                    topicError ? 'border-red-300' : 'border-slate-200',
+                  )}
+                />
+                <p className="text-xs text-slate-500">
+                  {topicLocked && uploadFolder ? (
+                    <>
+                      Files are stored in Azure under{' '}
+                      <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-indigo-700">
+                        uploads/{uploadFolder}/
+                      </code>
+                    </>
+                  ) : (
+                    'This name creates your folder in blob storage (uploads/your_topic/). Required before upload.'
+                  )}
+                </p>
+                {topicError && (
+                  <p className="text-xs text-red-600 font-medium">{topicError}</p>
+                )}
+              </div>
+
               <UploadZone
                 onFiles={enqueueFiles}
                 multiple
-                label="Drop DOCX files here"
+                disabled={!isTopicValid}
+                label={
+                  isTopicValid
+                    ? 'Drop DOCX files here'
+                    : 'Enter course topic first'
+                }
                 sublabel="or click to browse your computer"
               />
 

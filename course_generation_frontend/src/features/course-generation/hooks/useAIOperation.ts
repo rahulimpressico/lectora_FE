@@ -15,13 +15,15 @@ export function useAIOperation(jobId: string) {
       sectionId,
       operation,
       content,
+      userPrompt,
     }: {
       sectionId: string
       operation: AIOperationType
       content: string
+      userPrompt?: string
     }) => {
       setAIProcessing(sectionId, operation)
-      return courseApi.performAIOperation({ jobId, sectionId, operation, content })
+      return courseApi.performAIOperation({ jobId, sectionId, operation, content, userPrompt })
     },
 
     onSuccess: (result) => {

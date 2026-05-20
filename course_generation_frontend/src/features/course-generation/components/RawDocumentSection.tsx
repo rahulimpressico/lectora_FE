@@ -9,7 +9,7 @@ import { useCourseStore } from '../store/courseStore'
 
 export function RawDocumentSection() {
   const { rawDocuments, removeRawDocument, openPreview } = useCourseStore()
-  const { enqueueFiles } = useFileUpload('raw')
+  const { enqueueFiles, isTopicValid } = useFileUpload('raw')
 
   const successCount = rawDocuments.filter((f) => f.status === 'success').length
 
@@ -26,9 +26,15 @@ export function RawDocumentSection() {
       }
     >
       <div className="space-y-3">
+        {!isTopicValid && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Set a course topic on the upload step first (required for Azure folder).
+          </p>
+        )}
         <UploadZone
           onFiles={enqueueFiles}
           multiple
+          disabled={!isTopicValid}
           label="Drag & drop study guide files"
           sublabel="or click to browse your computer"
         />

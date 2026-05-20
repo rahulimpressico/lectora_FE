@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Sparkles, LayoutDashboard, Settings, HelpCircle } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Database, FileUp, Settings, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const navItems = [
-  { to: '/',         label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/generate', label: 'Generate',  icon: Sparkles        },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/generate', label: 'Generate', icon: Sparkles },
+  { to: '/assert_library', label: 'Assets', icon: Database },
+  { to: '/documents_library', label: 'Documents', icon: FileUp },
 ]
 
 const bottomItems = [

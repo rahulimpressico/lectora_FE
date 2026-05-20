@@ -1,8 +1,11 @@
 // ─── Course content structure returned by GET /jobs/{jobId}/course ────────────
+export type SectionType = 'overview' | 'learning-objectives' | 'conclusion' | 'content'
+
 export interface CourseSection {
   id: string
   title: string
   level: 1 | 2 | 3
+  sectionType?: SectionType
   content: string
   learningObjectives: string[]
   wordCount: number
@@ -51,6 +54,7 @@ export interface AIOperationRequest {
   operation: AIOperationType
   content: string
   context?: string
+  userPrompt?: string
 }
 
 export interface AIOperationResponse {
