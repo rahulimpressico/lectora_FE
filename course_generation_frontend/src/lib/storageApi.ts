@@ -72,7 +72,8 @@ export async function fetchStorageFileBlob(
     storageFileApiPath(path, source),
     { responseType: 'blob' },
   )
-  const contentType = headers['content-type'] ?? ''
+  const rawType = headers['content-type']
+  const contentType = typeof rawType === 'string' ? rawType : ''
   if (contentType.includes('application/json') && data.size < 4096) {
     const text = await data.text()
     try {

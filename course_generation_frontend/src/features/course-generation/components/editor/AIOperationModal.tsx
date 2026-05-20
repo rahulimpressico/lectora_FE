@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Sparkles, PenLine, SmilePlus, Check, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import type { AIOperationType } from '../../types/editor'
 
 interface AIOperationModalProps {
   operation: 'rewrite' | 'improve_tone'
