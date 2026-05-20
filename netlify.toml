@@ -7,16 +7,15 @@
 [build.environment]
   NODE_VERSION = "22"
 
-# React Router — client-side routes (assets are served first when present)
+# React Router — client-side routes (static assets are served first when present)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# Uncomment and set your deployed FastAPI URL (no trailing slash).
-# Strips /api/ prefix, same as the Vite dev proxy.
-# [[redirects]]
-#   from = "/api/*"
-#   to = "https://YOUR-BACKEND.example.com/:splat"
-#   status = 200
-#   force = true
+# Proxy /api/* → Render backend (strips /api/ prefix, same as Vite dev proxy)
+[[redirects]]
+  from = "/api/*"
+  to = "https://lectora-be.onrender.com/:splat"
+  status = 200
+  force = true
