@@ -243,7 +243,7 @@ export async function exportCourseToDocx(content: CourseContent): Promise<void> 
   })
 
   const doc = new Document({
-    creator: 'Lectora Course Generation System',
+    creator: 'AI Course Generation System',
     title: content.courseTitle,
     description: `Generated course: ${content.courseTitle}`,
     sections: [{ children: allChildren }],

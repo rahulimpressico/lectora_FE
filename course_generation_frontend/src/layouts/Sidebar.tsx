@@ -23,10 +23,10 @@ export function Sidebar() {
         </div>
         <div className="min-w-0">
           <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-            Lectora AI
+            AI Course Builder
           </span>
           <p className="text-[10px] text-slate-400 mt-0.5 font-medium tracking-wide">
-            Course Engine
+            AI Generation Platform
           </p>
         </div>
       </div>

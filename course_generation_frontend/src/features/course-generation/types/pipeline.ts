@@ -31,6 +31,8 @@ export interface PipelineStageState {
   backendId: string
   status: PipelineStageStatus
   label: string
+  /** Compact label for the stage pill row (≤8 chars). */
+  shortLabel: string
   description: string
   isGate: boolean
   startedAt?: string

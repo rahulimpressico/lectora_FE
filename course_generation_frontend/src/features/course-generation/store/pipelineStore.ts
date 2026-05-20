@@ -73,6 +73,15 @@ function nextLogId() {
   return `log-${++_logSeq}-${Date.now()}`
 }
 
+// Tracks the highest backend log ID ingested so far.  Since the SSE stream
+// now sends deltas, this is a safety net for reconnections that re-deliver
+// already-seen log entries.
+let _maxSeenBackendLogId = 0
+
+function resetBackendLogCursor() {
+  _maxSeenBackendLogId = 0
+}
+
 function makeLog(entry: Omit<LogEntry, 'id' | 'timestamp'>): LogEntry {
   return {
     id: nextLogId(),
@@ -96,7 +105,8 @@ export const usePipelineStore = create<PipelineStoreState>()(
       logs: [],
       fatalError: null,
 
-      initPipeline: (jobId) =>
+      initPipeline: (jobId) => {
+        resetBackendLogCursor()
         set({
           pipeline: {
             jobId,
@@ -107,10 +117,11 @@ export const usePipelineStore = create<PipelineStoreState>()(
           logs: [
             makeLog({
               level: 'info',
-              message: 'Job queued — connecting to live pipeline stream…',
+              message: 'Connecting to generation pipeline…',
             }),
           ],
-        }),
+        })
+      },
 
       /**
        * syncFromSSEEvent — merges a backend SSE stage_update event into the store.
@@ -131,8 +142,13 @@ export const usePipelineStore = create<PipelineStoreState>()(
           const backendMap = new Map(event.stages.map((s) => [s.stage, s]))
           const newLogs: LogEntry[] = []
 
-          // ── Append real backend log entries ─────────────────────────────
+          // ── Append backend log entries (deduplicate by ID) ─────────────
+          // The SSE stream sends deltas, but on reconnect it may re-deliver
+          // previously seen entries.  Only accept logs with an ID higher than
+          // the last one we already ingested.
           for (const backendLog of event.logs) {
+            if (backendLog.id <= _maxSeenBackendLogId) continue
+            _maxSeenBackendLogId = backendLog.id
             newLogs.push({
               id: `be-${backendLog.id}`,
               timestamp: backendLog.createdAt,
@@ -152,22 +168,26 @@ export const usePipelineStore = create<PipelineStoreState>()(
 
               const newStatus = mapStageStatus(be.status, be.outcome)
 
-              // Generate frontend fallback log only when no backend logs arrived
-              if (stage.status !== newStatus && event.logs.length === 0) {
+              // Generate a concise frontend fallback log only when the backend
+              // sent no log entries for this status transition.
+              const hasBackendLogs = event.logs.length > 0
+              if (stage.status !== newStatus && !hasBackendLogs) {
                 if (newStatus === 'processing') {
                   newLogs.push(
                     makeLog({
                       level: 'info',
-                      message: `[${stage.label}] Processing started`,
+                      message: `${stage.label} started`,
                       stageId: stage.id,
                     }),
                   )
                 } else if (newStatus === 'completed') {
                   const dur = calcDurationMs(be.startedAt, be.completedAt)
+                  const suffix = dur ? ` — ${(dur / 1_000).toFixed(0)}s` : ''
+                  const warning = be.outcome === 'WARNING' ? ' (with warnings)' : ''
                   newLogs.push(
                     makeLog({
                       level: 'success',
-                      message: `[${stage.label}] Completed${dur ? ` in ${(dur / 1_000).toFixed(1)}s` : ''}${be.outcome === 'WARNING' ? ' (with warnings)' : ''}`,
+                      message: `${stage.label} complete${suffix}${warning}`,
                       stageId: stage.id,
                     }),
                   )
@@ -175,7 +195,7 @@ export const usePipelineStore = create<PipelineStoreState>()(
                   newLogs.push(
                     makeLog({
                       level: 'error',
-                      message: `[${stage.label}] Failed`,
+                      message: `${stage.label} failed`,
                       stageId: stage.id,
                     }),
                   )
@@ -183,7 +203,7 @@ export const usePipelineStore = create<PipelineStoreState>()(
                   newLogs.push(
                     makeLog({
                       level: 'warn',
-                      message: `[${stage.label}] Validation issue — retrying…`,
+                      message: `${stage.label} — improving and retrying…`,
                       stageId: stage.id,
                     }),
                   )
@@ -273,7 +293,10 @@ export const usePipelineStore = create<PipelineStoreState>()(
 
       setFatalError: (message) => set({ fatalError: message }),
 
-      clearPipeline: () => set({ pipeline: null, logs: [], fatalError: null }),
+      clearPipeline: () => {
+        resetBackendLogCursor()
+        set({ pipeline: null, logs: [], fatalError: null })
+      },
     }),
     { name: 'pipeline-store' },
   ),
