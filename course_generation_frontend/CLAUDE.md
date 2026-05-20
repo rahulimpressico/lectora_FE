@@ -11,6 +11,17 @@ npm run lint       # ESLint
 npm run preview    # serve production build locally
 ```
 
+### Docker
+
+```bash
+cp .env.example .env   # optional: FE_PORT, BACKEND_HOST
+docker compose up --build -d
+# App: http://localhost:8080  (proxies /api → BACKEND_HOST)
+```
+
+Backend must be running separately (e.g. `uvicorn lectora_backend.main:app` on port 8000).
+Set `BACKEND_HOST=host.docker.internal:8000` when the API runs on the host.
+
 There is no test suite yet.
 
 ## Architecture

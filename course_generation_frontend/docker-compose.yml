@@ -1,0 +1,13 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${FE_PORT:-8080}:80"
+    environment:
+      # FastAPI backend (host machine or another container)
+      BACKEND_HOST: ${BACKEND_HOST:-host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
