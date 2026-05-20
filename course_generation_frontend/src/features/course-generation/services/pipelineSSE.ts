@@ -9,13 +9,14 @@
  *   - Graceful disconnect with timer cleanup
  *   - Per-event handler for stage updates, plus done/error callbacks
  */
+import { API_BASE_URL } from '@/config/api'
 import type { SSEPipelineEvent } from '../types'
 
 export type SSEEventHandler = (event: SSEPipelineEvent) => void
 export type SSEDoneHandler = () => void
 export type SSEErrorHandler = (reason: string) => void
 
-const SSE_BASE = '/api/jobs'
+const SSE_BASE = `${API_BASE_URL}/jobs`
 const MAX_RETRIES = 8
 const BASE_RETRY_MS = 1_500
 const MAX_RETRY_MS = 30_000

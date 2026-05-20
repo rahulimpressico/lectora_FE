@@ -6,16 +6,10 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  VITE_API_BASE_URL = "https://lectora-be.onrender.com"
 
 # React Router — client-side routes (static assets are served first when present)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# Proxy /api/* → Render backend (strips /api/ prefix, same as Vite dev proxy)
-[[redirects]]
-  from = "/api/*"
-  to = "https://lectora-be.onrender.com/:splat"
-  status = 200
-  force = true

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '@/config/api'
 import axiosInstance from '@/services/axiosInstance'
 
 export type StorageSource = 'artifacts' | 'uploads'
@@ -37,7 +38,7 @@ export interface BrowseResponse {
   source: 'azure' | 'local'
 }
 
-/** Path for axios (baseURL is already `/api`). */
+/** Path relative to API base (e.g. `/storage/file?...`). */
 export function storageFileApiPath(path: string, source: StorageSource): string {
   const params = new URLSearchParams({ path, source })
   return `/storage/file?${params.toString()}`
@@ -45,7 +46,7 @@ export function storageFileApiPath(path: string, source: StorageSource): string 
 
 /** Full URL for <img src> / <a href> (browser, not axios). */
 export function storageFileUrl(path: string, source: StorageSource): string {
-  return `/api${storageFileApiPath(path, source)}`
+  return `${API_BASE_URL}${storageFileApiPath(path, source)}`
 }
 
 export async function browseStorage(
