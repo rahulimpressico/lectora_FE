@@ -2,6 +2,21 @@ import axiosInstance from '@/services/axiosInstance'
 
 export type StorageSource = 'artifacts' | 'uploads'
 
+/** Optional virtual prefix stripped from browse paths (container is uploaded-documents). */
+export const UPLOAD_BLOB_ROOTS = ['uploaded-documents'] as const
+
+/** Strip blob root so API prefix is relative (e.g. ``Flood_Insurance/``). */
+export function toRelativeUploadPrefix(fullPath: string): string {
+  const normalized = fullPath.endsWith('/') ? fullPath : fullPath ? `${fullPath}/` : ''
+  for (const root of UPLOAD_BLOB_ROOTS) {
+    if (normalized === `${root}/`) return ''
+    if (normalized.startsWith(`${root}/`)) {
+      return normalized.slice(root.length + 1)
+    }
+  }
+  return normalized
+}
+
 export interface StorageEntry {
   name: string
   path: string
@@ -39,7 +54,9 @@ export async function browseStorage(
   signal?: AbortSignal,
 ): Promise<BrowseResponse> {
   const url =
-    source === 'uploads' ? '/storage/uploads/browse' : '/storage/browse'
+    source === 'uploads'
+      ? '/storage/uploaded-documents/browse'
+      : '/storage/browse'
   const { data } = await axiosInstance.get<BrowseResponse>(url, {
     params: { prefix },
     signal,
@@ -66,6 +83,29 @@ export async function fetchStorageFileBlob(
       throw new Error(text || 'Failed to load file')
     }
   }
+  return data
+}
+
+export interface DeleteStorageFileResult {
+  path: string
+  ok: boolean
+  error?: string | null
+}
+
+export interface DeleteStorageFilesResponse {
+  results: DeleteStorageFileResult[]
+  deletedCount: number
+}
+
+export async function deleteStorageFiles(
+  paths: string[],
+  folderPaths: string[],
+  source: StorageSource,
+): Promise<DeleteStorageFilesResponse> {
+  const { data } = await axiosInstance.post<DeleteStorageFilesResponse>(
+    '/storage/delete',
+    { paths, folderPaths, source },
+  )
   return data
 }
 

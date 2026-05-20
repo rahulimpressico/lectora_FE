@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ElementType } from 'react'
 import {
   Folder,
@@ -16,6 +16,7 @@ import {
   HardDrive,
   Files,
   CloudOff,
+  Trash2,
   X,
   Cloud,
   MonitorSpeaker,
@@ -24,12 +25,14 @@ import {
 import { cn } from '@/lib/cn'
 import {
   browseStorage,
+  deleteStorageFiles,
   storageFileUrl,
-  type BrowseResponse,
+  toRelativeUploadPrefix,
   type StorageEntry,
   type StorageSource,
 } from '@/lib/storageApi'
 import { FilePreviewDialog } from './FilePreviewDialog'
+import { StorageDeleteConfirmDialog } from './StorageDeleteConfirmDialog'
 
 function formatBytes(bytes?: number): string {
   if (!bytes) return '—'
@@ -84,6 +87,10 @@ function isImageEntry(entry: StorageEntry): boolean {
   return IMAGE_EXTENSIONS.has(ext)
 }
 
+/** iOS-style toolbar text control (no border/background). */
+const iosToolbarBtn =
+  'text-sm font-medium text-[#007AFF] hover:opacity-80 active:opacity-60 px-0.5 py-0 bg-transparent border-0 shadow-none rounded-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+
 function buildBreadcrumbs(prefix: string) {
   if (!prefix) return []
   const parts = prefix.replace(/\/$/, '').split('/').filter(Boolean)
@@ -97,18 +104,38 @@ function FolderCard({
   entry,
   onClick,
   animDelay,
+  selectionMode,
+  selected,
+  onToggleSelect,
 }: {
   entry: StorageEntry
   onClick: () => void
   animDelay: number
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group w-full text-left rounded-2xl border border-slate-200/80 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200/80 hover:shadow-[0_6px_24px_0_rgb(99,102,241,0.1)] card-accent overflow-hidden relative scale-in"
+    <div
+      className={cn(
+        'relative rounded-2xl border border-slate-200/80 bg-white scale-in overflow-hidden transition-all',
+        selected && 'ring-2 ring-indigo-500 border-indigo-300',
+      )}
       style={{ animationDelay: `${animDelay}ms` }}
     >
+      {selectionMode && onToggleSelect && (
+        <div className="absolute top-3 left-3 z-10 rounded-md bg-white/90 p-1 shadow-sm ring-1 ring-slate-200/80">
+          <FileSelectCheckbox checked={!!selected} onChange={() => onToggleSelect()} />
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'group w-full text-left p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200/80 hover:shadow-[0_6px_24px_0_rgb(99,102,241,0.1)] card-accent',
+          selectionMode && 'pl-10',
+        )}
+      >
       <div className="relative flex items-start gap-4">
         <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50/80 border border-indigo-100">
           <Folder size={20} className="text-indigo-500 group-hover:opacity-0 absolute" />
@@ -132,7 +159,32 @@ function FolderCard({
         </div>
         <ChevronRight size={12} className="text-slate-400 shrink-0 mt-1" />
       </div>
-    </button>
+      </button>
+    </div>
+  )
+}
+
+function FileSelectCheckbox({
+  checked,
+  onChange,
+  className,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  className?: string
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        'h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer',
+        className,
+      )}
+      aria-label={checked ? 'Deselect file' : 'Select file'}
+    />
   )
 }
 
@@ -140,10 +192,16 @@ function ImageFileCard({
   entry,
   source,
   animDelay,
+  selectionMode,
+  selected,
+  onToggleSelect,
 }: {
   entry: StorageEntry
   source: StorageSource
   animDelay: number
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   const [loaded, setLoaded] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -159,9 +217,17 @@ function ImageFileCard({
 
   return (
     <figure
-      className="rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-[0_1px_4px_0_rgb(0,0,0,0.05)] scale-in"
+      className={cn(
+        'rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-[0_1px_4px_0_rgb(0,0,0,0.05)] scale-in relative',
+        selected && 'ring-2 ring-indigo-500 border-indigo-300',
+      )}
       style={{ animationDelay: `${animDelay}ms` }}
     >
+      {selectionMode && onToggleSelect && (
+        <div className="absolute top-2 left-2 z-10 rounded-md bg-white/90 p-1 shadow-sm ring-1 ring-slate-200/80">
+          <FileSelectCheckbox checked={!!selected} onChange={() => onToggleSelect()} />
+        </div>
+      )}
       <div className="relative flex items-center justify-center h-[180px] bg-slate-50 overflow-hidden">
         {showSkeleton && (
           <div className="absolute inset-0 flex flex-col gap-2 p-3" aria-hidden>
@@ -205,20 +271,41 @@ function FileCard({
   entry,
   animDelay,
   onOpen,
+  selectionMode,
+  selected,
+  onToggleSelect,
 }: {
   entry: StorageEntry
   animDelay: number
   onOpen: () => void
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   const { Icon, color, bg, badge, label } = getFileType(entry.extension)
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="group w-full text-left rounded-2xl border border-slate-200/80 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200/80 hover:shadow-[0_4px_18px_0_rgb(0,0,0,0.06)] overflow-hidden relative scale-in cursor-pointer"
+    <div
+      className={cn(
+        'relative rounded-2xl border border-slate-200/80 bg-white scale-in overflow-hidden transition-all duration-200',
+        selected && 'ring-2 ring-indigo-500 border-indigo-300',
+        'hover:border-indigo-200/80 hover:shadow-[0_4px_18px_0_rgb(0,0,0,0.06)]',
+      )}
       style={{ animationDelay: `${animDelay}ms` }}
     >
+      {selectionMode && onToggleSelect && (
+        <div className="absolute top-3 left-3 z-10">
+          <FileSelectCheckbox checked={!!selected} onChange={() => onToggleSelect()} />
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn(
+          'group w-full text-left p-5 cursor-pointer',
+          selectionMode && 'pl-10',
+        )}
+      >
       <div className="relative flex items-start gap-4">
         <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border', bg)}>
           <Icon size={20} className={color} />
@@ -240,7 +327,8 @@ function FileCard({
           </p>
         </div>
       </div>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -252,6 +340,8 @@ export interface StorageExplorerProps {
   emptyHint: string
   /** When set, only files with these extensions are shown (e.g. ['.docx']). */
   fileExtensions?: string[]
+  /** Show checkboxes and bulk delete (with confirm dialog). */
+  allowDelete?: boolean
 }
 
 export function StorageExplorer({
@@ -261,10 +351,16 @@ export function StorageExplorer({
   source,
   emptyHint,
   fileExtensions,
+  allowDelete = true,
 }: StorageExplorerProps) {
+  const queryClient = useQueryClient()
   const [prefix, setPrefix] = useState('')
   const [search, setSearch] = useState('')
   const [previewEntry, setPreviewEntry] = useState<StorageEntry | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -289,6 +385,47 @@ export function StorageExplorer({
     : null
   const showLoading = isLoading || (isFetching && !data)
 
+  const deleteMutation = useMutation({
+    mutationFn: (payload: { files: string[]; folders: string[] }) =>
+      deleteStorageFiles(payload.files, payload.folders, source),
+    onSuccess: (res) => {
+      setConfirmDeleteOpen(false)
+      setSelectionMode(false)
+      setSelectedPaths(new Set())
+      void queryClient.invalidateQueries({ queryKey: ['storage-browse', source] })
+      void refetch()
+      const failed = res.results.filter((r) => !r.ok)
+      if (failed.length > 0) {
+        setDeleteFeedback(`${failed.length} file(s) could not be deleted.`)
+      } else {
+        setDeleteFeedback(null)
+      }
+    },
+    onError: (err) => {
+      setDeleteFeedback(err instanceof Error ? err.message : 'Delete failed')
+    },
+  })
+
+  useEffect(() => {
+    setSelectionMode(false)
+    setSelectedPaths(new Set())
+    setDeleteFeedback(null)
+  }, [prefix, source])
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false)
+    setSelectedPaths(new Set())
+  }, [])
+
+  const toggleSelect = useCallback((path: string) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }, [])
+
   const breadcrumbs = buildBreadcrumbs(prefix)
   const allEntries = data?.entries ?? []
   const extSet = fileExtensions?.map((e) => e.toLowerCase())
@@ -306,6 +443,40 @@ export function StorageExplorer({
   const files = filtered.filter((e) => e.entryType === 'file')
   const imageFiles = files.filter(isImageEntry)
   const otherFiles = files.filter((e) => !isImageEntry(e))
+  const allVisibleFiles = useMemo(
+    () => [...imageFiles, ...otherFiles],
+    [imageFiles, otherFiles],
+  )
+  const hasSelectableItems = folders.length > 0 || allVisibleFiles.length > 0
+  const selectedCount = selectedPaths.size
+
+  const handleConfirmDelete = () => {
+    const filePaths = allVisibleFiles
+      .filter((f) => selectedPaths.has(f.path))
+      .map((f) => f.path)
+    const folderPaths = folders
+      .filter((f) => selectedPaths.has(f.path))
+      .map((f) => f.path)
+    if (filePaths.length === 0 && folderPaths.length === 0) return
+    deleteMutation.mutate({ files: filePaths, folders: folderPaths })
+  }
+
+  const selectedFileNames = useMemo(
+    () =>
+      allVisibleFiles
+        .filter((f) => selectedPaths.has(f.path))
+        .map((f) => f.name),
+    [allVisibleFiles, selectedPaths],
+  )
+
+  const selectedFolderNames = useMemo(
+    () =>
+      folders
+        .filter((f) => selectedPaths.has(f.path))
+        .map((f) => f.name),
+    [folders, selectedPaths],
+  )
+
   const hasBoth = folders.length > 0 && files.length > 0
   const isEmpty =
     !showLoading && !error && data !== null && folders.length === 0 && files.length === 0
@@ -316,6 +487,14 @@ export function StorageExplorer({
         entry={previewEntry}
         source={source}
         onClose={() => setPreviewEntry(null)}
+      />
+      <StorageDeleteConfirmDialog
+        open={confirmDeleteOpen}
+        fileNames={selectedFileNames}
+        folderNames={selectedFolderNames}
+        loading={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
 
       <div className="border-b border-slate-200/80 bg-white px-8 py-7 shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
@@ -416,27 +595,76 @@ export function StorageExplorer({
               </span>
             ))}
           </nav>
-          <div className="relative shrink-0">
-            <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search…"
-              className="w-44 text-xs bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-7 py-1.5 outline-none focus:ring-2 focus:ring-indigo-200"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
-              >
-                <X size={11} />
-              </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="relative">
+              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-44 text-xs bg-slate-50 border border-slate-200 rounded-lg pl-7 pr-7 py-1.5 outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+            {allowDelete && hasSelectableItems && !showLoading && (
+              <div className="flex items-center gap-3 border-l border-slate-200 pl-3">
+                {!selectionMode ? (
+                  <button
+                    type="button"
+                    className={iosToolbarBtn}
+                    onClick={() => setSelectionMode(true)}
+                  >
+                    Select
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className={iosToolbarBtn}
+                      onClick={exitSelectionMode}
+                    >
+                      Cancel
+                    </button>
+                    {selectedCount > 0 && (
+                      <>
+                        <span className="text-xs text-slate-400 tabular-nums">
+                          {selectedCount}
+                        </span>
+                        <button
+                          type="button"
+                          className={cn(
+                            iosToolbarBtn,
+                            'text-red-600 inline-flex items-center gap-1',
+                          )}
+                          onClick={() => setConfirmDeleteOpen(true)}
+                        >
+                          <Trash2 size={13} />
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
+
+        {deleteFeedback && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+            {deleteFeedback}
+          </div>
+        )}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-center gap-3">
@@ -472,9 +700,20 @@ export function StorageExplorer({
                   key={entry.path}
                   entry={entry}
                   animDelay={i * 30}
+                  selectionMode={selectionMode && allowDelete}
+                  selected={selectedPaths.has(entry.path)}
+                  onToggleSelect={() => toggleSelect(entry.path)}
                   onClick={() => {
+                    if (selectionMode && allowDelete) {
+                      toggleSelect(entry.path)
+                      return
+                    }
                     setSearch('')
-                    setPrefix(entry.path)
+                    setPrefix(
+                      source === 'uploads'
+                        ? toRelativeUploadPrefix(entry.path)
+                        : entry.path,
+                    )
                   }}
                 />
               ))}
@@ -494,6 +733,9 @@ export function StorageExplorer({
                   entry={entry}
                   source={source}
                   animDelay={(folders.length + i) * 30}
+                  selectionMode={selectionMode && allowDelete}
+                  selected={selectedPaths.has(entry.path)}
+                  onToggleSelect={() => toggleSelect(entry.path)}
                 />
               ))}
             </div>
@@ -512,6 +754,9 @@ export function StorageExplorer({
                   entry={entry}
                   animDelay={(folders.length + imageFiles.length + i) * 30}
                   onOpen={() => setPreviewEntry(entry)}
+                  selectionMode={selectionMode && allowDelete}
+                  selected={selectedPaths.has(entry.path)}
+                  onToggleSelect={() => toggleSelect(entry.path)}
                 />
               ))}
             </div>

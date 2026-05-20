@@ -36,7 +36,7 @@ interface CourseState {
   /** Blob path of the LLM-generated TO from the generate-to preview step.
    *  Passed as timedOutline.blobPath in POST /jobs so the pipeline reuses it. */
   generatedToBlobPath: string | null
-  /** User-provided course topic — becomes uploads/{folder}/ in Azure Blob. */
+  /** User-provided course topic — becomes uploaded-documents/{folder}/ in Azure Blob. */
   courseTopic: string
   /** Sanitized folder name returned by the server after first upload. */
   uploadFolder: string | null

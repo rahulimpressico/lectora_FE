@@ -127,11 +127,11 @@ export function UploadPhase() {
                     <>
                       Files are stored in Azure under{' '}
                       <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-indigo-700">
-                        uploads/{uploadFolder}/
+                        uploaded-documents/{uploadFolder}/
                       </code>
                     </>
                   ) : (
-                    'This name creates your folder in blob storage (uploads/your_topic/). Required before upload.'
+                    'This name creates your folder in blob storage (uploaded-documents/your_topic/). Required before upload.'
                   )}
                 </p>
                 {topicError && (

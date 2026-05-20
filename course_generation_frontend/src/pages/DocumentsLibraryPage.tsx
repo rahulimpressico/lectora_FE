@@ -5,11 +5,10 @@ export function DocumentsLibraryPage() {
   return (
     <StorageExplorer
       title="Uploaded Documents"
-      subtitle="Source documents from Azure Blob (regedlectoraaistorage / uploads/) — open any file in preview"
+      subtitle="Source documents in Azure Blob container uploaded-documents"
       headerIcon={FileUp}
       source="uploads"
-      fileExtensions={['.docx', '.doc', '.pdf']}
-      emptyHint="No DOCX/PDF under Azure uploads/ yet. Open a job folder (e.g. uploads/{jobId}/) to see study guides."
+      emptyHint="No items in uploaded-documents container yet. Upload from Generate with a course topic, or open a folder below."
     />
   )
 }
