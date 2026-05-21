@@ -31,10 +31,12 @@ There is no test suite yet.
 
 ### Routing & Layout
 
-`src/router/index.tsx` defines two routes under `AppLayout` (sidebar + topbar shell):
+`src/router/index.tsx` defines routes under `AppLayout` (sidebar + topbar shell):
 
 - `/` → `DashboardPage` (placeholder)
 - `/generate` → `CourseGenerationPage`
+- `/assert_library` → `AssetLibraryPage`
+- `/documents_library` → `DocumentsLibraryPage`
 
 ### Feature: course-generation
 
@@ -66,7 +68,7 @@ Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are 
 
 ### API layer
 
-`src/services/axiosInstance.ts` — single Axios instance with `baseURL: '/api'` and 120 s timeout. The Vite dev server proxies `/api` → `http://localhost:8000`. The proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (required for SSE streams); all other `/api` routes use 120 s. Both rules must exist — changing the order or merging them breaks SSE.
+`src/services/axiosInstance.ts` — single Axios instance with 120 s timeout. `baseURL` comes from `src/config/api.ts` (`API_BASE_URL`): in dev it resolves to `/api` (Vite proxy → `http://localhost:8000`); in production it defaults to the Render backend URL, overridable via `VITE_API_BASE_URL`. The Vite proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (required for SSE streams); all other `/api` routes use 120 s. Both rules must exist — changing the order or merging them breaks SSE.
 
 `src/features/course-generation/api/courseApi.ts` — typed wrappers for all backend endpoints.
 

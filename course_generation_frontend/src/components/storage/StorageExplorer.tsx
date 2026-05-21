@@ -521,7 +521,15 @@ export function StorageExplorer({
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  {subtitle}
+                  {data?.containerName ? (
+                    <span className="block text-xs text-slate-400 mt-0.5">
+                      Container: {data.containerName}
+                      {data.source === 'azure' ? ' (Azure)' : ' (local)'}
+                    </span>
+                  ) : null}
+                </p>
               </div>
             </div>
             <button

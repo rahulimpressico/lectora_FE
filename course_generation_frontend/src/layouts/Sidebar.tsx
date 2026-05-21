@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Sparkles, LayoutDashboard, Database, FileUp, Settings, HelpCircle } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Database, FileUp, Settings, HelpCircle, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/generate', label: 'Generate', icon: Sparkles },
-  { to: '/assert_library', label: 'Assets', icon: Database },
+  { to: '/assert_library', label: 'Asset Library', icon: Database },
   { to: '/documents_library', label: 'Documents', icon: FileUp },
 ]
 
@@ -14,7 +14,12 @@ const bottomItems = [
   { to: '/help',     label: 'Help',     icon: HelpCircle },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+function SidebarContent({ onClose }: { onClose?: () => void }) {
   return (
     <aside className="flex h-full w-56 flex-col border-r border-slate-200/80 bg-white shrink-0 shadow-[1px_0_0_0_rgba(0,0,0,0.03)]">
 
@@ -23,7 +28,7 @@ export function Sidebar() {
         <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_10px_0_rgb(99,102,241,0.45)] shrink-0">
           <Sparkles size={14} className="text-white" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
             AI Course Builder
           </span>
@@ -31,6 +36,16 @@ export function Sidebar() {
             AI Generation Platform
           </p>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex lg:hidden h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 shrink-0"
+            aria-label="Close menu"
+          >
+            <X size={15} />
+          </button>
+        )}
       </div>
 
       {/* Primary navigation */}
@@ -43,6 +58,7 @@ export function Sidebar() {
             key={to}
             to={to}
             end={to === '/'}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
@@ -71,6 +87,7 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
@@ -106,5 +123,32 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  )
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  return (
+    <>
+      {/* Desktop sidebar — always visible on lg+ */}
+      <div className="hidden lg:flex h-full">
+        <SidebarContent />
+      </div>
+
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={onClose}
+            aria-hidden
+          />
+          {/* Drawer */}
+          <div className="relative z-10 flex h-full">
+            <SidebarContent onClose={onClose} />
+          </div>
+        </div>
+      )}
+    </>
   )
 }

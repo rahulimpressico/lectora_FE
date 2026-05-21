@@ -5,10 +5,10 @@ export function DocumentsLibraryPage() {
   return (
     <StorageExplorer
       title="Uploaded Documents"
-      subtitle="Source documents in Azure Blob container uploaded-documents"
+      subtitle="DOCX/PDF in uploaded-documents, or regedlectoraaistorage when the upload container is empty"
       headerIcon={FileUp}
       source="uploads"
-      emptyHint="No items in uploaded-documents container yet. Upload from Generate with a course topic, or open a folder below."
+      emptyHint="Open a course folder to select files. If uploaded-documents is empty, files from regedlectoraaistorage are listed automatically."
     />
   )
 }

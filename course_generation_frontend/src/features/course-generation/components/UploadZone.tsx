@@ -9,15 +9,21 @@ interface UploadZoneProps {
   sublabel?: string
   disabled?: boolean
   className?: string
+  accept?: string
+  compact?: boolean
+  onClickOverride?: () => void
 }
 
 export function UploadZone({
   onFiles,
   multiple = true,
-  label = 'Drop DOCX files here',
+  label = 'Drop files here',
   sublabel = 'or click to browse',
   disabled = false,
   className,
+  accept = '.docx,.pdf',
+  compact = false,
+  onClickOverride,
 }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -41,7 +47,12 @@ export function UploadZone({
   const handleDragLeave = useCallback(() => setIsDragging(false), [])
 
   const handleClick = () => {
-    if (!disabled) inputRef.current?.click()
+    if (disabled) return
+    if (onClickOverride) {
+      onClickOverride()
+    } else {
+      inputRef.current?.click()
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,6 +62,10 @@ export function UploadZone({
       e.target.value = ''
     }
   }
+
+  const iconSize = compact ? 'h-8 w-8' : 'h-10 w-10'
+  const iconInnerSize = compact ? 16 : 18
+  const vertPadding = compact ? 'py-5' : 'py-9'
 
   return (
     <div
@@ -63,10 +78,11 @@ export function UploadZone({
       onClick={handleClick}
       onKeyDown={(e) => e.key === 'Enter' && handleClick()}
       className={cn(
-        'relative flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed px-8 py-10 text-center transition-all duration-200 cursor-pointer',
+        'relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 text-center transition-all duration-200 cursor-pointer group',
+        vertPadding,
         isDragging
           ? 'border-indigo-400 bg-gradient-to-br from-indigo-50/80 to-violet-50/60 scale-[1.01]'
-          : 'border-slate-200 bg-slate-50/50 hover:border-indigo-300/70 hover:bg-slate-50',
+          : 'border-slate-200 bg-slate-50/40 hover:border-indigo-200/80 hover:bg-gradient-to-br hover:from-indigo-50/40 hover:to-violet-50/30',
         disabled && 'pointer-events-none opacity-50',
         className,
       )}
@@ -74,37 +90,41 @@ export function UploadZone({
       {/* Icon */}
       <div
         className={cn(
-          'flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-200',
+          'flex items-center justify-center rounded-xl transition-all duration-200',
+          iconSize,
           isDragging
             ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[0_4px_16px_0_rgb(99,102,241,0.4)] scale-110'
-            : 'bg-white text-slate-400 shadow-[0_2px_8px_0_rgb(0,0,0,0.08)] ring-1 ring-slate-200/80',
+            : 'bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 group-hover:ring-indigo-200 group-hover:text-indigo-400',
         )}
       >
-        <UploadCloud size={20} />
+        <UploadCloud size={iconInnerSize} />
       </div>
 
       {/* Text */}
-      <div className="space-y-1">
-        <p className={cn(
-          'text-sm font-semibold transition-colors duration-150',
-          isDragging ? 'text-indigo-700' : 'text-slate-700',
-        )}>
+      <div className={cn('space-y-0.5', compact ? '' : 'mt-0.5')}>
+        <p
+          className={cn(
+            'font-semibold transition-colors duration-150',
+            compact ? 'text-[12px]' : 'text-[13px]',
+            isDragging ? 'text-indigo-700' : 'text-slate-600 group-hover:text-slate-700',
+          )}
+        >
           {isDragging ? 'Release to upload' : label}
         </p>
-        <p className="text-xs text-slate-400">
-          {sublabel} &middot; <span className="font-semibold text-slate-500">.docx</span> only
+        <p className={cn('text-slate-400', compact ? 'text-[11px]' : 'text-[12px]')}>
+          {sublabel}
         </p>
       </div>
 
-      {/* Drag-active overlay ring */}
+      {/* Drag-active ring */}
       {isDragging && (
-        <div className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-indigo-400/50" />
+        <div className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-indigo-400/50" />
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept=".docx"
+        accept={accept}
         multiple={multiple}
         onChange={handleChange}
         className="sr-only"

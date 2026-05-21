@@ -1,25 +1,41 @@
 import { useLocation } from 'react-router-dom'
-import { ChevronRight, Bell, Search } from 'lucide-react'
+import { ChevronRight, Bell, Search, Menu } from 'lucide-react'
 
 const ROUTE_LABELS: Record<string, string> = {
-  '/':         'Dashboard',
-  '/generate': 'Course Generation',
-  '/settings': 'Settings',
-  '/help':     'Help',
+  '/':                    'Dashboard',
+  '/generate':            'Course Generation',
+  '/assert_library':      'Asset Library',
+  '/documents_library':   'Documents Library',
+  '/settings':            'Settings',
+  '/help':                'Help',
 }
 
-export function TopBar() {
+interface TopBarProps {
+  onMenuClick?: () => void
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
   const { pathname } = useLocation()
   const label = ROUTE_LABELS[pathname] ?? 'Page'
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-6 shrink-0 shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
+    <header className="flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 sm:px-6 shrink-0 shadow-[0_1px_0_0_rgba(0,0,0,0.04)]">
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium text-slate-400">AI Course Builder</span>
-        <ChevronRight size={13} className="text-slate-300" />
-        <span className="font-semibold text-slate-800">{label}</span>
+      {/* Left: hamburger (mobile) + breadcrumb */}
+      <div className="flex items-center gap-2 sm:gap-3 text-sm min-w-0">
+        {onMenuClick && (
+          <button
+            type="button"
+            onClick={onMenuClick}
+            className="flex lg:hidden h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu size={18} />
+          </button>
+        )}
+        <span className="hidden sm:inline font-medium text-slate-400">AI Course Builder</span>
+        <ChevronRight size={13} className="hidden sm:inline text-slate-300" />
+        <span className="font-semibold text-slate-800 truncate">{label}</span>
       </div>
 
       {/* Right controls */}

@@ -16,16 +16,19 @@ export type * from './editor'
 
 // ─── File upload ───────────────────────────────────────────────────────────────
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'
+export type UploadedFileType = 'docx' | 'pdf'
 
 export interface UploadedFile {
   id: string
-  file: File
+  file?: File
   name: string
   sizeBytes: number
   status: UploadStatus
+  fileType: UploadedFileType
   errorMessage?: string
   previewHtml?: string
   blobPath?: string
+  source?: 'system' | 'azure'
 }
 
 // ─── Training Outline (TO) ────────────────────────────────────────────────────
@@ -78,7 +81,7 @@ export interface GenerateTOJobAccepted {
 /** GET /documents/generate-to/jobs/{jobId} */
 export interface GenerateTOJobPollResponse {
   jobId: string
-  status: 'processing' | 'completed' | 'failed'
+  status: 'processing' | 'completed' | 'failed' | 'cancelled'
   message?: string
   error?: string
   to?: JsonObject
@@ -142,6 +145,9 @@ export interface GenerateCoursePayload {
   /** User-edited Training Outline JSON from the three-panel TO editor.
    *  The backend injects this into shared_state so A1 uses the reviewed version. */
   toOverride?: JsonObject
+  /** All source file blob paths (DOCX + PDF) uploaded during the generate-TO step.
+   *  Passed to A2 so it can build a chunk index for topic-wise content retrieval. */
+  sourceFilePaths?: string[]
 }
 
 // ─── SSE Pipeline Events (GET /jobs/{jobId}/events) ───────────────────────────

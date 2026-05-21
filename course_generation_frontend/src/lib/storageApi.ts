@@ -36,6 +36,8 @@ export interface BrowseResponse {
   totalFolders: number
   totalSize: number
   source: 'azure' | 'local'
+  /** Azure container name when listing from blob storage. */
+  containerName?: string
 }
 
 /** Path relative to API base (e.g. `/storage/file?...`). */

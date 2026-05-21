@@ -14,10 +14,27 @@ export function useGenerateTO() {
       const controller = new AbortController()
       abortRef.current = controller
 
-      const { rawDocuments } = useCourseStore.getState()
-      const primary = rawDocuments.find((f) => f.status === 'success')
-      if (!primary?.blobPath) throw new Error('No uploaded document found.')
-      return courseApi.generateTO(primary.blobPath, controller.signal)
+      const { rawDocuments, customToPrompt, courseTypeHint, toDocument } = useCourseStore.getState()
+      // Collect all successfully uploaded file blob paths (preserving order).
+      const blobPaths = rawDocuments
+        .filter((f) => f.status === 'success' && f.blobPath)
+        .map((f) => f.blobPath as string)
+
+      if (blobPaths.length === 0) throw new Error('No uploaded documents found.')
+
+      const toDocBlobPath =
+        toDocument?.status === 'success' && toDocument.blobPath
+          ? toDocument.blobPath
+          : undefined
+
+      return courseApi.generateTO(
+        blobPaths,
+        controller.signal,
+        'intermediate',
+        customToPrompt.trim() || undefined,
+        courseTypeHint.trim() || undefined,
+        toDocBlobPath,
+      )
     },
     onSuccess: ({ to, rules, toBlobPath }) => {
       setTOData(to, to)

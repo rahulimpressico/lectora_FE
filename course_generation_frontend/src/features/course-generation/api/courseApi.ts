@@ -56,15 +56,30 @@ export const courseApi = {
 
   // ── Training Outline generation (A0) ─────────────────────────────────────────
   generateTO: async (
-    blobPath: string,
+    blobPaths: string | string[],
     signal?: AbortSignal,
     difficulty = 'intermediate',
+    customToPrompt?: string,
+    courseTypeHint?: string,
+    toDocBlobPath?: string,
   ): Promise<GenerateTOResponse> => {
+    // Normalise single-string legacy callers and array callers into the new shape.
+    const paths = Array.isArray(blobPaths) ? blobPaths : [blobPaths]
+    const body: Record<string, unknown> = { blobPaths: paths, difficulty }
+    if (customToPrompt && customToPrompt.trim()) {
+      body.customToPrompt = customToPrompt.trim()
+    }
+    if (courseTypeHint && courseTypeHint.trim()) {
+      body.courseTypeHint = courseTypeHint.trim()
+    }
+    if (toDocBlobPath) {
+      body.toDocBlobPath = toDocBlobPath
+    }
     const { data: start } = await axiosInstance.post<
       GenerateTOResponse | GenerateTOJobAccepted
     >(
       '/documents/generate-to',
-      { blobPath, difficulty },
+      body,
       { signal, timeout: 60_000 },
     )
 
@@ -83,6 +98,8 @@ export const courseApi = {
           throw new Error('A0 finished but response is missing TO or rules.')
         return { to: poll.to, rules: poll.rules, toBlobPath: poll.toBlobPath }
       }
+      if (poll.status === 'cancelled')
+        throw new Error(poll.error ?? poll.message ?? 'Training outline generation was cancelled.')
       if (poll.status === 'failed')
         throw new Error(poll.error ?? poll.message ?? 'A0 generation failed.')
       await sleep(POLL_INTERVAL_MS, signal)

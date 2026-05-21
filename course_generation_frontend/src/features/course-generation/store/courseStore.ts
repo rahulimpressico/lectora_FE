@@ -40,11 +40,20 @@ interface CourseState {
   courseTopic: string
   /** Sanitized folder name returned by the server after first upload. */
   uploadFolder: string | null
+  /** Optional custom prompt the user provides to guide TO generation. */
+  customToPrompt: string
+  /** Optional course/domain type hint (e.g. "Washington LTC Compliance Course"). */
+  courseTypeHint: string
+
+  /** Optional user-uploaded TO document (replaces AI generation when set). */
+  toDocument: UploadedFile | null
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
   setUploadFolder: (folder: string | null) => void
+  setCustomToPrompt: (prompt: string) => void
+  setCourseTypeHint: (hint: string) => void
 
   addRawDocument: (file: UploadedFile) => void
   updateRawDocument: (id: string, patch: Partial<UploadedFile>) => void
@@ -62,6 +71,7 @@ interface CourseState {
   updateRulesField: (path: string[], value: JsonValue) => void
   resetRulesField: (path: string[]) => void
 
+  setToDocument: (file: UploadedFile | null) => void
   setActiveJob: (job: JobResponse | null) => void
   setActiveJobId: (id: string | null) => void
   setGeneratedToBlobPath: (path: string | null) => void
@@ -87,6 +97,9 @@ const initialState = {
   generatedToBlobPath:  null as string | null,
   courseTopic:          '',
   uploadFolder:         null as string | null,
+  customToPrompt:       '',
+  courseTypeHint:       '',
+  toDocument:           null as UploadedFile | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -99,6 +112,8 @@ export const useCourseStore = create<CourseState>()(
 
         setCourseTopic: (topic) => set({ courseTopic: topic }),
         setUploadFolder: (folder) => set({ uploadFolder: folder }),
+        setCustomToPrompt: (prompt) => set({ customToPrompt: prompt }),
+        setCourseTypeHint: (hint) => set({ courseTypeHint: hint }),
 
         addRawDocument: (file) =>
           set((s) => ({
@@ -189,6 +204,8 @@ export const useCourseStore = create<CourseState>()(
             }
           }),
 
+        setToDocument: (file) => set({ toDocument: file }),
+
         setActiveJob: (job) => set({ activeJob: job }),
 
         setActiveJobId: (id) => set({ activeJobId: id }),
@@ -200,6 +217,7 @@ export const useCourseStore = create<CourseState>()(
             ...initialState,
             modifiedTOPaths:    new Set(),
             modifiedRulesPaths: new Set(),
+            toDocument:         null,
           }),
       }),
       {

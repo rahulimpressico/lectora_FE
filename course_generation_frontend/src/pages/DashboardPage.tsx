@@ -63,7 +63,7 @@ export function DashboardPage() {
       <div className="mx-auto max-w-5xl px-8 py-8 space-y-8">
 
         {/* Stats grid */}
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {stats.map(({ label, value, icon: Icon, iconColor, iconBg, accentColor, shadow }) => (
             <div
               key={label}
@@ -119,7 +119,7 @@ export function DashboardPage() {
         {/* Quick tips */}
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_4px_0_rgb(0,0,0,0.05)] p-6">
           <h3 className="text-sm font-semibold text-slate-800 mb-4">How it works</h3>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {[
               { step: '01', title: 'Upload Documents', desc: 'Provide your study guide and timed outline as DOCX files.' },
               { step: '02', title: 'Review & Edit', desc: 'Inspect the AI-generated training outline and rules before generation.' },

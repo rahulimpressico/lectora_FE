@@ -5,10 +5,10 @@ export function AssetLibraryPage() {
   return (
     <StorageExplorer
       title="Asset Library"
-      subtitle="Browse pipeline artifacts — open images, JSON, and DOCX in preview"
+      subtitle="Browse Azure container regedlectoraaistorage — course folders and pipeline artifacts"
       headerIcon={Database}
       source="artifacts"
-      emptyHint="Run the course generation pipeline to create artifacts under shared_state."
+      emptyHint="No folders in regedlectoraaistorage yet. Run a course to create a course folder at the container root."
     />
   )
 }
