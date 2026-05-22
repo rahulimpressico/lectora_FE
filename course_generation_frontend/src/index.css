@@ -43,6 +43,9 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
+  /* Smooth font rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -52,13 +55,37 @@ body {
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
+  background: #e2e8f0;
+  border-radius: 100px;
+  border: 1px solid transparent;
 }
-::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* ─── Premium inputs ─────────────────────────────────────────────── */
+input, textarea, select {
+  font-family: var(--font-sans);
+}
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+textarea,
+select {
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+input:not([type='checkbox']):not([type='radio']):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12) !important;
+}
+
+/* ─── Selection ──────────────────────────────────────────────────── */
+::selection {
+  background: rgba(99, 102, 241, 0.15);
+  color: #3730a3;
+}
 
 /* ─── Skeleton loader ────────────────────────────────────────────── */
 @keyframes shimmer {
@@ -120,19 +147,46 @@ body {
 
 /* ─── Glassmorphism ──────────────────────────────────────────────── */
 .glass {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px) saturate(1.8);
-  -webkit-backdrop-filter: blur(12px) saturate(1.8);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px) saturate(1.9);
+  -webkit-backdrop-filter: blur(16px) saturate(1.9);
 }
+.glass-dark {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px) saturate(1.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.6);
+}
+.glass-sidebar {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(2);
+  -webkit-backdrop-filter: blur(20px) saturate(2);
+  border-right: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+/* ─── Animated gradient background (also used by homepage hero text) */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50%        { background-position: 100% 50%; }
+}
+.animated-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 6s ease infinite;}
+
+/* ─── Smooth floating card ──────────────────────────────────────── */
+@keyframes float-card {
+  0%, 100% { transform: translateY(0px); }
+  50%        { transform: translateY(-6px); }
+}
+.float-card { animation: float-card 5s ease-in-out infinite; }
 
 /* ─── Premium card hover lift ────────────────────────────────────── */
 .card-hover {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px -4px rgb(0 0 0 / 0.1), 0 4px 10px -4px rgb(0 0 0 / 0.05);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 40px -6px rgb(0 0 0 / 0.1), 0 4px 16px -4px rgb(0 0 0 / 0.06);
 }
 
 /* ─── Gradient top-accent for cards ─────────────────────────────── */
@@ -171,56 +225,102 @@ body {
   animation: strip-slide 1.6s ease-in-out infinite;
 }
 
+/* ─── Pipeline page background (responsive zoom) ─────────────────── */
+.pipeline-bg-image {
+  object-position: 50% 56%;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+@media (max-width: 1023px) {
+  .pipeline-bg-image {
+    transform: translate(-50%, -50%) scale(clamp(1.04, 1.08, 1.12));
+  }
+}
+@media (max-width: 639px) {
+  .pipeline-bg-image {
+    transform: translate(-50%, -50%) scale(clamp(1.04, 1.06, 1.1));
+  }
+}
+
+/* ─── AI book scanning beam ──────────────────────────────────────── */
+@keyframes scan-beam {
+  0%   { left: -4px; opacity: 0; }
+  7%   { opacity: 1; }
+  93%  { opacity: 1; }
+  100% { left: calc(100% + 4px); opacity: 0; }
+}
+.scan-beam {
+  animation: scan-beam 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* ─── Holographic shimmer on book cover ──────────────────────────── */
+@keyframes holo-slide {
+  0%   { transform: translateX(-140%) skewX(-14deg); opacity: 0; }
+  14%  { opacity: 0.85; }
+  78%  { opacity: 0.5; }
+  100% { transform: translateX(260%) skewX(-14deg); opacity: 0; }
+}
+.holo-sweep {
+  animation: holo-slide 4.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
 /* ─── Book loader animations ─────────────────────────────────────── */
 @keyframes page-turn {
-  0%        { transform: rotateY(0deg);    z-index: 3; }
-  49.9%     { transform: rotateY(-90deg);  z-index: 3; }
-  50%       { transform: rotateY(-90deg);  z-index: 1; }
-  100%      { transform: rotateY(-180deg); z-index: 1; }
+  0%, 8%    { transform: rotateY(0deg);    z-index: 3; }
+  49%       { transform: rotateY(-89deg);  z-index: 3; }
+  51%       { transform: rotateY(-91deg);  z-index: 1; }
+  92%, 100% { transform: rotateY(-180deg); z-index: 1; }
 }
 .page-flip {
-  animation: page-turn 1.8s ease-in-out infinite;
+  animation: page-turn 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   transform-origin: left center;
   backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 @keyframes write-line {
   0%   { width: 0%; opacity: 0; }
-  20%  { opacity: 1; }
-  80%  { opacity: 1; }
-  100% { width: 100%; opacity: 0.7; }
+  14%  { opacity: 1; }
+  78%  { opacity: 1; }
+  100% { width: 100%; opacity: 0; }
 }
 .write-line {
-  animation: write-line 2.4s ease-in-out infinite;
+  animation: write-line 2.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
 }
-.write-line:nth-child(2) { animation-delay: 0.3s; }
-.write-line:nth-child(3) { animation-delay: 0.6s; }
-.write-line:nth-child(4) { animation-delay: 0.9s; }
-.write-line:nth-child(5) { animation-delay: 1.2s; }
-.write-line:nth-child(6) { animation-delay: 1.5s; }
+.write-line:nth-child(2) { animation-delay: 0.35s; }
+.write-line:nth-child(3) { animation-delay: 0.7s; }
+.write-line:nth-child(4) { animation-delay: 1.05s; }
+.write-line:nth-child(5) { animation-delay: 1.4s; }
+.write-line:nth-child(6) { animation-delay: 1.75s; }
 
 @keyframes float-up {
-  0%   { transform: translateY(0px) rotate(0deg);   opacity: 0; }
-  15%  { opacity: 1; }
-  85%  { opacity: 0.8; }
-  100% { transform: translateY(-80px) rotate(12deg); opacity: 0; }
+  0%   { transform: translateY(0px) rotate(0deg) scale(0.85);    opacity: 0; }
+  10%  { opacity: 1; transform: translateY(-6px) rotate(3deg) scale(1); }
+  90%  { opacity: 0.75; }
+  100% { transform: translateY(-72px) rotate(11deg) scale(0.9); opacity: 0; }
 }
 .particle {
-  animation: float-up 3s ease-in-out infinite;
+  animation: float-up 3.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
 }
-.particle:nth-child(1) { animation-delay: 0s;    animation-duration: 3.2s; }
-.particle:nth-child(2) { animation-delay: 0.8s;  animation-duration: 2.8s; }
-.particle:nth-child(3) { animation-delay: 1.4s;  animation-duration: 3.6s; }
-.particle:nth-child(4) { animation-delay: 2.0s;  animation-duration: 3.0s; }
-.particle:nth-child(5) { animation-delay: 0.4s;  animation-duration: 2.6s; }
-.particle:nth-child(6) { animation-delay: 1.8s;  animation-duration: 3.4s; }
+.particle:nth-child(1) { animation-delay: 0s;    animation-duration: 3.4s; }
+.particle:nth-child(2) { animation-delay: 0.7s;  animation-duration: 3.0s; }
+.particle:nth-child(3) { animation-delay: 1.5s;  animation-duration: 3.8s; }
+.particle:nth-child(4) { animation-delay: 2.1s;  animation-duration: 3.2s; }
+.particle:nth-child(5) { animation-delay: 0.4s;  animation-duration: 2.8s; }
+.particle:nth-child(6) { animation-delay: 1.9s;  animation-duration: 3.6s; }
 
 @keyframes book-glow {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50%       { opacity: 0.7; transform: scale(1.08); }
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.52;
+    transform: scale(1.04);
+  }
 }
 .book-glow {
-  animation: book-glow 2.8s ease-in-out infinite;
+  animation: book-glow 4.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
 @keyframes ink-cursor {
@@ -251,10 +351,25 @@ body {
 .spin-slow { animation: spin-slow 8s linear infinite; }
 
 @keyframes bounce-gentle {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-6px); }
+  0%   { transform: translateY(0px)  rotate(0deg); }
+  28%  { transform: translateY(-5px) rotate(0.35deg); }
+  60%  { transform: translateY(-3px) rotate(-0.25deg); }
+  100% { transform: translateY(0px)  rotate(0deg); }
 }
-.bounce-gentle { animation: bounce-gentle 2s ease-in-out infinite; }
+.bounce-gentle { animation: bounce-gentle 4s cubic-bezier(0.37, 0, 0.63, 1) infinite; }
+
+@keyframes book-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(0.12deg);
+  }
+}
+.book-float {
+  animation: book-float 6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
 
 @keyframes shimmer-text {
   0%   { background-position: -200% center; }
@@ -318,4 +433,89 @@ body {
 }
 .backdrop-animate {
   animation: backdrop-in 0.2s ease-out forwards;
+}
+
+
+
+
+
+/* ── BookLoader ambient float (premium, organic) ───────────────── */
+@keyframes float-shard {
+  0% {
+    transform: translate(0, 8px) rotate(var(--rot, 0deg)) scale(0.92);
+    opacity: 0;
+  }
+  12% {
+    opacity: var(--peak, 0.85);
+  }
+  55% {
+    transform: translate(var(--drift-x, 6px), -18px) rotate(calc(var(--rot, 0deg) + 4deg)) scale(1);
+  }
+  100% {
+    transform: translate(calc(var(--drift-x, 6px) * 1.4), -42px)
+      rotate(calc(var(--rot, 0deg) + 8deg)) scale(0.9);
+    opacity: 0;
+  }
+}
+.animate-floatShard {
+  animation: float-shard var(--dur, 5s) cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform, opacity;
+}
+
+@keyframes float-mote {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(var(--mx, 4px), -22px) scale(1);
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 0.35;
+  }
+}
+.animate-floatMote {
+  animation: float-mote var(--dur, 4.5s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+  will-change: transform, opacity;
+}
+
+@keyframes aura-orbit {
+  0% {
+    transform: rotate(0deg);
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: rotate(360deg);
+    opacity: 0.35;
+  }
+}
+.animate-auraOrbit {
+  animation: aura-orbit 18s linear infinite;
+}
+
+@keyframes dataFlow {
+  0% {
+    stroke-dashoffset: 140;
+    opacity: 0.04;
+  }
+  30% {
+    opacity: 0.14;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.04;
+  }
+}
+.animate-dataFlow {
+  animation: dataFlow 7s ease-in-out infinite;
 }

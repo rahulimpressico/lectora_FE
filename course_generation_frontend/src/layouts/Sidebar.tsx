@@ -3,7 +3,7 @@ import { Sparkles, LayoutDashboard, Database, FileUp, Settings, HelpCircle, X } 
 import { cn } from '@/lib/cn'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/generate', label: 'Generate', icon: Sparkles },
   { to: '/assert_library', label: 'Asset Library', icon: Database },
   { to: '/documents_library', label: 'Documents', icon: FileUp },
@@ -17,23 +17,43 @@ const bottomItems = [
 interface SidebarProps {
   isOpen?: boolean
   onClose?: () => void
+  translucent?: boolean
 }
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({
+  onClose,
+  translucent = false,
+}: {
+  onClose?: () => void
+  translucent?: boolean
+}) {
   return (
-    <aside className="flex h-full w-56 flex-col border-r border-slate-200/80 bg-white shrink-0 shadow-[1px_0_0_0_rgba(0,0,0,0.03)]">
+    <aside
+      className={cn(
+        'flex h-full w-56 shrink-0 flex-col shadow-[1px_0_0_0_rgba(0,0,0,0.02)]',
+        translucent
+          ? 'border-r border-white/45 bg-white/48 backdrop-blur-xl'
+          : 'glass-sidebar',
+      )}
+    >
 
       {/* Brand mark */}
-      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-slate-100">
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_10px_0_rgb(99,102,241,0.45)] shrink-0">
+      <div
+        className={cn(
+          'flex items-center gap-3 border-b px-5 py-[18px]',
+          translucent ? 'border-white/40' : 'border-slate-100/70',
+        )}
+      >
+        <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_3px_12px_0_rgb(99,102,241,0.5)] shrink-0">
           <Sparkles size={14} className="text-white" />
+          <div className="absolute inset-0 rounded-xl bg-white/10" />
         </div>
         <div className="min-w-0 flex-1">
           <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-            AI Course Builder
+            Lactora<span className="text-indigo-600"> AI</span>
           </span>
           <p className="text-[10px] text-slate-400 mt-0.5 font-medium tracking-wide">
-            AI Generation Platform
+            Course Generation Platform
           </p>
         </div>
         {onClose && (
@@ -50,21 +70,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
       {/* Primary navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <p className="px-3 mb-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+        <p className="px-3 mb-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400/80">
           Menu
         </p>
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
-            end={to === '/'}
+            end={to === '/dashboard'}
             onClick={onClose}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                'flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                 isActive
-                  ? 'bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700 shadow-[inset_2px_0_0_0_rgb(99,102,241)]'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  ? 'bg-gradient-to-r from-indigo-50 to-violet-50/70 text-indigo-700 shadow-[inset_2px_0_0_0_#6366f1,0_1px_4px_rgba(99,102,241,0.08)]'
+                  : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900',
               )
             }
           >
@@ -72,7 +92,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
               <>
                 <Icon
                   size={15}
-                  className={isActive ? 'text-indigo-600' : 'text-slate-400'}
+                  className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}
                 />
                 {label}
               </>
@@ -82,7 +102,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </nav>
 
       {/* Secondary navigation */}
-      <div className="space-y-0.5 px-3 py-3 border-t border-slate-100">
+      <div
+        className={cn(
+          'space-y-0.5 border-t px-3 py-3',
+          translucent ? 'border-white/40' : 'border-slate-100',
+        )}
+      >
         {bottomItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
@@ -111,14 +136,25 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* User profile */}
-      <div className="px-4 py-3.5 border-t border-slate-100 bg-slate-50/60">
-        <div className="flex items-center gap-2.5">
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 shrink-0 ring-2 ring-white shadow-sm" />
-          <div className="min-w-0">
+      <div
+        className={cn(
+          'border-t px-4 py-3.5',
+          translucent
+            ? 'border-white/40 bg-white/25'
+            : 'border-slate-100/70 bg-slate-50/40',
+        )}
+      >
+        <div className="flex items-center gap-2.5 px-1">
+          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 shrink-0 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)]" />
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-slate-800 truncate leading-none">
               Course Author
             </p>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">Impressico</p>
+            <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">@ Impressico</p>
+          </div>
+          <div className="h-5 w-5 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
+            <div className="h-2.5 w-0.5 bg-slate-300 rounded-full" />
+            <div className="h-0.5 w-0.5 bg-slate-300 rounded-full ml-0.5" />
           </div>
         </div>
       </div>
@@ -126,12 +162,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   )
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, translucent = false }: SidebarProps) {
   return (
     <>
       {/* Desktop sidebar — always visible on lg+ */}
-      <div className="hidden lg:flex h-full">
-        <SidebarContent />
+      <div className="hidden h-full lg:flex">
+        <SidebarContent translucent={translucent} />
       </div>
 
       {/* Mobile overlay */}
@@ -145,7 +181,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           />
           {/* Drawer */}
           <div className="relative z-10 flex h-full">
-            <SidebarContent onClose={onClose} />
+            <SidebarContent onClose={onClose} translucent={translucent} />
           </div>
         </div>
       )}

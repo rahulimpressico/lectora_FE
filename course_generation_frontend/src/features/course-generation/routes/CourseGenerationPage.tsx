@@ -270,7 +270,11 @@ export function CourseGenerationPage() {
       handleBackFromPipeline()
       return null
     }
-    return <PipelineView jobId={activeJobId} />
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <PipelineView jobId={activeJobId} />
+      </div>
+    )
   }
 
   // Course editor — requires an active job ID

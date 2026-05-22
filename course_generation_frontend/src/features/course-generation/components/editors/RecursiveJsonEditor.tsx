@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
-import { ChevronDown, Check, X, Pencil } from 'lucide-react'
+import { ChevronDown, Check, X, Pencil, Plus, Trash2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
 import { InlineEditField } from './InlineEditField'
 import {
@@ -34,6 +35,13 @@ function parseInput(raw: string, originalType: string): JsonPrimitive {
   return raw
 }
 
+/** Naive singulariser: "Subtopics" → "Subtopic", "Interactive Elements" → "Interactive Element" */
+function singularLabel(keyName: string): string {
+  const label = formatKeyLabel(keyName)
+  if (label.endsWith('s') && !label.endsWith('ss')) return label.slice(0, -1)
+  return label
+}
+
 // ── Prop types ─────────────────────────────────────────────────────────────────
 
 interface NodeProps {
@@ -47,7 +55,24 @@ interface NodeProps {
   onReset: (path: string[]) => void
 }
 
+// ── Animation variants ─────────────────────────────────────────────────────────
+
+const rowEnter = {
+  initial: { opacity: 0, y: -8, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit:    { opacity: 0, x: 20, scale: 0.96 },
+  transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+}
+
+const newRowEnter = {
+  initial: { opacity: 0, y: -12, scale: 0.97 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit:    { opacity: 0, x: 20, scale: 0.96 },
+  transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+}
+
 // ── ArrayItemRow — numbered list row with inline editing ───────────────────────
+
 interface ArrayItemRowProps {
   index: number
   value: JsonPrimitive
@@ -56,9 +81,18 @@ interface ArrayItemRowProps {
   isDirty: boolean
   onSave: (v: JsonPrimitive) => void
   onCancel: () => void
+  onDelete?: () => void
 }
 
-function ArrayItemRow({ index, value, originalValue, isDirty, onSave, onCancel }: ArrayItemRowProps) {
+function ArrayItemRow({
+  index,
+  value,
+  originalValue,
+  isDirty,
+  onSave,
+  onCancel,
+  onDelete,
+}: ArrayItemRowProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState(formatRawValue(value))
   const inputRef = useRef<HTMLInputElement>(null)
@@ -82,7 +116,7 @@ function ArrayItemRow({ index, value, originalValue, isDirty, onSave, onCancel }
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter')  commitSave()
+    if (e.key === 'Enter') commitSave()
     if (e.key === 'Escape') commitCancel()
   }
 
@@ -146,7 +180,9 @@ function ArrayItemRow({ index, value, originalValue, isDirty, onSave, onCancel }
             <span className="flex-1 min-w-0 text-sm text-slate-700 leading-relaxed">{String(value)}</span>
             <div className="flex items-center gap-1.5 shrink-0 ml-1">
               {isDirty ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">edited</span>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                  edited
+                </span>
               ) : (
                 <Pencil size={11} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
               )}
@@ -154,11 +190,94 @@ function ArrayItemRow({ index, value, originalValue, isDirty, onSave, onCancel }
           </button>
         )}
       </div>
+
+      {/* Delete button — visible on row hover when not editing */}
+      {!isEditing && onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          title="Remove item"
+          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-300 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-400 transition-all duration-150"
+        >
+          <Trash2 size={10} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── NewItemRow — auto-focused input for a freshly staged item ──────────────────
+
+interface NewItemRowProps {
+  index: number
+  onSave: (value: string) => void
+  onCancel: () => void
+}
+
+function NewItemRow({ index, onSave, onCancel }: NewItemRowProps) {
+  const [text, setText] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const commitSave = () => {
+    const trimmed = text.trim()
+    if (trimmed) onSave(trimmed)
+    else onCancel()
+  }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') commitSave()
+    if (e.key === 'Escape') onCancel()
+  }
+
+  return (
+    <div className="flex items-start gap-3 px-4 py-2.5 bg-indigo-50/50 border-t border-indigo-100/60">
+      {/* Index badge — indigo tint for new items */}
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-500 mt-0.5">
+        {index + 1}
+      </span>
+
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <input
+            ref={inputRef}
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type and press Enter to save…"
+            className="flex-1 min-w-0 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-sm text-slate-800 placeholder:text-slate-300 shadow-sm outline-none ring-2 ring-indigo-100 focus:ring-indigo-300 transition-shadow"
+          />
+          <button
+            type="button"
+            onClick={commitSave}
+            title="Save (Enter)"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition-colors"
+          >
+            <Check size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            title="Cancel (Escape)"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 transition-colors"
+          >
+            <X size={12} />
+          </button>
+        </div>
+        <p className="text-[10px] text-indigo-400 font-medium">
+          New item · Enter to save, Escape to cancel
+        </p>
+      </div>
     </div>
   )
 }
 
 // ── Object node — enterprise section card ──────────────────────────────────────
+
 function ObjectNode({ keyName, value, originalValue, path, depth, modifiedPaths, onUpdate, onReset }: NodeProps) {
   const [open, setOpen] = useState(depth < 2)
   const obj = value as JsonObject
@@ -223,7 +342,6 @@ function ObjectNode({ keyName, value, originalValue, path, depth, modifiedPaths,
         <div className="divide-y divide-slate-100/80">
           {entries.map(([k, v]) =>
             isJsonObject(v) || isJsonArray(v) ? (
-              /* Complex child — wrapped with padding */
               <div key={k} className="p-3 bg-slate-50/40">
                 <JsonNode
                   keyName={k}
@@ -237,7 +355,6 @@ function ObjectNode({ keyName, value, originalValue, path, depth, modifiedPaths,
                 />
               </div>
             ) : (
-              /* Primitive child — horizontal field row */
               <JsonNode
                 key={k}
                 keyName={k}
@@ -257,12 +374,41 @@ function ObjectNode({ keyName, value, originalValue, path, depth, modifiedPaths,
   )
 }
 
-// ── Array node — clean collapsible list ────────────────────────────────────────
+// ── Array node — collapsible list with add/remove for primitive arrays ──────────
+
+interface StagedItem {
+  id: number
+}
+
 function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onReset }: NodeProps) {
   const [open, setOpen] = useState(depth < 1)
+  const [staged, setStaged] = useState<StagedItem[]>([])
+  const nextId = useRef(0)
+
   const arr = value as JsonValue[]
   const allPrimitive = arr.every(isPrimitive)
   const isTopLevel = depth === 0
+
+  const totalItems = arr.length + staged.length
+
+  // ── Add/remove handlers ────────────────────────────────────────────
+  const handleAdd = () => {
+    setStaged((prev) => [...prev, { id: nextId.current++ }])
+    if (!open) setOpen(true)
+  }
+
+  const handleSaveStaged = (stagedId: number, text: string) => {
+    onUpdate(path, [...arr, text])
+    setStaged((prev) => prev.filter((s) => s.id !== stagedId))
+  }
+
+  const handleCancelStaged = (stagedId: number) => {
+    setStaged((prev) => prev.filter((s) => s.id !== stagedId))
+  }
+
+  const handleDeleteItem = (idx: number) => {
+    onUpdate(path, arr.filter((_, i) => i !== idx))
+  }
 
   return (
     <div
@@ -298,31 +444,74 @@ function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onRes
         >
           {formatKeyLabel(keyName)}
         </span>
+
+        {/* Staged-items badge */}
+        {staged.length > 0 && (
+          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-500 ring-1 ring-indigo-200 shrink-0">
+            +{staged.length} new
+          </span>
+        )}
+
         <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
-          {arr.length} {arr.length === 1 ? 'item' : 'items'}
+          {totalItems} {totalItems === 1 ? 'item' : 'items'}
         </span>
       </button>
 
       {/* Body */}
       {open && (
         allPrimitive ? (
-          /* Primitive array — numbered list */
-          <div className="divide-y divide-slate-100/80">
-            {arr.map((item, idx) => (
-              <ArrayItemRow
-                key={idx}
-                index={idx}
-                value={item as JsonPrimitive}
-                originalValue={item as JsonPrimitive}
-                path={[...path, String(idx)]}
-                isDirty={modifiedPaths.has(pathKey([...path, String(idx)]))}
-                onSave={(v) => onUpdate([...path, String(idx)], v)}
-                onCancel={() => onReset([...path, String(idx)])}
-              />
-            ))}
+          /* ── Primitive array: numbered rows with add/remove ── */
+          <div>
+            <div className="divide-y divide-slate-100/80">
+              <AnimatePresence initial={false}>
+                {arr.map((item, idx) => (
+                  <motion.div
+                    key={`item-${idx}`}
+                    {...rowEnter}
+                  >
+                    <ArrayItemRow
+                      index={idx}
+                      value={item as JsonPrimitive}
+                      originalValue={item as JsonPrimitive}
+                      path={[...path, String(idx)]}
+                      isDirty={modifiedPaths.has(pathKey([...path, String(idx)]))}
+                      onSave={(v) => onUpdate([...path, String(idx)], v)}
+                      onCancel={() => onReset([...path, String(idx)])}
+                      onDelete={() => handleDeleteItem(idx)}
+                    />
+                  </motion.div>
+                ))}
+
+                {/* Staged (newly added) items */}
+                {staged.map((s, i) => (
+                  <motion.div
+                    key={`staged-${s.id}`}
+                    {...newRowEnter}
+                  >
+                    <NewItemRow
+                      index={arr.length + i}
+                      onSave={(text) => handleSaveStaged(s.id, text)}
+                      onCancel={() => handleCancelStaged(s.id)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+
+            {/* "+ Add [Label]" button */}
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="group flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all duration-150 border-t border-dashed border-slate-200/80"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 group-hover:bg-indigo-200 transition-colors shrink-0">
+                <Plus size={10} className="text-indigo-500" strokeWidth={2.5} />
+              </span>
+              Add {singularLabel(keyName)}
+            </button>
           </div>
         ) : (
-          /* Object array — spaced sub-cards */
+          /* ── Object array: spaced sub-cards (no add button — complex schema) ── */
           <div className="p-3 space-y-2 bg-slate-50/30">
             {arr.map((item, idx) => (
               <JsonNode
@@ -345,6 +534,7 @@ function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onRes
 }
 
 // ── Primitive node — delegates to InlineEditField ──────────────────────────────
+
 function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onUpdate, onReset }: NodeProps) {
   const pk = pathKey(path)
   const isDirty = modifiedPaths.has(pk)
@@ -362,6 +552,7 @@ function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onU
 }
 
 // ── Dispatcher ─────────────────────────────────────────────────────────────────
+
 function JsonNode(props: NodeProps) {
   const { value } = props
   if (isJsonObject(value)) return <ObjectNode {...props} />
@@ -371,6 +562,7 @@ function JsonNode(props: NodeProps) {
 }
 
 // ── Public component ───────────────────────────────────────────────────────────
+
 interface RecursiveJsonEditorProps {
   data: JsonObject
   originalData: JsonObject

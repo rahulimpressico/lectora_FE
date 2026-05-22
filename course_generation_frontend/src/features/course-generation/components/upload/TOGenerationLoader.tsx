@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  Wand2, FileText, ScanText, BookOpen, Check, Loader2,
-} from 'lucide-react'
+import { Wand2, FileText, ScanText, BookOpen, Check, Loader2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
 
 /**
- * Real A0 phases — no fake "Finalising" step.
- * UI advances by elapsed time but stays on the AI step for most of the wait
- * (that is where the server actually spends time).
+ * Real A0 phases. UI advances by elapsed time but stays on the AI step
+ * for most of the wait — that is where the server actually spends time.
  */
 const STEPS = [
   {
@@ -26,7 +24,7 @@ const STEPS = [
   {
     icon: BookOpen,
     label: 'Generating Training Outline',
-    desc: 'AI is classifying your course and building the outline (parallel on server)',
+    desc: 'AI is classifying your course and building the outline',
     untilSec: Infinity,
   },
 ] as const
@@ -39,7 +37,6 @@ function formatElapsed(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
-/** Active step from elapsed time — never shows a fake "finalising" phase. */
 function activeStepIndex(elapsedSec: number): number {
   for (let i = 0; i < STEPS.length; i++) {
     if (elapsedSec < STEPS[i].untilSec) return i
@@ -47,12 +44,9 @@ function activeStepIndex(elapsedSec: number): number {
   return STEPS.length - 1
 }
 
-/** Smooth progress toward 90% while waiting; hits 100% only when dialog unmounts (API done). */
 function progressPercent(elapsedSec: number): number {
   return Math.min(90, Math.round(12 + elapsedSec * 1.15))
 }
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export function TOGenerationLoader() {
   const [elapsedSec, setElapsedSec] = useState(0)
@@ -76,12 +70,14 @@ export function TOGenerationLoader() {
 
   return createPortal(
     <>
+      {/* Backdrop */}
       <div
         aria-hidden="true"
-        className="overlay-fade-in fixed inset-0 z-[100] bg-white/15 backdrop-blur-[12px] backdrop-saturate-150"
-        style={{ WebkitBackdropFilter: 'blur(12px) saturate(1.5)' }}
+        className="overlay-fade-in fixed inset-0 z-[100] bg-white/20 backdrop-blur-[14px] backdrop-saturate-150"
+        style={{ WebkitBackdropFilter: 'blur(14px) saturate(1.5)' }}
       />
 
+      {/* Dialog */}
       <div
         className="fixed inset-0 z-[101] flex items-center justify-center px-6 py-10 overflow-y-auto pointer-events-none"
         role="dialog"
@@ -89,57 +85,91 @@ export function TOGenerationLoader() {
         aria-labelledby="to-generation-title"
         aria-busy="true"
       >
-        <div className="relative w-full max-w-md scale-in pointer-events-auto">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          className="relative w-full max-w-md pointer-events-auto"
+        >
+          {/* Top gradient line */}
           <div className="absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
 
-          <div className="rounded-2xl border border-slate-200/80 bg-white shadow-[0_8px_48px_-8px_rgba(99,102,241,0.18),0_4px_16px_-4px_rgba(0,0,0,0.06)] overflow-hidden">
-            <div className="relative flex flex-col items-center px-8 pt-10 pb-7 bg-gradient-to-b from-indigo-50/60 to-white border-b border-slate-100">
-              <div className="relative flex h-[72px] w-[72px] items-center justify-center mb-5">
+          <div className="rounded-2xl border border-slate-200/70 bg-white shadow-[0_20px_60px_-8px_rgba(99,102,241,0.2),0_6px_20px_-4px_rgba(0,0,0,0.08)] overflow-hidden">
+
+            {/* Header section */}
+            <div className="relative flex flex-col items-center px-8 pt-10 pb-7 border-b border-slate-100/70 overflow-hidden">
+              {/* Background decoration */}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-white" />
+              <div
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{
+                  backgroundImage: 'radial-gradient(circle, rgba(99,102,241,0.8) 1px, transparent 1px)',
+                  backgroundSize: '24px 24px',
+                }}
+              />
+
+              {/* Icon */}
+              <div className="relative flex h-[76px] w-[76px] items-center justify-center mb-5">
                 <span
-                  className="absolute inset-0 rounded-full bg-indigo-300/30 animate-ping"
+                  className="absolute inset-0 rounded-full bg-indigo-300/25 animate-ping"
                   style={{ animationDuration: '2.2s' }}
                 />
                 <span
                   className="absolute inset-2 rounded-full bg-indigo-200/20 animate-ping"
                   style={{ animationDuration: '3s', animationDelay: '0.6s' }}
                 />
-                <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_6px_24px_0_rgba(99,102,241,0.5)]">
-                  <Wand2 size={28} className="text-white" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }} />
-                </div>
+                <motion.div
+                  animate={{ scale: [1, 1.04, 1], rotate: [0, 2, 0, -2, 0] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                  className="relative flex h-[76px] w-[76px] items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_8px_28px_0_rgba(99,102,241,0.55)]"
+                >
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent to-white/15" />
+                  <Wand2 size={28} className="text-white relative" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }} />
+                </motion.div>
               </div>
 
               <h2
                 id="to-generation-title"
-                className="text-[17px] font-bold text-slate-900 tracking-tight text-center"
+                className="text-lg font-bold text-slate-900 tracking-tight text-center relative"
               >
                 Generating Training Outline
               </h2>
-              <p className="mt-1.5 text-[13px] text-slate-500 text-center leading-relaxed max-w-xs">
-                Please wait — do not close this tab. The server is still running A0.
+              <p className="mt-1.5 text-sm text-slate-500 text-center leading-relaxed max-w-xs relative">
+                Please wait — do not close this tab.
+                <br />
+                <span className="text-indigo-500 font-medium">AI agents are analyzing your content.</span>
               </p>
             </div>
 
-            <div className="px-5 py-5 space-y-1.5">
+            {/* Steps */}
+            <div className="px-5 py-4 space-y-1.5">
               {STEPS.map((step, idx) => {
                 const status: StepStatus =
                   idx < activeStep ? 'done' : idx === activeStep ? 'active' : 'pending'
                 const Icon = step.icon
 
                 return (
-                  <div
+                  <motion.div
                     key={idx}
+                    initial={false}
+                    animate={{
+                      opacity: status === 'pending' ? 0.35 : 1,
+                    }}
+                    transition={{ duration: 0.4 }}
                     className={cn(
-                      'flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-all duration-500',
-                      status === 'active' && 'bg-indigo-50/90 ring-1 ring-indigo-100/80 shadow-sm',
-                      status === 'done'   && 'bg-emerald-50/60',
-                      status === 'pending' && 'opacity-35',
+                      'flex items-center gap-3 rounded-xl px-3.5 py-3 transition-all duration-500',
+                      status === 'active' &&
+                        'bg-indigo-50/80 ring-1 ring-indigo-100 shadow-[0_2px_8px_rgba(99,102,241,0.08)]',
+                      status === 'done' && 'bg-emerald-50/50',
                     )}
                   >
                     <div
                       className={cn(
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-400',
-                        status === 'done'    && 'bg-emerald-500 text-white shadow-sm',
-                        status === 'active'  && 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[0_2px_10px_0_rgba(99,102,241,0.45)]',
+                        status === 'done' &&
+                          'bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)]',
+                        status === 'active' &&
+                          'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[0_3px_12px_rgba(99,102,241,0.45)]',
                         status === 'pending' && 'bg-slate-100 text-slate-400',
                       )}
                     >
@@ -156,18 +186,25 @@ export function TOGenerationLoader() {
                       <p
                         className={cn(
                           'text-[13px] font-semibold leading-tight',
-                          status === 'done'    && 'text-emerald-700',
-                          status === 'active'  && 'text-indigo-700',
+                          status === 'done' && 'text-emerald-700',
+                          status === 'active' && 'text-indigo-700',
                           status === 'pending' && 'text-slate-500',
                         )}
                       >
                         {step.label}
                       </p>
-                      {status === 'active' && (
-                        <p className="text-[11px] text-indigo-400/90 mt-0.5 fade-in leading-snug">
-                          {step.desc}
-                        </p>
-                      )}
+                      <AnimatePresence>
+                        {status === 'active' && (
+                          <motion.p
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="text-[11px] text-indigo-400/90 mt-0.5 leading-snug overflow-hidden"
+                          >
+                            {step.desc}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {status === 'active' && (
@@ -183,47 +220,58 @@ export function TOGenerationLoader() {
                     )}
 
                     {status === 'done' && (
-                      <span className="text-[10px] font-bold text-emerald-600 shrink-0 tracking-wide">
+                      <span className="text-[10px] font-bold text-emerald-600 shrink-0 tracking-wide uppercase bg-emerald-100/80 px-2 py-0.5 rounded-md">
                         Done
                       </span>
                     )}
-                  </div>
+                  </motion.div>
                 )
               })}
             </div>
 
-            <div className="px-5 pb-6 pt-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-                  Progress
-                </span>
-                <span className="text-[12px] font-bold text-indigo-600 tabular-nums">
-                  {progress}%
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className="h-full rounded-full progress-bar-animated transition-all duration-700 ease-out"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="mt-3 text-center text-[11px] text-slate-400 leading-relaxed">
-                Elapsed:{' '}
-                <span className="font-semibold text-slate-500 tabular-nums">
-                  {formatElapsed(elapsedSec)}
-                </span>
-                {' · '}
-                Typical time:{' '}
-                <span className="font-semibold text-slate-500">30s – 2 min</span>
-              </p>
-              {isLongWait && (
-                <p className="mt-2 text-center text-[11px] text-amber-600/90 leading-relaxed fade-in">
-                  Still on server — large documents and AI models can take longer. Keep this tab open.
+            {/* Progress */}
+            <div className="px-5 pb-6 pt-2">
+              <div className="bg-slate-50/80 rounded-xl border border-slate-100 px-4 py-3.5">
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                    Progress
+                  </span>
+                  <span className="text-[12px] font-bold text-indigo-600 tabular-nums">
+                    {progress}%
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <motion.div
+                    initial={{ width: '12%' }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    className="h-full rounded-full progress-bar-animated"
+                  />
+                </div>
+                <p className="mt-3 text-center text-[11px] text-slate-400 leading-relaxed">
+                  Elapsed:{' '}
+                  <span className="font-semibold text-slate-500 tabular-nums">
+                    {formatElapsed(elapsedSec)}
+                  </span>
+                  {' · '}
+                  Typical:{' '}
+                  <span className="font-semibold text-slate-500">30s – 2 min</span>
                 </p>
-              )}
+                <AnimatePresence>
+                  {isLongWait && (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-2 text-center text-[11px] text-amber-600/90 leading-relaxed overflow-hidden"
+                    >
+                      Still running — large documents can take longer. Keep this tab open.
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </>,
     document.body,
