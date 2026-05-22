@@ -1,54 +1,65 @@
-import { NavLink } from 'react-router-dom'
-import { Sparkles, LayoutDashboard, Database, FileUp, Settings, HelpCircle, X } from 'lucide-react'
-import { cn } from '@/lib/cn'
+import { NavLink, useNavigate } from "react-router-dom";
+import {
+  Sparkles,
+  LayoutDashboard,
+  Database,
+  FileUp,
+  Settings,
+  HelpCircle,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/cn";
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/generate', label: 'Generate', icon: Sparkles },
-  { to: '/assert_library', label: 'Asset Library', icon: Database },
-  { to: '/documents_library', label: 'Documents', icon: FileUp },
-]
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/generate", label: "Generate", icon: Sparkles },
+  { to: "/assert_library", label: "Asset Library", icon: Database },
+  { to: "/documents_library", label: "Documents", icon: FileUp },
+];
 
 const bottomItems = [
-  { to: '/settings', label: 'Settings', icon: Settings   },
-  { to: '/help',     label: 'Help',     icon: HelpCircle },
-]
+  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/help", label: "Help", icon: HelpCircle },
+];
 
 interface SidebarProps {
-  isOpen?: boolean
-  onClose?: () => void
-  translucent?: boolean
+  isOpen?: boolean;
+  onClose?: () => void;
+  translucent?: boolean;
 }
 
 function SidebarContent({
   onClose,
   translucent = false,
 }: {
-  onClose?: () => void
-  translucent?: boolean
+  onClose?: () => void;
+  translucent?: boolean;
 }) {
+  const navigate = useNavigate();
   return (
     <aside
       className={cn(
-        'flex h-full w-56 shrink-0 flex-col shadow-[1px_0_0_0_rgba(0,0,0,0.02)]',
+        "flex h-full w-56 shrink-0 flex-col shadow-[1px_0_0_0_rgba(0,0,0,0.02)]",
         translucent
-          ? 'border-r border-white/45 bg-white/48 backdrop-blur-xl'
-          : 'glass-sidebar',
+          ? "border-r border-white/45 bg-white/48 backdrop-blur-xl"
+          : "glass-sidebar",
       )}
     >
-
       {/* Brand mark */}
       <div
         className={cn(
-          'flex items-center gap-3 border-b px-5 py-[18px]',
-          translucent ? 'border-white/40' : 'border-slate-100/70',
+          "flex items-center gap-3 border-b px-5 py-[18px]",
+          translucent ? "border-white/40" : "border-slate-100/70",
         )}
       >
         <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_3px_12px_0_rgb(99,102,241,0.5)] shrink-0">
           <Sparkles size={14} className="text-white" />
           <div className="absolute inset-0 rounded-xl bg-white/10" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div
+          className="min-w-0 flex-1 cursor-pointer"
+          onClick={() => navigate("/")}
+        >
           <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
             Lactora<span className="text-indigo-600"> AI</span>
           </span>
@@ -77,14 +88,14 @@ function SidebarContent({
           <NavLink
             key={to}
             to={to}
-            end={to === '/dashboard'}
+            end={to === "/dashboard"}
             onClick={onClose}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
-                  ? 'bg-gradient-to-r from-indigo-50 to-violet-50/70 text-indigo-700 shadow-[inset_2px_0_0_0_#6366f1,0_1px_4px_rgba(99,102,241,0.08)]'
-                  : 'text-slate-600 hover:bg-slate-100/70 hover:text-slate-900',
+                  ? "bg-gradient-to-r from-indigo-50 to-violet-50/70 text-indigo-700 shadow-[inset_2px_0_0_0_#6366f1,0_1px_4px_rgba(99,102,241,0.08)]"
+                  : "text-slate-600 hover:bg-slate-100/70 hover:text-slate-900",
               )
             }
           >
@@ -92,7 +103,11 @@ function SidebarContent({
               <>
                 <Icon
                   size={15}
-                  className={isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}
+                  className={
+                    isActive
+                      ? "text-indigo-600"
+                      : "text-slate-400 group-hover:text-slate-600"
+                  }
                 />
                 {label}
               </>
@@ -104,8 +119,8 @@ function SidebarContent({
       {/* Secondary navigation */}
       <div
         className={cn(
-          'space-y-0.5 border-t px-3 py-3',
-          translucent ? 'border-white/40' : 'border-slate-100',
+          "space-y-0.5 border-t px-3 py-3",
+          translucent ? "border-white/40" : "border-slate-100",
         )}
       >
         {bottomItems.map(({ to, label, icon: Icon }) => (
@@ -115,10 +130,10 @@ function SidebarContent({
             onClick={onClose}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
                 isActive
-                  ? 'bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700',
+                  ? "bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
               )
             }
           >
@@ -126,7 +141,7 @@ function SidebarContent({
               <>
                 <Icon
                   size={15}
-                  className={isActive ? 'text-indigo-600' : 'text-slate-400'}
+                  className={isActive ? "text-indigo-600" : "text-slate-400"}
                 />
                 {label}
               </>
@@ -138,10 +153,10 @@ function SidebarContent({
       {/* User profile */}
       <div
         className={cn(
-          'border-t px-4 py-3.5',
+          "border-t px-4 py-3.5",
           translucent
-            ? 'border-white/40 bg-white/25'
-            : 'border-slate-100/70 bg-slate-50/40',
+            ? "border-white/40 bg-white/25"
+            : "border-slate-100/70 bg-slate-50/40",
         )}
       >
         <div className="flex items-center gap-2.5 px-1">
@@ -150,7 +165,9 @@ function SidebarContent({
             <p className="text-xs font-semibold text-slate-800 truncate leading-none">
               Course Author
             </p>
-            <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">@ Impressico</p>
+            <p className="text-[10px] text-slate-400 truncate mt-0.5 font-medium">
+              @ Impressico
+            </p>
           </div>
           <div className="h-5 w-5 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
             <div className="h-2.5 w-0.5 bg-slate-300 rounded-full" />
@@ -159,10 +176,14 @@ function SidebarContent({
         </div>
       </div>
     </aside>
-  )
+  );
 }
 
-export function Sidebar({ isOpen, onClose, translucent = false }: SidebarProps) {
+export function Sidebar({
+  isOpen,
+  onClose,
+  translucent = false,
+}: SidebarProps) {
   return (
     <>
       {/* Desktop sidebar — always visible on lg+ */}
@@ -186,5 +207,5 @@ export function Sidebar({ isOpen, onClose, translucent = false }: SidebarProps) 
         </div>
       )}
     </>
-  )
+  );
 }
