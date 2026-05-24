@@ -519,3 +519,86 @@ select:focus {
 .animate-dataFlow {
   animation: dataFlow 7s ease-in-out infinite;
 }
+/* ─── Theme: dark mode ───────────────────────────────────────────────
+   Applied when <html class="dark"> is set by the settings store.
+   Covers the app shell. Individual component dark: variants can be
+   layered on top as needed.
+─────────────────────────────────────────────────────────────────── */
+html.dark {
+  color-scheme: dark;
+}
+html.dark body {
+  background-color: #0f1117;
+  color: #e2e8f0;
+}
+html.dark #root {
+  background-color: #0f1117;
+}
+/* App shell surfaces */
+html.dark .glass-sidebar {
+  background: rgba(17, 24, 39, 0.94);
+  border-right-color: rgba(55, 65, 81, 0.6);
+}
+html.dark header,
+html.dark aside {
+  background-color: #111827 !important;
+  border-color: rgba(55, 65, 81, 0.7) !important;
+}
+html.dark .bg-white {
+  background-color: #1e2433 !important;
+}
+html.dark .bg-white\/88,
+html.dark .bg-white\/90,
+html.dark .bg-white\/95 {
+  background-color: rgba(30, 36, 51, 0.96) !important;
+}
+html.dark .bg-\[\#f4f6f9\],
+html.dark .bg-\[#f4f6f9\] {
+  background-color: #0f1117 !important;
+}
+html.dark .bg-\[\#eceff8\] {
+  background-color: #131820 !important;
+}
+html.dark .border-slate-200,
+html.dark .border-slate-100,
+html.dark .border-slate-200\/50,
+html.dark .border-slate-200\/70 {
+  border-color: rgba(55, 65, 81, 0.6) !important;
+}
+html.dark .text-slate-900 { color: #f1f5f9 !important; }
+html.dark .text-slate-800 { color: #e2e8f0 !important; }
+html.dark .text-slate-700 { color: #cbd5e1 !important; }
+html.dark .text-slate-600 { color: #94a3b8 !important; }
+html.dark .text-slate-500 { color: #64748b !important; }
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/60,
+html.dark .bg-slate-50\/70 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+html.dark .bg-slate-100,
+html.dark .bg-slate-100\/80 {
+  background-color: rgba(30, 41, 59, 0.7) !important;
+}
+
+/* ─── Settings: compact mode ─────────────────────────────────────────
+   Reduces padding throughout the UI when enabled.
+─────────────────────────────────────────────────────────────────── */
+html.compact .px-6 { padding-left: 1rem !important; padding-right: 1rem !important; }
+html.compact .px-8 { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+html.compact .py-6 { padding-top: 0.875rem !important; padding-bottom: 0.875rem !important; }
+html.compact .py-8 { padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; }
+html.compact .py-7 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+html.compact .gap-8 { gap: 1.25rem !important; }
+html.compact .space-y-8 > * + * { margin-top: 1.25rem !important; }
+html.compact .rounded-2xl { border-radius: 0.75rem !important; }
+
+/* ─── Settings: no-animations mode ──────────────────────────────────
+   Disables CSS transitions and animations app-wide.
+─────────────────────────────────────────────────────────────────── */
+html.no-animations *,
+html.no-animations *::before,
+html.no-animations *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

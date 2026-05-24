@@ -17,25 +17,48 @@ const navItems = [
   { to: "/documents_library", label: "Documents", icon: FileUp },
 ];
 
-const bottomItems = [
-  { to: "/settings", label: "Settings", icon: Settings },
-  { to: "/help", label: "Help", icon: HelpCircle },
-];
-
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   translucent?: boolean;
+  onSettingsClick?: () => void;
+  onHelpClick?: () => void;
+  isSettingsOpen?: boolean;
+  isHelpOpen?: boolean;
 }
 
 function SidebarContent({
   onClose,
   translucent = false,
+  onSettingsClick,
+  onHelpClick,
+  isSettingsOpen,
+  isHelpOpen,
 }: {
   onClose?: () => void;
   translucent?: boolean;
+  onSettingsClick?: () => void;
+  onHelpClick?: () => void;
+  isSettingsOpen?: boolean;
+  isHelpOpen?: boolean;
 }) {
   const navigate = useNavigate();
+
+  const bottomButtons = [
+    {
+      label: "Settings",
+      icon: Settings,
+      onClick: onSettingsClick,
+      isActive: isSettingsOpen,
+    },
+    {
+      label: "Help",
+      icon: HelpCircle,
+      onClick: onHelpClick,
+      isActive: isHelpOpen,
+    },
+  ];
+
   return (
     <aside
       className={cn(
@@ -116,37 +139,34 @@ function SidebarContent({
         ))}
       </nav>
 
-      {/* Secondary navigation */}
+      {/* Secondary navigation — Settings & Help as panel triggers */}
       <div
         className={cn(
           "space-y-0.5 border-t px-3 py-3",
           translucent ? "border-white/40" : "border-slate-100",
         )}
       >
-        {bottomItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={onClose}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
-                isActive
-                  ? "bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <Icon
-                  size={15}
-                  className={isActive ? "text-indigo-600" : "text-slate-400"}
-                />
-                {label}
-              </>
+        {bottomButtons.map(({ label, icon: Icon, onClick, isActive }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => {
+              onClose?.()
+              onClick?.()
+            }}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+              isActive
+                ? "bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700"
+                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
             )}
-          </NavLink>
+          >
+            <Icon
+              size={15}
+              className={isActive ? "text-indigo-600" : "text-slate-400"}
+            />
+            {label}
+          </button>
         ))}
       </div>
 
@@ -183,12 +203,22 @@ export function Sidebar({
   isOpen,
   onClose,
   translucent = false,
+  onSettingsClick,
+  onHelpClick,
+  isSettingsOpen,
+  isHelpOpen,
 }: SidebarProps) {
   return (
     <>
       {/* Desktop sidebar — always visible on lg+ */}
       <div className="hidden h-full lg:flex">
-        <SidebarContent translucent={translucent} />
+        <SidebarContent
+          translucent={translucent}
+          onSettingsClick={onSettingsClick}
+          onHelpClick={onHelpClick}
+          isSettingsOpen={isSettingsOpen}
+          isHelpOpen={isHelpOpen}
+        />
       </div>
 
       {/* Mobile overlay */}
@@ -202,7 +232,14 @@ export function Sidebar({
           />
           {/* Drawer */}
           <div className="relative z-10 flex h-full">
-            <SidebarContent onClose={onClose} translucent={translucent} />
+            <SidebarContent
+              onClose={onClose}
+              translucent={translucent}
+              onSettingsClick={onSettingsClick}
+              onHelpClick={onHelpClick}
+              isSettingsOpen={isSettingsOpen}
+              isHelpOpen={isHelpOpen}
+            />
           </div>
         </div>
       )}

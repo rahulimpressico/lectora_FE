@@ -1,5 +1,5 @@
 import { FileUp } from 'lucide-react'
-import { StorageExplorer } from '@/components/storage/StorageExplorer'
+import { StorageExplorer } from '@/modules/storage'
 
 export function DocumentsLibraryPage() {
   return (

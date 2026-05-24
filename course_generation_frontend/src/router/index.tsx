@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
-import { CourseGenerationPage } from "@/features/course-generation";
+import { CourseGenerationPage } from "@/modules/course-generation";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AssetLibraryPage } from "@/pages/AssetLibraryPage";
 import { DocumentsLibraryPage } from "@/pages/DocumentsLibraryPage";

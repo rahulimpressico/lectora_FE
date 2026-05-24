@@ -1,5 +1,5 @@
 import { Database } from 'lucide-react'
-import { StorageExplorer } from '@/components/storage/StorageExplorer'
+import { StorageExplorer } from '@/modules/storage'
 
 export function AssetLibraryPage() {
   return (

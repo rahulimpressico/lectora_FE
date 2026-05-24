@@ -52,19 +52,36 @@ All active UI lives under `src/features/course-generation/`. The feature is self
    - **Right** `RulesPanel` — editable tree of the rules JSON via `RecursiveJsonEditor`
    - **Bottom banner** `GenerateCourseBanner` — triggers `POST /api/jobs` then advances to `pipeline` phase.
 
-3. **`pipeline`** — `PipelineView` component; live monitoring via SSE (`GET /api/jobs/{jobId}/events`). `PipelineSSEClient` (`hooks/useJobPipeline.ts`) handles the event stream with exponential-backoff reconnection. Stage progress, per-stage logs, and blocker messages are written into `pipelineStore`. Advances to `course-editor` when the job reaches `COMPLETED`.
+3. **`pipeline`** — `PipelineView` component; live monitoring via SSE (`GET /api/jobs/{jobId}/events`) using `PipelineSSEClient` (`services/pipelineSSE.ts`). SSE events are merged into `pipelineStore`. Advances to `course-editor` when the job reaches `COMPLETED`.
 
-4. **`course-editor`** — `CourseEditorView` component; section-based editing UI with sidebar navigation, expandable section panels, and an AI operations toolbar. AI operations call `POST /api/jobs/{jobId}/ai` and are tracked in `editorStore`.
+4. **`course-editor`** — `CourseEditorView` component; section-based editing UI with sidebar navigation, expandable section panels, and an AI operations toolbar. AI operations call `POST /api/jobs/{jobId}/ai` and are tracked in `editorStore`. Artifact download uses `exportCourseToDocx` (`services/docxExporter.ts`) to produce a `.docx` client-side via the `docx` package.
 
 ### State: Zustand stores
 
-Three stores, all with `devtools` + `persist` middleware. `partialize` returns `{}` — **nothing is persisted**; state resets on every page refresh.
-
-- **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths.
-- **`pipelineStore.ts`** — stage progress array, SSE log lines, current stage, blocker details.
-- **`editorStore.ts`** — course sections, active section, AI operation state.
+- **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths. Uses `devtools` + `persist`; `partialize` returns `{}` so **nothing is persisted**.
+- **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. Uses `devtools` only (no persist). Log entries are capped at 400. Backend log IDs are deduplicated via a module-level `_maxSeenBackendLogId` counter — on SSE reconnect, re-delivered log entries are skipped.
+- **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state, preview open flag. Uses `devtools` only (no persist). Section tree mutations use recursive `updateSectionTree`.
 
 Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are `Set<string>` of dot-joined paths. `updateTOField` / `updateRulesField` add paths; `resetTOField` / `resetRulesField` remove them and restore the original value via `deepGet`/`deepSet` from `utils/deepUpdate.ts`.
+
+### Pipeline stages
+
+Defined in `config/pipelineConfig.ts`. The six visible stages are:
+
+| Frontend ID | Backend ID | Role |
+|---|---|---|
+| `A1` | `A1` | Knowledge Extraction |
+| `S1` | `S1` | Structure Review (gate) |
+| `A2` | `A2` | Content Generation |
+| `S2` | `S2` | Quality Assurance (gate) |
+| `FINALIZATION` | `A6` | Course Assembly |
+| `EXPORT` | `__export__` | Final Export (virtual, FE only) |
+
+`A0`, `SECTION_MAPPER`, and `KC_PLANNER` are internal backend stages folded into adjacent visible stages. `FINALIZATION` and `EXPORT` are auto-completed by the store when `overallStatus` reaches `completed`.
+
+### SSE client (`services/pipelineSSE.ts`)
+
+`PipelineSSEClient` is a class-based SSE client. It connects to `GET /api/jobs/{jobId}/events` using the browser's native `EventSource` (which automatically sends `Last-Event-ID` on reconnect). It handles three server-sent event types: `message` (stage updates), `done` (pipeline complete), and `timeout` (30-minute hard limit). On connection error it retries with exponential backoff — base 1.5 s, up to 30 s, max 8 retries.
 
 ### API layer
 
@@ -73,6 +90,23 @@ Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are 
 `src/features/course-generation/api/courseApi.ts` — typed wrappers for all backend endpoints.
 
 **`generateTO` uses an async poll pattern.** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`) instead of the result immediately. When it does, `courseApi.generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes until status is `completed` or `failed`. If the POST returns the result directly (`GenerateTOResponse`), polling is skipped. Both shapes are discriminated by checking for the `to` key (`isCompletedResponse`). The function also accepts an `AbortSignal` and a `difficulty` parameter (default `'intermediate'`).
+
+### Storage layer (`src/lib/storageApi.ts`)
+
+Shared API for the Asset Library and Documents Library pages. Exposes:
+- `browseStorage(prefix, source)` — lists files/folders; `source` is `'uploads'` or `'artifacts'`, routing to different backend endpoints.
+- `fetchStorageFileBlob` / `fetchStorageFileText` — downloads a file by path.
+- `deleteStorageFiles` — deletes files and/or folders by path.
+- `storageFileUrl(path, source)` — builds a full URL for use in `<img>` or `<a>` tags.
+
+The `StorageExplorer` component (`src/components/storage/`) is shared between both library pages and handles folder navigation, file preview (`FilePreviewDialog`), and deletion (`StorageDeleteConfirmDialog`).
+
+### Types
+
+Split across three files:
+- `types/index.ts` — workflow, file upload, TO, job, and API response types.
+- `types/pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
+- `types/editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
 
 ### Dev-mode fallbacks
 

@@ -72,15 +72,23 @@ export function DashboardPage() {
     <div className="flex-1 overflow-y-auto">
 
       {/* Page header */}
-      <div className="border-b border-slate-200/50 bg-white/90 backdrop-blur-xl px-8 py-7 sticky top-0 z-10 shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex items-start justify-between gap-4">
+      <div className="border-b border-slate-200/50 bg-white/90 backdrop-blur-xl px-8 pt-4 pb-5 sticky top-0 z-10 shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
+        <div className="mx-auto max-w-5xl space-y-3">
+          {/* Breadcrumb / back nav */}
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-slate-600 transition-colors duration-150"
+          >
+            ← Back to Home
+          </Link>
+
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-1">
                 Welcome back
               </p>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
-              <p className="mt-1 text-sm text-slate-500 max-w-md leading-relaxed">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
+              <p className="mt-0.5 text-sm text-slate-500 max-w-md leading-relaxed">
                 Manage your AI-powered course generation pipeline for enterprise learning.
               </p>
             </div>
@@ -217,15 +225,6 @@ export function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Back to home */}
-        <div className="pb-2">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors duration-150 font-medium"
-          >
-            ← Back to Home
-          </Link>
-        </div>
       </div>
     </div>
   )
