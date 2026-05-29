@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { v4 as uuid } from 'uuid'
-import { courseApi } from '../api/courseApi'
+import { uploadDocument } from '@/api/course-generation/api'
 import { useCourseStore } from '../store/courseStore'
 import { useDocxPreview } from './useDocxPreview'
 import type { UploadedFile, UploadedFileType } from '../types'
@@ -32,7 +32,7 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
 
   const { mutateAsync: uploadToServer } = useMutation({
     mutationFn: ({ file, topic }: { file: File; topic: string }) =>
-      courseApi.uploadDocument(file, topic),
+      uploadDocument(file, topic),
   })
 
   const enqueueFiles = useCallback(
@@ -49,23 +49,26 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
       for (const file of accepted) {
         const fileType = getFileType(file.name)!
         const id = uuid()
+        const isPdf = fileType === 'pdf'
         const entry: UploadedFile = {
           id,
           file,
           name:      file.name,
           sizeBytes: file.size,
-          status:    fileType === 'docx' ? 'parsing' : 'uploading',
+          // DOCX files start in 'parsing' while mammoth runs client-side.
+          // PDFs have no client-side preview step — they start directly in 'uploading'.
+          status:    isPdf ? 'uploading' : 'parsing',
           fileType,
         }
         addRawDocument(entry)
 
         try {
-          if (fileType === 'docx') {
+          if (!isPdf) {
             // Parse DOCX client-side for inline preview, then upload.
             const previewHtml = await parseFile(file)
             updateRawDocument(id, { previewHtml, status: 'uploading' })
           }
-          // PDFs skip client-side parsing and go straight to upload.
+
           try {
             const { blobPath, uploadFolder } = await uploadToServer({
               file,

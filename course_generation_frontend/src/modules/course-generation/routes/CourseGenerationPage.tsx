@@ -19,7 +19,7 @@ import { CourseEditorView } from '../components/editor/CourseEditorView'
 import { useCourseStore } from '../store/courseStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useEditorStore } from '../store/editorStore'
-import { courseApi } from '../api/courseApi'
+import { createJob } from '@/api/jobs/api'
 
 // ─── Error helpers ────────────────────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ function GenerateCourseBanner() {
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
     mutationFn: () =>
-      courseApi.createJob({
+      createJob({
         courseTitle: (toData?.course_name as string) ?? (toData?.courseTitle as string) ?? 'Untitled Course',
         courseType: (rulesData?.ruleFamily as string) ?? (toData?.rule_family as string) ?? 'insurance_ce',
         inputs: {

@@ -19,6 +19,7 @@ const stripeColor: Record<UploadedFile['status'], string> = {
 
 export function FileCard({ file, onRemove, onPreview }: FileCardProps) {
   const isProcessing = file.status === 'parsing' || file.status === 'uploading'
+  // After conversion a PDF becomes a DOCX — use the current fileType for the icon
   const isPdf = file.fileType === 'pdf'
   const FileIcon = isPdf ? FileType2 : FileText
 

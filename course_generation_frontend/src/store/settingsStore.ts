@@ -9,7 +9,6 @@ import { create } from 'zustand'
 import { persist, devtools } from 'zustand/middleware'
 
 export type Theme = 'light' | 'dark' | 'system'
-export type OutputFormat = 'docx' | 'pdf' | 'html'
 
 interface SettingsState {
   // ── Appearance ────────────────────────────────────────────────────
@@ -20,15 +19,11 @@ interface SettingsState {
   autoSave: boolean
   compactMode: boolean
 
-  // ── Output ────────────────────────────────────────────────────────
-  outputFormat: OutputFormat
-
   // ── Actions ───────────────────────────────────────────────────────
   setTheme: (t: Theme) => void
   setAnimations: (v: boolean) => void
   setAutoSave: (v: boolean) => void
   setCompactMode: (v: boolean) => void
-  setOutputFormat: (f: OutputFormat) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -40,14 +35,12 @@ export const useSettingsStore = create<SettingsState>()(
         animations: true,
         autoSave: true,
         compactMode: false,
-        outputFormat: 'docx',
 
         // Setters
-        setTheme:        (theme)        => set({ theme },        false, 'settings/setTheme'),
-        setAnimations:   (animations)   => set({ animations },   false, 'settings/setAnimations'),
-        setAutoSave:     (autoSave)     => set({ autoSave },     false, 'settings/setAutoSave'),
-        setCompactMode:  (compactMode)  => set({ compactMode },  false, 'settings/setCompactMode'),
-        setOutputFormat: (outputFormat) => set({ outputFormat }, false, 'settings/setOutputFormat'),
+        setTheme:       (theme)       => set({ theme },       false, 'settings/setTheme'),
+        setAnimations:  (animations)  => set({ animations },  false, 'settings/setAnimations'),
+        setAutoSave:    (autoSave)    => set({ autoSave },    false, 'settings/setAutoSave'),
+        setCompactMode: (compactMode) => set({ compactMode }, false, 'settings/setCompactMode'),
       }),
       { name: 'lactora-settings' },
     ),

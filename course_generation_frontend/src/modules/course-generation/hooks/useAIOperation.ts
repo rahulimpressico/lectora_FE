@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEditorStore } from '../store/editorStore'
-import { courseApi } from '../api/courseApi'
+import { performAIOperation } from '@/api/editor/api'
 import type { AIOperationType } from '../types/editor'
 
 /**
@@ -23,7 +23,7 @@ export function useAIOperation(jobId: string) {
       userPrompt?: string
     }) => {
       setAIProcessing(sectionId, operation)
-      return courseApi.performAIOperation({ jobId, sectionId, operation, content, userPrompt })
+      return performAIOperation({ jobId, sectionId, operation, content, userPrompt })
     },
 
     onSuccess: (result) => {

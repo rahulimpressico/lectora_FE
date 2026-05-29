@@ -28,6 +28,7 @@ interface EditorStoreState {
   updateEditContent: (sectionId: string, content: string) => void
   saveSection: (sectionId: string, content: string) => void
   cancelEditing: (sectionId: string) => void
+  updateSectionTitle: (sectionId: string, title: string) => void
 
   setAIProcessing: (sectionId: string, operation: AIOperationType) => void
   applyAIResult: (sectionId: string, content: string) => void
@@ -49,10 +50,6 @@ function collectAllIds(sections: CourseSection[]): string[] {
   }
   walk(sections)
   return ids
-}
-
-function collectTopLevelIds(sections: CourseSection[]): string[] {
-  return sections.filter((s) => s.level === 1).map((s) => s.id)
 }
 
 function defaultEditState(section: CourseSection): SectionEditState {
@@ -114,7 +111,7 @@ export const useEditorStore = create<EditorStoreState>()(
         set({
           courseContent: content,
           sectionEditStates: editStates,
-          expandedSectionIds: new Set(collectTopLevelIds(content.sections)),
+          expandedSectionIds: new Set(collectAllIds(content.sections)),
           activeSectionId: content.sections[0]?.id ?? null,
         })
       },
@@ -207,6 +204,17 @@ export const useEditorStore = create<EditorStoreState>()(
               currentContent: existing.originalContent,
             }),
           }
+        }),
+
+      updateSectionTitle: (sectionId, title) =>
+        set((s) => {
+          if (!s.courseContent) return s
+          const updatedSections = updateSectionTree(
+            s.courseContent.sections,
+            sectionId,
+            (sec) => ({ ...sec, title }),
+          )
+          return { courseContent: { ...s.courseContent, sections: updatedSections } }
         }),
 
       setAIProcessing: (sectionId, operation) =>

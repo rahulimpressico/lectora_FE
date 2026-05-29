@@ -250,8 +250,33 @@ export const usePipelineStore = create<PipelineStoreState>()(
             },
           )
 
+          // ── Fold internal backend stages into adjacent visible stages ──────
+          // A0, SECTION_MAPPER, KC_PLANNER are not mapped to any visible
+          // frontend stage.  When they are PROCESSING we promote the
+          // immediately-following visible stage so the timeline and
+          // GenerationConsole always show meaningful progress.
+          const a0Status = backendMap.get('A0')?.status?.toUpperCase()
+          const sectionMapperStatus = backendMap.get('SECTION_MAPPER')?.status?.toUpperCase()
+          const kcPlannerStatus = backendMap.get('KC_PLANNER')?.status?.toUpperCase()
+
+          const internalA1Active = a0Status === 'PROCESSING'
+          const internalA2Active =
+            sectionMapperStatus === 'PROCESSING' || kcPlannerStatus === 'PROCESSING'
+
+          const foldedStages = updatedStages.map((s): PipelineStageState => {
+            // A0 folds into A1: while A0 runs, show A1 as 'processing'
+            if (s.id === 'A1' && s.status === 'pending' && internalA1Active) {
+              return { ...s, status: 'processing' as PipelineStageStatus }
+            }
+            // SECTION_MAPPER / KC_PLANNER fold into A2: show A2 as 'processing'
+            if (s.id === 'A2' && s.status === 'pending' && internalA2Active) {
+              return { ...s, status: 'processing' as PipelineStageStatus }
+            }
+            return s
+          })
+
           // ── Auto-complete virtual / late-marked stages on job completion ──
-          const finalStages = updatedStages.map((s) => {
+          const finalStages = foldedStages.map((s) => {
             if (overallStatus !== 'completed') return s
             // FINALIZATION (A6) and EXPORT (__export__) are virtual — promote them
             if (s.id === 'FINALIZATION' || s.id === 'EXPORT') {

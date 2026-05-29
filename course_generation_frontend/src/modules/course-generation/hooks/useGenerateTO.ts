@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { courseApi } from '../api/courseApi'
+import { generateTO } from '@/api/course-generation/api'
 import { useCourseStore } from '../store/courseStore'
 
 export function useGenerateTO() {
@@ -14,7 +14,16 @@ export function useGenerateTO() {
       const controller = new AbortController()
       abortRef.current = controller
 
-      const { rawDocuments, customToPrompt, courseTypeHint, toDocument } = useCourseStore.getState()
+      const {
+        rawDocuments,
+        customToPrompt,
+        courseTypeHint,
+        toDocument,
+        durationHours,
+        difficultyLevel,
+        calculatedWordCount,
+      } = useCourseStore.getState()
+
       // Collect all successfully uploaded file blob paths (preserving order).
       const blobPaths = rawDocuments
         .filter((f) => f.status === 'success' && f.blobPath)
@@ -22,18 +31,30 @@ export function useGenerateTO() {
 
       if (blobPaths.length === 0) throw new Error('No uploaded documents found.')
 
+      // Validate that the user has selected both duration and difficulty
+      // (required for the new dynamic TO generation flow).
+      if (!toDocument && (!durationHours || !difficultyLevel)) {
+        throw new Error('Please select both a course duration and difficulty level before generating the Training Outline.')
+      }
+
       const toDocBlobPath =
         toDocument?.status === 'success' && toDocument.blobPath
           ? toDocument.blobPath
           : undefined
 
-      return courseApi.generateTO(
+      // Use difficultyLevel as the canonical difficulty string.
+      const difficulty = (difficultyLevel ?? 'intermediate').toLowerCase()
+
+      return generateTO(
         blobPaths,
         controller.signal,
-        'intermediate',
+        difficulty,
         customToPrompt.trim() || undefined,
         courseTypeHint.trim() || undefined,
         toDocBlobPath,
+        durationHours,
+        difficultyLevel,
+        calculatedWordCount,
       )
     },
     onSuccess: ({ to, rules, toBlobPath }) => {

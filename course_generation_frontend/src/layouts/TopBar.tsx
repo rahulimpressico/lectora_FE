@@ -46,7 +46,7 @@ export function TopBar({ onMenuClick, translucent = false }: TopBarProps) {
           to="/"
           className="hidden sm:inline font-medium text-slate-400 hover:text-slate-600 transition-colors duration-150 text-xs"
         >
-          Lactora AI
+          Course Studio
         </Link>
         <ChevronRight size={12} className="hidden sm:inline text-slate-300/80" />
         <span className="font-semibold text-slate-800 truncate text-sm tracking-tight">{label}</span>

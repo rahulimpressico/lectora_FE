@@ -286,7 +286,7 @@ function SupportTab() {
   return (
     <div className="space-y-4">
       <p className="text-[12px] text-slate-400 leading-relaxed">
-        Need help with Lactora AI? Reach out through any of the channels below.
+        Need help with Course Studio? Reach out through any of the channels below.
       </p>
 
       {/* Contact cards */}
@@ -466,7 +466,7 @@ export function HelpPanel({ isOpen, onClose }: HelpPanelProps) {
             {/* Footer */}
             <div className="shrink-0 border-t border-slate-100 bg-slate-50/70 px-6 py-3.5">
               <p className="text-center text-[11px] text-slate-400">
-                Lactora AI · Course Generation Platform · v0.1.0
+                Course Studio · AI Course Generation · v0.1.0
               </p>
             </div>
           </motion.div>

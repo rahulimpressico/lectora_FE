@@ -1,6 +1,14 @@
 // ─── Course content structure returned by GET /jobs/{jobId}/course ────────────
 export type SectionType = 'overview' | 'learning-objectives' | 'conclusion' | 'content'
 
+export interface SectionImage {
+  id: string
+  fileName: string
+  blobPath: string
+  caption?: string | null
+  altText?: string | null
+}
+
 export interface CourseSection {
   id: string
   title: string
@@ -14,6 +22,7 @@ export interface CourseSection {
   order: number
   parentId?: string
   children: CourseSection[]
+  images?: SectionImage[]
 }
 
 export interface CourseContentMeta {

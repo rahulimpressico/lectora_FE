@@ -31,6 +31,15 @@ interface OperationDef {
   group: 'primary' | 'secondary'
 }
 
+const OPERATION_ICON_COLOR: Record<AIOperationType, string> = {
+  regenerate: 'text-orange-500',
+  rewrite: 'text-indigo-500',
+  improve_tone: 'text-pink-500',
+  summarize: 'text-blue-500',
+  expand: 'text-violet-500',
+  simplify: 'text-teal-500',
+}
+
 const AI_OPERATIONS: OperationDef[] = [
   {
     type: 'regenerate',
@@ -56,7 +65,7 @@ const AI_OPERATIONS: OperationDef[] = [
   {
     type: 'summarize',
     label: 'Summarize',
-    description: 'Condense to key points',
+    description: 'Condense to key points (~50% length)',
     Icon: AlignLeft,
     group: 'secondary',
   },
@@ -70,7 +79,7 @@ const AI_OPERATIONS: OperationDef[] = [
   {
     type: 'simplify',
     label: 'Simplify',
-    description: 'Use plainer language and shorter sentences',
+    description: 'Plain language, shorter sentences',
     Icon: Minimize2,
     group: 'secondary',
   },
@@ -200,8 +209,10 @@ function OperationItem({
       onClick={onSelect}
       className="w-full flex items-start gap-2.5 px-2.5 py-2 text-left rounded-lg hover:bg-slate-50 transition-colors group"
     >
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-50 group-hover:bg-brand-100 transition-colors">
-        <Icon size={12} className="text-brand-600" />
+      <div className={cn(
+        'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-50 group-hover:bg-brand-100 transition-colors',
+      )}>
+        <Icon size={12} className={OPERATION_ICON_COLOR[op.type]} />
       </div>
       <div className="min-w-0">
         <p className="text-xs font-semibold text-slate-700">{op.label}</p>

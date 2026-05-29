@@ -1,5 +1,7 @@
 /**
- * PipelineSSEClient — enterprise-grade SSE client for real-time pipeline tracking.
+ * api/pipeline/sse.ts
+ *
+ * PipelineSSEClient — SSE client for real-time pipeline stage tracking.
  *
  * Connects to GET /api/jobs/{jobId}/events and streams stage_update events.
  * Features:
@@ -10,8 +12,9 @@
  *   - Per-event handler for stage updates, plus done/error callbacks
  */
 import { API_BASE_URL } from '@/config/api'
-import type { SSEPipelineEvent } from '../types'
+import type { SSEPipelineEvent } from '@/modules/course-generation/types'
 
+export type { SSEPipelineEvent }
 export type SSEEventHandler = (event: SSEPipelineEvent) => void
 export type SSEDoneHandler = () => void
 export type SSEErrorHandler = (reason: string) => void
@@ -63,19 +66,17 @@ export class PipelineSSEClient {
   private _openSource(): void {
     if (this._closed) return
 
-    // Native EventSource automatically sends Last-Event-ID on reconnect,
-    // so the server can resume log streaming from the correct cursor.
     const url = `${SSE_BASE}/${this._jobId}/events`
     const source = new EventSource(url)
     this._source = source
 
     source.addEventListener('message', (e: MessageEvent) => {
-      this._retryCount = 0  // Successful message → reset backoff
+      this._retryCount = 0
       try {
         const payload = JSON.parse(e.data as string) as SSEPipelineEvent
         this._onEvent?.(payload)
       } catch {
-        // Ignore unparseable frames (e.g. heartbeat comments already filtered by browser)
+        // Ignore unparseable frames (e.g. heartbeat comments filtered by browser)
       }
     })
 
@@ -96,7 +97,7 @@ export class PipelineSSEClient {
 
       if (this._retryCount >= MAX_RETRIES) {
         this._onError?.(
-          `SSE connection lost after ${MAX_RETRIES} reconnect attempts`
+          `SSE connection lost after ${MAX_RETRIES} reconnect attempts`,
         )
         return
       }

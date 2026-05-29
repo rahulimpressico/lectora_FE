@@ -4,8 +4,8 @@ import {
   Search, Folder, FileText, ChevronRight, Home, X, Plus, RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { browseStorage } from '@/lib/storageApi'
-import type { StorageEntry } from '@/lib/storageApi'
+import { browseStorage } from '@/api/storage/api'
+import type { StorageEntry } from '@/api/storage/api'
 
 interface InlineAzureBrowserProps {
   accept?: string[]

@@ -30,7 +30,7 @@ import {
   toRelativeUploadPrefix,
   type StorageEntry,
   type StorageSource,
-} from '@/lib/storageApi'
+} from '@/api/storage/api'
 import { formatBytes } from '@/utils/formatBytes'
 import { fileExtension } from '@/utils/fileExtension'
 import { FilePreviewDialog } from './FilePreviewDialog'

@@ -12,7 +12,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
-import { courseApi } from '../../api/courseApi'
+import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
 import { useEditorStore } from '../../store/editorStore'
 import { useCourseStore } from '../../store/courseStore'
 import { SectionNavigation } from './SectionNavigation'
@@ -44,6 +44,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     setCourseContent,
     activeSectionId,
     expandedSectionIds,
+    sectionEditStates,
     isPreviewOpen,
     openPreview,
     closePreview,
@@ -55,7 +56,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const { data: content, isLoading, error } = useQuery({
     queryKey: ['course-content', jobId],
-    queryFn: () => courseApi.getCourseContent(jobId),
+    queryFn: () => getCourseContent(jobId),
     enabled: !!jobId,
     staleTime: Infinity, // content doesn't change during this session
   })
@@ -65,7 +66,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   }, [content, setCourseContent])
 
   const expandedCount = expandedSectionIds.size
-  const totalSections = courseContent?.sections.length ?? 0
+  const totalSections = courseContent?.meta.sectionCount ?? 0
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#f4f6f9]">
@@ -124,13 +125,20 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             variant="primary"
             size="sm"
             icon={<Download size={13} />}
-            onClick={() => courseApi.downloadCourseArtifact(jobId)}
+            onClick={() => downloadCourseArtifact(jobId)}
             disabled={!courseContent}
           >
             Download DOCX
           </Button>
         </div>
       </div>
+
+      {/* AI processing bar */}
+      {Array.from(sectionEditStates.values()).some(s => s.isAIProcessing) && (
+        <div className="h-[2px] bg-slate-100 shrink-0">
+          <div className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500 animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ width: '100%' }} />
+        </div>
+      )}
 
       {/* ── Content area ───────────────────────────────────────────────── */}
       <div className="flex-1 flex min-h-0">

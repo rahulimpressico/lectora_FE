@@ -16,7 +16,7 @@ export type * from './editor'
 
 // ─── File upload ───────────────────────────────────────────────────────────────
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'
-export type UploadedFileType = 'docx' | 'pdf'
+export type UploadedFileType = 'docx' | 'pdf' | 'json'
 
 export interface UploadedFile {
   id: string

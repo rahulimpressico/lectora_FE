@@ -435,6 +435,71 @@ select:focus {
   animation: backdrop-in 0.2s ease-out forwards;
 }
 
+/* ─── Preview Mode: premium iOS-style ───────────────────────────── */
+@keyframes preview-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes preview-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes preview-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.preview-backdrop {
+  animation: preview-backdrop-in 0.22s ease-out forwards;
+}
+.preview-modal {
+  animation: preview-modal-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.preview-section {
+  animation: preview-section-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Thin, elegant scrollbar for preview content */
+.preview-content-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+  scroll-behavior: smooth;
+}
+.preview-content-scroll::-webkit-scrollbar { width: 4px; }
+.preview-content-scroll::-webkit-scrollbar-track { background: transparent; }
+.preview-content-scroll::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 100px;
+}
+.preview-content-scroll::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* Nav sidebar thin scrollbar */
+.preview-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+.preview-nav-scroll::-webkit-scrollbar { width: 3px; }
+.preview-nav-scroll::-webkit-scrollbar-track { background: transparent; }
+.preview-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 100px;
+}
+.preview-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.22);
+}
+
 
 
 

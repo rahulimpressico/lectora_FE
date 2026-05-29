@@ -48,12 +48,22 @@ interface CourseState {
   /** Optional user-uploaded TO document (replaces AI generation when set). */
   toDocument: UploadedFile | null
 
+  // ── Dynamic TO generation — course configuration ─────────────────────────
+  /** Course duration selected by the user (1–5 hours). Required for dynamic TO. */
+  durationHours: number | null
+  /** Difficulty level selected by the user: 'basic' | 'intermediate' | 'advanced'. */
+  difficultyLevel: string | null
+  /** Word count target calculated from duration + difficulty. Sent to backend. */
+  calculatedWordCount: number | null
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
   setUploadFolder: (folder: string | null) => void
   setCustomToPrompt: (prompt: string) => void
   setCourseTypeHint: (hint: string) => void
+  setDurationHours: (hours: number | null) => void
+  setDifficultyLevel: (level: string | null) => void
 
   addRawDocument: (file: UploadedFile) => void
   updateRawDocument: (id: string, patch: Partial<UploadedFile>) => void
@@ -80,6 +90,23 @@ interface CourseState {
 
 const pathKey = (path: string[]) => path.join('.')
 
+/** Difficulty multipliers matching the backend NAIC CE formula. */
+const DIFFICULTY_MULTIPLIERS: Record<string, number> = {
+  basic:        1.0,
+  intermediate: 1.25,
+  advanced:     1.5,
+}
+
+/**
+ * Calculate target word count from duration + difficulty.
+ * Formula: (duration_hours × 9000) / multiplier
+ */
+function _calcWordCount(hours: number | null, level: string | null): number | null {
+  if (hours == null || !level) return null
+  const multiplier = DIFFICULTY_MULTIPLIERS[level.toLowerCase()] ?? 1.25
+  return Math.round((hours * 9000) / multiplier)
+}
+
 const initialState = {
   phase:              'upload' as WorkflowPhase,
   rawDocuments:       [] as UploadedFile[],
@@ -100,6 +127,9 @@ const initialState = {
   customToPrompt:       '',
   courseTypeHint:       '',
   toDocument:           null as UploadedFile | null,
+  durationHours:        null as number | null,
+  difficultyLevel:      null as string | null,
+  calculatedWordCount:  null as number | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -114,6 +144,18 @@ export const useCourseStore = create<CourseState>()(
         setUploadFolder: (folder) => set({ uploadFolder: folder }),
         setCustomToPrompt: (prompt) => set({ customToPrompt: prompt }),
         setCourseTypeHint: (hint) => set({ courseTypeHint: hint }),
+
+        setDurationHours: (hours) =>
+          set((s) => {
+            const wordCount = _calcWordCount(hours, s.difficultyLevel)
+            return { durationHours: hours, calculatedWordCount: wordCount }
+          }),
+
+        setDifficultyLevel: (level) =>
+          set((s) => {
+            const wordCount = _calcWordCount(s.durationHours, level)
+            return { difficultyLevel: level, calculatedWordCount: wordCount }
+          }),
 
         addRawDocument: (file) =>
           set((s) => ({
@@ -218,6 +260,9 @@ export const useCourseStore = create<CourseState>()(
             modifiedTOPaths:    new Set(),
             modifiedRulesPaths: new Set(),
             toDocument:         null,
+            durationHours:      null,
+            difficultyLevel:    null,
+            calculatedWordCount: null,
           }),
       }),
       {

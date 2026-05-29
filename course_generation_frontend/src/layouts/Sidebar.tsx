@@ -84,7 +84,7 @@ function SidebarContent({
           onClick={() => navigate("/")}
         >
           <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-            Lactora<span className="text-indigo-600"> AI</span>
+            Course<span className="text-indigo-600"> Studio</span>
           </span>
           <p className="text-[10px] text-slate-400 mt-0.5 font-medium tracking-wide">
             Course Generation Platform

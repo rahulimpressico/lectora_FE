@@ -10,6 +10,9 @@ import {
   Cloud,
   HardDrive,
   Check,
+  Clock,
+  BarChart2,
+  BookOpen,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { cn } from "@/lib/cn";
@@ -19,9 +22,29 @@ import { FileCard } from "../FileCard";
 import { useCourseStore } from "../../store/courseStore";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useGenerateTO } from "../../hooks/useGenerateTO";
-import { courseApi } from "../../api/courseApi";
+import { uploadDocument } from "@/api/course-generation/api";
 import { TOGenerationLoader } from "./TOGenerationLoader";
 import { InlineAzureBrowser } from "./InlineAzureBrowser";
+
+// ── Course configuration constants ──────────────────────────────────────────
+const DURATION_OPTIONS = [1, 2, 3, 4, 5] as const
+
+const DIFFICULTY_OPTIONS = [
+  { value: "basic",        label: "Basic",        description: "1× multiplier" },
+  { value: "intermediate", label: "Intermediate", description: "1.25× multiplier" },
+  { value: "advanced",     label: "Advanced",     description: "1.5× multiplier" },
+] as const
+
+const DIFFICULTY_MULTIPLIERS: Record<string, number> = {
+  basic:        1.0,
+  intermediate: 1.25,
+  advanced:     1.5,
+}
+
+function calcWordCount(hours: number, difficulty: string): number {
+  const mult = DIFFICULTY_MULTIPLIERS[difficulty] ?? 1.25
+  return Math.round((hours * 9000) / mult)
+}
 
 type UploadMode = "system" | "azure";
 
@@ -42,6 +65,10 @@ export function UploadPhase() {
     setCourseTypeHint,
     toDocument,
     setToDocument,
+    durationHours,
+    difficultyLevel,
+    setDurationHours,
+    setDifficultyLevel,
   } = useCourseStore();
 
   const { enqueueFiles, enqueueAzureFiles, isTopicValid } =
@@ -51,9 +78,15 @@ export function UploadPhase() {
   const [uploadMode, setUploadMode] = useState<UploadMode>("system");
   const [toUploadError, setToUploadError] = useState<string | null>(null);
 
+  // Computed word count shown to the user
+  const previewWordCount =
+    durationHours && difficultyLevel
+      ? calcWordCount(durationHours, difficultyLevel)
+      : null;
+
   const { mutate: uploadTO, isPending: isUploadingTO } = useMutation({
     mutationFn: async (file: File) => {
-      const { blobPath, uploadFolder: folder } = await courseApi.uploadDocument(
+      const { blobPath, uploadFolder: folder } = await uploadDocument(
         file,
         courseTopic.trim(),
       );
@@ -62,12 +95,13 @@ export function UploadPhase() {
     },
     onSuccess: ({ blobPath, file }) => {
       setToUploadError(null);
+      const lower = file.name.toLowerCase();
       setToDocument({
         id: "to-doc",
         name: file.name,
         sizeBytes: file.size,
         status: "success",
-        fileType: "docx",
+        fileType: lower.endsWith(".pdf") ? "pdf" : lower.endsWith(".json") ? "json" : "docx",
         blobPath,
         source: "system",
       });
@@ -90,14 +124,24 @@ export function UploadPhase() {
     (f) => f.status === "parsing" || f.status === "uploading",
   );
   const errorFiles = rawDocuments.filter((f) => f.status === "error");
-  const canGenerate = successFiles.length > 0 && processingFiles.length === 0;
   const toProvided = toDocument?.status === "success";
+
+  // Config is ready when a TO is provided (bypasses AI generation)
+  // OR when the user has selected both duration and difficulty.
+  const configReady = toProvided || (!!durationHours && !!difficultyLevel);
+  const canGenerate =
+    successFiles.length > 0 &&
+    processingFiles.length === 0 &&
+    configReady;
 
   const handleTOFileDrop = (files: FileList | File[]) => {
     const arr = Array.from(files);
-    const docx = arr.find((f) => f.name.toLowerCase().endsWith(".docx"));
-    if (!docx || !isTopicValid) return;
-    uploadTO(docx);
+    const toFile = arr.find((f) => {
+      const lower = f.name.toLowerCase();
+      return lower.endsWith(".docx") || lower.endsWith(".pdf") || lower.endsWith(".json");
+    });
+    if (!toFile || !isTopicValid) return;
+    uploadTO(toFile);
   };
 
   const addedAzurePaths = new Set(
@@ -488,7 +532,7 @@ export function UploadPhase() {
                           Training Outline
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Upload a pre-built TO document to bypass AI generation
+                          Upload a pre-built TO document (DOCX or PDF) to bypass AI generation
                         </p>
                       </div>
                     </div>
@@ -556,7 +600,7 @@ export function UploadPhase() {
                       onFiles={handleTOFileDrop}
                       multiple={false}
                       disabled={!isTopicValid || isUploadingTO}
-                      accept=".docx"
+                      accept=".docx,.pdf,.json"
                       compact
                       label={
                         isUploadingTO
@@ -565,7 +609,7 @@ export function UploadPhase() {
                             ? "Drop your TO document here"
                             : "Enter course topic first"
                       }
-                      sublabel="DOCX only · click to browse"
+                      sublabel="DOCX, PDF, or JSON · click to browse"
                     />
                   )}
                   {toUploadError && (
@@ -576,7 +620,158 @@ export function UploadPhase() {
                 </div>
               </div>
 
-              {/* ── AI Generation Settings card ── */}
+              {/* ── Course Configuration card (required) ── */}
+              <div className="relative rounded-2xl bg-white border border-slate-200/50 shadow-[0_2px_12px_-2px_rgb(0,0,0,0.08),0_8px_32px_-6px_rgb(0,0,0,0.05)] overflow-hidden">
+                <div className={cn(
+                  "h-[3px]",
+                  configReady && !toProvided
+                    ? "bg-gradient-to-r from-emerald-400 to-teal-500"
+                    : "bg-gradient-to-r from-indigo-500 to-violet-500",
+                )} />
+
+                <div className="px-5 pt-3.5 pb-3 border-b border-slate-100/80">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-xl shadow-sm",
+                        configReady && !toProvided
+                          ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_2px_8px_0_rgb(16,185,129,0.3)]"
+                          : "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_8px_0_rgb(99,102,241,0.3)]",
+                      )}>
+                        <BarChart2 size={12} className="text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-[13px] font-bold text-slate-900 leading-none">
+                          Course Configuration
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Select duration and difficulty to configure your course
+                        </p>
+                      </div>
+                    </div>
+                    {configReady && !toProvided ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 shrink-0">
+                        <CheckCircle2 size={9} />
+                        Ready
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-500 uppercase tracking-wide border border-red-200 shrink-0">
+                        Required
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 space-y-4">
+                  {/* Duration selector */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Clock size={12} className="text-slate-400 shrink-0" />
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Course Duration <span className="text-red-400">*</span>
+                      </label>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {DURATION_OPTIONS.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => setDurationHours(durationHours === h ? null : h)}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-all border",
+                            durationHours === h
+                              ? "bg-indigo-600 text-white border-indigo-700 shadow-[0_2px_8px_0_rgb(99,102,241,0.4)]"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/60",
+                          )}
+                        >
+                          <span>{h}h</span>
+                          {durationHours === h && <Check size={11} strokeWidth={2.5} />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Difficulty selector */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={12} className="text-slate-400 shrink-0" />
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Difficulty Level <span className="text-red-400">*</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {DIFFICULTY_OPTIONS.map(({ value, label, description }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setDifficultyLevel(difficultyLevel === value ? null : value)}
+                          className={cn(
+                            "flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 text-center transition-all border",
+                            difficultyLevel === value
+                              ? "bg-indigo-600 text-white border-indigo-700 shadow-[0_2px_8px_0_rgb(99,102,241,0.4)]"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/60",
+                          )}
+                        >
+                          <span className="text-[12px] font-bold leading-none">{label}</span>
+                          <span className={cn(
+                            "text-[10px] leading-none mt-0.5",
+                            difficultyLevel === value ? "text-indigo-200" : "text-slate-400",
+                          )}>
+                            {description}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Word count preview */}
+                  {previewWordCount != null ? (
+                    <div className="flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 border border-indigo-200">
+                        <BookOpen size={13} className="text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-bold text-indigo-800 leading-none">
+                          {previewWordCount.toLocaleString()} words
+                        </p>
+                        <p className="text-[11px] text-indigo-600 mt-0.5">
+                          {durationHours}h × 9,000 ÷ {DIFFICULTY_MULTIPLIERS[difficultyLevel!]}× ({difficultyLevel})
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 border border-slate-200">
+                        <BookOpen size={13} className="text-slate-400" />
+                      </div>
+                      <p className="text-[12px] text-slate-400">
+                        Select duration and difficulty to see target word count
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* TO provided overlay — AI generation is bypassed */}
+                {toProvided && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-[2px] z-10">
+                    <div className="flex flex-col items-center gap-2 text-center px-6">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 border border-emerald-200">
+                        <CheckCircle2 size={18} className="text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-bold text-emerald-800">
+                          AI Generation Bypassed
+                        </p>
+                        <p className="text-[12px] text-emerald-600 mt-0.5">
+                          Your Training Outline overrides AI generation
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── AI Generation Settings card (optional, collapsed) ── */}
               <div className="relative rounded-2xl bg-white border border-slate-200/50 shadow-[0_2px_12px_-2px_rgb(0,0,0,0.08),0_8px_32px_-6px_rgb(0,0,0,0.05)] overflow-hidden">
                 <div className="h-[3px] bg-gradient-to-r from-violet-500 to-purple-500" />
 
@@ -588,10 +783,10 @@ export function UploadPhase() {
                       </div>
                       <div>
                         <h3 className="text-[13px] font-bold text-slate-900 leading-none">
-                          AI Generation
+                          AI Generation Hints
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Optional context to improve outline quality
+                          Optional context to fine-tune outline quality
                         </p>
                       </div>
                     </div>
@@ -636,7 +831,7 @@ export function UploadPhase() {
                     <textarea
                       value={customToPrompt}
                       onChange={(e) => setCustomToPrompt(e.target.value)}
-                      placeholder="e.g. Create 8–10 sections. Focus on practical applications and regulatory compliance procedures…"
+                      placeholder="e.g. Focus on practical applications and regulatory compliance procedures…"
                       rows={3}
                       className={cn(
                         "w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
@@ -647,31 +842,12 @@ export function UploadPhase() {
                       <div className="flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-2 border border-violet-100">
                         <div className="h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0" />
                         <p className="text-[12px] text-violet-700 font-medium">
-                          Custom prompt active — overrides default generation
+                          Custom hint active
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* TO provided overlay */}
-                {toProvided && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-[2px] z-10">
-                    <div className="flex flex-col items-center gap-2 text-center px-6">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 border border-emerald-200">
-                        <CheckCircle2 size={18} className="text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-[13px] font-bold text-emerald-800">
-                          AI Generation Disabled
-                        </p>
-                        <p className="text-[12px] text-emerald-600 mt-0.5">
-                          Your Training Outline overrides this
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
             {/* ═════════════════════════════════════════════════════ */}
@@ -727,12 +903,28 @@ export function UploadPhase() {
                 <div>
                   <p className="text-[14px] font-semibold text-slate-800 leading-none">
                     {successFiles.length} file
-                    {successFiles.length !== 1 ? "s" : ""} ready
+                    {successFiles.length !== 1 ? "s" : ""} ready ·{" "}
+                    {durationHours}h {difficultyLevel}
+                    {previewWordCount != null && ` · ${previewWordCount.toLocaleString()} words`}
                   </p>
                   <p className="text-[12px] text-slate-500 mt-0.5">
-                    {customToPrompt.trim()
-                      ? "Custom prompt active — click Generate TO to analyze."
-                      : "Click Generate TO to analyze and extract the Training Outline."}
+                    Click Generate TO to build the Training Outline.
+                  </p>
+                </div>
+              </div>
+            ) : successFiles.length > 0 && !configReady ? (
+              <div className="flex items-center gap-2.5">
+                <AlertCircle size={15} className="text-amber-500 shrink-0" />
+                <div>
+                  <p className="text-[14px] font-semibold text-amber-700 leading-none">
+                    Select duration and difficulty to continue
+                  </p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">
+                    {!durationHours && !difficultyLevel
+                      ? "Both course duration and difficulty are required."
+                      : !durationHours
+                        ? "Select a course duration (1–5 hours)."
+                        : "Select a difficulty level (Basic, Intermediate, or Advanced)."}
                   </p>
                 </div>
               </div>

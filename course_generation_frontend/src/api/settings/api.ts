@@ -1,9 +1,12 @@
 /**
- * settingsApi — typed wrappers for the /api/settings backend endpoints.
+ * api/settings/api.ts
+ *
+ * Agent model configuration settings.
+ * Manages deployment overrides and resets for pipeline agents.
  */
-import axiosInstance from './axiosInstance'
+import apiClient from '@/api/client'
 
-// ─── Response shapes (mirror Python Pydantic models) ─────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AgentModelConfig {
   agent_id: string
@@ -44,17 +47,17 @@ export interface UpdateModelsResponse {
 export const settingsApi = {
   /** Fetch current agent model configs + available models list. */
   getSettings: (): Promise<SettingsResponse> =>
-    axiosInstance.get('/settings').then((r) => r.data as SettingsResponse),
+    apiClient.get('/settings').then((r) => r.data as SettingsResponse),
 
   /** Persist deployment overrides for one or more agents. */
   updateModels: (updates: ModelUpdate[]): Promise<UpdateModelsResponse> =>
-    axiosInstance
+    apiClient
       .put('/settings/models', { updates })
       .then((r) => r.data as UpdateModelsResponse),
 
   /** Revert one or all agents to their default deployments. */
   resetModels: (agentId?: string): Promise<UpdateModelsResponse> =>
-    axiosInstance
+    apiClient
       .post('/settings/models/reset', agentId ? { agent_id: agentId } : {})
       .then((r) => r.data as UpdateModelsResponse),
 }

@@ -156,7 +156,7 @@ export function HomePage() {
               <Sparkles size={14} className="text-white" />
             </div>
             <span className="text-sm font-bold text-slate-900 tracking-tight">
-              Lactora<span className="text-indigo-600"> AI</span>
+              Course<span className="text-indigo-600"> Studio</span>
             </span>
           </div>
 
@@ -587,7 +587,7 @@ export function HomePage() {
         <div className="max-w-5xl mx-auto relative">
           <FadeUp className="text-center mb-16">
             <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-500 mb-3">
-              Why Lactora AI
+              Why Course Studio
             </p>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
               Built for enterprise course
@@ -694,7 +694,7 @@ export function HomePage() {
               <Sparkles size={12} className="text-white" />
             </div>
             <span className="text-sm font-bold text-slate-900 tracking-tight">
-              Lactora<span className="text-indigo-600"> AI</span>
+              Course<span className="text-indigo-600"> Studio</span>
             </span>
           </div>
 
@@ -715,7 +715,7 @@ export function HomePage() {
             ))}
           </nav>
 
-          <p className="text-xs text-slate-400">© 2025 Lactora AI · Impressico</p>
+          <p className="text-xs text-slate-400">© 2025 Course Studio · Impressico</p>
         </div>
       </footer>
     </div>

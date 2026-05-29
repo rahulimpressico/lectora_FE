@@ -1,20 +1,23 @@
+/**
+ * api/client.ts — shared Axios instance used by every API module.
+ *
+ * Single source of truth for base URL, default timeouts, and response
+ * error normalisation. Import this instead of creating ad-hoc Axios instances.
+ */
 import axios from 'axios'
 import { API_BASE_URL } from '@/config/api'
 
-const axiosInstance = axios.create({
+const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120_000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 })
 
-axiosInstance.interceptors.request.use(
+apiClient.interceptors.request.use(
   (config) => config,
   (error) => Promise.reject(error),
 )
 
-axiosInstance.interceptors.response.use(
+apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     const message =
@@ -26,4 +29,4 @@ axiosInstance.interceptors.response.use(
   },
 )
 
-export default axiosInstance
+export default apiClient

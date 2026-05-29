@@ -12,8 +12,8 @@
 import { useEffect } from 'react'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useCourseStore } from '../store/courseStore'
-import { PipelineSSEClient } from '../services/pipelineSSE'
-import { courseApi } from '../api/courseApi'
+import { PipelineSSEClient } from '@/api/pipeline/sse'
+import { getJobDetail } from '@/api/jobs/api'
 import type { AxiosError } from 'axios'
 
 export function useJobPipeline(jobId: string | null) {
@@ -35,7 +35,7 @@ export function useJobPipeline(jobId: string | null) {
 
     async function start() {
       try {
-        await courseApi.getJobDetail(jobId!)
+        await getJobDetail(jobId!)
       } catch (err) {
         if (cancelled) return
 

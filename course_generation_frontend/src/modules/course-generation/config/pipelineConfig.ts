@@ -79,6 +79,21 @@ export const BACKEND_STAGE_TO_PIPELINE_ID: Record<string, PipelineStageId> = {
   A6: 'FINALIZATION',
 }
 
+/**
+ * Internal backend stages that are NOT shown as standalone frontend stages.
+ * Instead, while they are PROCESSING, their corresponding visible stage is
+ * promoted to 'processing' so the UI always shows meaningful progress:
+ *
+ *   A0             → folds into A1  (document analysis runs before A1)
+ *   SECTION_MAPPER → folds into A2  (runs between S1 and A2)
+ *   KC_PLANNER     → folds into A2  (runs between S1 and A2)
+ */
+export const INTERNAL_STAGE_FOLD_MAP: Record<string, PipelineStageId> = {
+  A0: 'A1',
+  SECTION_MAPPER: 'A2',
+  KC_PLANNER: 'A2',
+}
+
 export function buildInitialPipelineStages(): PipelineStageState[] {
   return PIPELINE_STAGE_CONFIGS.map((cfg) => ({
     id: cfg.id,

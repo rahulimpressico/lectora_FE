@@ -20,7 +20,6 @@ import {
   Settings,
   Check,
   Zap,
-  FileText,
   Cpu,
   RefreshCw,
   AlertCircle,
@@ -31,9 +30,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useSettingsStore } from '@/store/settingsStore'
-import type { Theme, OutputFormat } from '@/store/settingsStore'
-import { settingsApi } from '@/services/settingsApi'
-import type { AgentModelConfig, AvailableModel } from '@/services/settingsApi'
+import type { Theme } from '@/store/settingsStore'
+import { settingsApi } from '@/api/settings/api'
+import type { AgentModelConfig, AvailableModel } from '@/api/settings/api'
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -143,48 +142,6 @@ function AppearanceSection() {
               <span className={cn('text-[11px] font-semibold', theme === value ? 'text-indigo-700' : 'text-slate-600')}>{label}</span>
             </div>
             {theme === value && (
-              <div className="absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 shadow-sm">
-                <Check size={9} className="text-white" strokeWidth={3} />
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-// ─── Output format section ────────────────────────────────────────────────────
-
-const outputFormats: { value: OutputFormat; label: string; ext: string; emoji: string; desc: string }[] = [
-  { value: 'docx', label: 'Word',  ext: '.docx', emoji: '📝', desc: 'Editable document' },
-  { value: 'pdf',  label: 'PDF',   ext: '.pdf',  emoji: '📋', desc: 'Print-ready format' },
-  { value: 'html', label: 'HTML',  ext: '.html', emoji: '🌐', desc: 'Web package' },
-]
-
-function OutputSection() {
-  const { outputFormat, setOutputFormat } = useSettingsStore()
-  return (
-    <section>
-      <SectionLabel icon={<FileText size={12} />} label="Output Format" />
-      <div className="grid grid-cols-3 gap-2">
-        {outputFormats.map(({ value, label, ext, emoji, desc }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setOutputFormat(value)}
-            className={cn(
-              'relative flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3.5 text-center transition-all duration-150',
-              outputFormat === value
-                ? 'border-indigo-300 bg-indigo-50 shadow-[0_0_0_2px_rgba(99,102,241,0.1)]'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50',
-            )}
-          >
-            <span className="text-xl leading-none">{emoji}</span>
-            <span className={cn('text-[12px] font-bold', outputFormat === value ? 'text-indigo-700' : 'text-slate-700')}>{label}</span>
-            <span className={cn('text-[10px] font-mono', outputFormat === value ? 'text-indigo-400' : 'text-slate-400')}>{ext}</span>
-            <span className="text-[10px] text-slate-400 leading-tight">{desc}</span>
-            {outputFormat === value && (
               <div className="absolute top-2 right-2 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 shadow-sm">
                 <Check size={9} className="text-white" strokeWidth={3} />
               </div>
@@ -659,8 +616,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               <AppearanceSection />
               <div className="h-px bg-slate-100" />
               <AIModelsSection />
-              <div className="h-px bg-slate-100" />
-              <OutputSection />
               <div className="h-px bg-slate-100" />
               <EditorSection />
             </div>

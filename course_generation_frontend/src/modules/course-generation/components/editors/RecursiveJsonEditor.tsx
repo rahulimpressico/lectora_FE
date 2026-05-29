@@ -18,6 +18,23 @@ function pathKey(path: string[]) {
   return path.join('.')
 }
 
+function createEmptyTemplate(item: JsonValue): JsonValue {
+  if (isJsonObject(item)) {
+    const result: JsonObject = {}
+    for (const [k, v] of Object.entries(item as JsonObject)) {
+      if (isPrimitive(v)) {
+        result[k] = typeof v === 'number' ? 0 : typeof v === 'boolean' ? false : ''
+      } else if (isJsonArray(v)) {
+        result[k] = []
+      } else if (isJsonObject(v)) {
+        result[k] = createEmptyTemplate(v) as JsonObject
+      }
+    }
+    return result
+  }
+  return ''
+}
+
 function formatRawValue(v: JsonPrimitive): string {
   if (v === null) return ''
   return String(v)
@@ -499,22 +516,37 @@ function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onRes
             </button>
           </div>
         ) : (
-          /* ── Object array: spaced sub-cards (no add button — complex schema) ── */
-          <div className="p-3 space-y-2 bg-slate-50/30">
-            {arr.map((item, idx) => (
-              <JsonNode
-                key={idx}
-                keyName={String(idx)}
-                value={item}
-                originalValue={item}
-                path={[...path, String(idx)]}
-                depth={depth + 1}
-                modifiedPaths={modifiedPaths}
-                onUpdate={onUpdate}
-                onReset={onReset}
-              />
-            ))}
-          </div>
+          /* ── Object array: spaced sub-cards with add button ── */
+          <>
+            <div className="p-3 space-y-2 bg-slate-50/30">
+              {arr.map((item, idx) => (
+                <JsonNode
+                  key={idx}
+                  keyName={String(idx)}
+                  value={item}
+                  originalValue={item}
+                  path={[...path, String(idx)]}
+                  depth={depth + 1}
+                  modifiedPaths={modifiedPaths}
+                  onUpdate={onUpdate}
+                  onReset={onReset}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const template = arr.length > 0 ? createEmptyTemplate(arr[0]) : {}
+                onUpdate(path, [...arr, template])
+              }}
+              className="group flex w-full items-center gap-2 px-4 py-2.5 text-[12px] font-semibold text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all duration-150 border-t border-dashed border-slate-200/80"
+            >
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 group-hover:bg-indigo-200 transition-colors shrink-0">
+                <Plus size={10} className="text-indigo-500" strokeWidth={2.5} />
+              </span>
+              Add {singularLabel(keyName)}
+            </button>
+          </>
         )
       )}
     </div>

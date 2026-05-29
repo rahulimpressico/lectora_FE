@@ -21,13 +21,14 @@ export default defineConfig({
         timeout: 0,
         proxyTimeout: 0,
       },
-      // All other /api routes — 2-minute timeout is enough for uploads + generation kicks
+      // All other /api routes. Large source-document uploads can exceed two
+      // minutes on slower machines / networks, so keep the proxy tolerant.
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
-        timeout: 120_000,
-        proxyTimeout: 120_000,
+        timeout: 10 * 60 * 1_000,
+        proxyTimeout: 10 * 60 * 1_000,
       },
     },
   },

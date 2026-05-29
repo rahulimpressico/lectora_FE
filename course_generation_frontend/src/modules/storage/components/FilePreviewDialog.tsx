@@ -8,7 +8,7 @@ import {
   storageFileUrl,
   type StorageEntry,
   type StorageSource,
-} from '@/lib/storageApi'
+} from '@/api/storage/api'
 import { fileExtension } from '@/utils/fileExtension'
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
