@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { CourseGenerationPage } from "@/modules/course-generation";
+import { CostingDashboardPage } from "@/modules/costing";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AssetLibraryPage } from "@/pages/AssetLibraryPage";
 import { DocumentsLibraryPage } from "@/pages/DocumentsLibraryPage";
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: "/generate", element: <CourseGenerationPage /> },
       { path: "/assert_library", element: <AssetLibraryPage /> },
       { path: "/documents_library", element: <DocumentsLibraryPage /> },
+      { path: "/costing", element: <CostingDashboardPage /> },
     ],
   },
 ]);

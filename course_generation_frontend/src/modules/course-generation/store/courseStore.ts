@@ -90,6 +90,112 @@ interface CourseState {
 
 const pathKey = (path: string[]) => path.join('.')
 
+// ── TO bidirectional sync ──────────────────────────────────────────────────────
+
+/**
+ * Fields that must stay in sync between `totals` and each `sections[i]`.
+ * When either side changes the other is automatically updated.
+ */
+const TO_SYNC_FIELDS = new Set(['word_count', 'credit_hours'])
+const TO_TOTALS_KEY   = 'totals'
+const TO_SECTIONS_KEY = 'sections'
+
+/**
+ * Distributes `newTotal` proportionally across `sectionValues`.
+ *
+ * - Uses existing ratios when currentTotal > 0; falls back to even split.
+ * - The last section absorbs the rounding remainder so the sum is always
+ *   exactly `newTotal` (no off-by-one drift).
+ * - `isFloat` keeps two decimal places (credit_hours); otherwise integers.
+ */
+function _distributeProportionally(
+  newTotal: number,
+  sectionValues: number[],
+  isFloat: boolean,
+): number[] {
+  const n = sectionValues.length
+  if (n === 0) return []
+
+  const round = (v: number) =>
+    isFloat ? Math.round(v * 100) / 100 : Math.round(v)
+
+  const currentTotal = sectionValues.reduce((a, b) => a + b, 0)
+
+  let distributed: number[]
+
+  if (currentTotal === 0) {
+    // Even distribution — all sections were 0
+    const even = newTotal / n
+    distributed = Array.from({ length: n }, () => round(even))
+  } else {
+    distributed = sectionValues.map((v) => round((newTotal * v) / currentTotal))
+  }
+
+  // Correct rounding remainder in last section so the sum is exact
+  const headSum = distributed.slice(0, -1).reduce((a, b) => a + b, 0)
+  distributed[n - 1] = isFloat
+    ? Math.round((newTotal - headSum) * 100) / 100
+    : newTotal - headSum
+
+  return distributed
+}
+
+/**
+ * Applies the bidirectional sync cascade after a field is written.
+ *
+ * - `totals.<field>` changed → redistribute proportionally across `sections[*].<field>`.
+ * - `sections.<i>.<field>` changed → recalculate `totals.<field>` as the sum.
+ *
+ * Returns the already-updated `data` with the cascade applied, or the same
+ * object when the changed path is not a sync-controlled field.
+ */
+function _applySyncCascade(
+  data: JsonObject,
+  path: string[],
+  value: JsonValue,
+): JsonObject {
+  const field = path[path.length - 1]
+  if (!TO_SYNC_FIELDS.has(field)) return data
+
+  const numValue = Number(value)
+  if (isNaN(numValue) || numValue < 0) return data
+
+  const isFloat = field === 'credit_hours'
+
+  // ── Totals → sections ────────────────────────────────────────────────────────
+  if (path.length === 2 && path[0] === TO_TOTALS_KEY) {
+    const sections = deepGet(data, [TO_SECTIONS_KEY])
+    if (!Array.isArray(sections) || sections.length === 0) return data
+
+    const sectionValues = sections.map((_, i) =>
+      Number(deepGet(data, [TO_SECTIONS_KEY, String(i), field])) || 0,
+    )
+
+    const distributed = _distributeProportionally(numValue, sectionValues, isFloat)
+
+    let newData = data
+    for (let i = 0; i < sections.length; i++) {
+      newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), field], distributed[i])
+    }
+    return newData
+  }
+
+  // ── Section → totals ─────────────────────────────────────────────────────────
+  if (path.length === 3 && path[0] === TO_SECTIONS_KEY) {
+    const sections = deepGet(data, [TO_SECTIONS_KEY])
+    if (!Array.isArray(sections)) return data
+
+    const total = sections.reduce<number>((sum, _, i) => {
+      return sum + (Number(deepGet(data, [TO_SECTIONS_KEY, String(i), field])) || 0)
+    }, 0)
+
+    const rounded = isFloat ? Math.round(total * 100) / 100 : total
+    return deepSet(data, [TO_TOTALS_KEY, field], rounded)
+  }
+
+  return data
+}
+
 /** Difficulty multipliers matching the backend NAIC CE formula. */
 const DIFFICULTY_MULTIPLIERS: Record<string, number> = {
   basic:        1.0,
@@ -197,8 +303,11 @@ export const useCourseStore = create<CourseState>()(
             if (!s.toData) return s
             const modified = new Set(s.modifiedTOPaths)
             modified.add(pathKey(path))
+            // Write the user's value first, then cascade the sync.
+            const afterSet      = deepSet(s.toData, path, value)
+            const afterCascade  = _applySyncCascade(afterSet, path, value)
             return {
-              toData:          deepSet(s.toData, path, value),
+              toData:          afterCascade,
               modifiedTOPaths: modified,
             }
           }),
@@ -206,11 +315,32 @@ export const useCourseStore = create<CourseState>()(
         resetTOField: (path) =>
           set((s) => {
             if (!s.toData || !s.toOriginal) return s
-            const original  = deepGet(s.toOriginal, path) ?? null
-            const modified  = new Set(s.modifiedTOPaths)
+            const original = deepGet(s.toOriginal, path) ?? null
+            const modified = new Set(s.modifiedTOPaths)
             modified.delete(pathKey(path))
+
+            let newData = deepSet(s.toData, path, original as JsonValue)
+            const field = path[path.length - 1]
+
+            if (TO_SYNC_FIELDS.has(field) && original !== null) {
+              if (path.length === 2 && path[0] === TO_TOTALS_KEY) {
+                // Resetting a total: restore all section values from original too.
+                const sections = deepGet(s.toOriginal, [TO_SECTIONS_KEY])
+                if (Array.isArray(sections)) {
+                  for (let i = 0; i < sections.length; i++) {
+                    const origVal =
+                      deepGet(s.toOriginal, [TO_SECTIONS_KEY, String(i), field]) ?? 0
+                    newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), field], origVal)
+                  }
+                }
+              } else if (path.length === 3 && path[0] === TO_SECTIONS_KEY) {
+                // Resetting a section value: recalculate the total from current data.
+                newData = _applySyncCascade(newData, path, original as JsonValue)
+              }
+            }
+
             return {
-              toData:          deepSet(s.toData, path, original as JsonValue),
+              toData:          newData,
               modifiedTOPaths: modified,
             }
           }),

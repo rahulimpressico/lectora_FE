@@ -31,20 +31,23 @@ There is no test suite yet.
 
 ### Routing & Layout
 
-`src/router/index.tsx` defines routes under `AppLayout` (sidebar + topbar shell):
+`src/router/index.tsx` defines routes:
 
-- `/` → `DashboardPage` (placeholder)
+- `/` → `HomePage` (landing/marketing page, outside AppLayout)
+- `/dashboard` → `DashboardPage` (placeholder, inside AppLayout)
 - `/generate` → `CourseGenerationPage`
 - `/assert_library` → `AssetLibraryPage`
 - `/documents_library` → `DocumentsLibraryPage`
 
+`AppLayout` (`src/layouts/AppLayout.tsx`) provides the sidebar + topbar shell for all routes except `/`.
+
 ### Feature: course-generation
 
-All active UI lives under `src/features/course-generation/`. The feature is self-contained — it exports only from `index.ts`.
+All active UI lives under `src/modules/course-generation/`. The module is self-contained — it exports only from `index.ts`.
 
 **Four-phase workflow** driven by `WorkflowPhase` in Zustand (`courseStore.ts`):
 
-1. **`upload`** — `UploadPhase` component; user drops `.docx` files, each is parsed client-side with `mammoth` into preview HTML, then uploaded to `/api/documents/upload`. After upload, "Generate TO" calls `/api/documents/generate-to` to get the Training Outline (TO) and rule pack JSON.
+1. **`upload`** — `UploadPhase` component; user drops `.docx` files, each is parsed client-side with `mammoth` into preview HTML, then uploaded to `/api/documents/upload`. User also selects course topic, duration (1–5 hrs), difficulty level, and optional custom TO prompt. "Generate TO" calls `/api/documents/generate-to` with these parameters.
 
 2. **`three-panel`** — `ThreePanelLayout` with three resizable panels:
    - **Left** `DocViewerPanel` — rendered HTML preview of the uploaded `.docx`
@@ -52,17 +55,20 @@ All active UI lives under `src/features/course-generation/`. The feature is self
    - **Right** `RulesPanel` — editable tree of the rules JSON via `RecursiveJsonEditor`
    - **Bottom banner** `GenerateCourseBanner` — triggers `POST /api/jobs` then advances to `pipeline` phase.
 
-3. **`pipeline`** — `PipelineView` component; live monitoring via SSE (`GET /api/jobs/{jobId}/events`) using `PipelineSSEClient` (`services/pipelineSSE.ts`). SSE events are merged into `pipelineStore`. Advances to `course-editor` when the job reaches `COMPLETED`.
+3. **`pipeline`** — `PipelineView` component; live monitoring via SSE (`GET /api/jobs/{jobId}/events`) using `PipelineSSEClient` (`src/api/pipeline/sse.ts`). SSE events are merged into `pipelineStore`. Advances to `course-editor` when the job reaches `COMPLETED`.
 
-4. **`course-editor`** — `CourseEditorView` component; section-based editing UI with sidebar navigation, expandable section panels, and an AI operations toolbar. AI operations call `POST /api/jobs/{jobId}/ai` and are tracked in `editorStore`. Artifact download uses `exportCourseToDocx` (`services/docxExporter.ts`) to produce a `.docx` client-side via the `docx` package.
+4. **`course-editor`** — `CourseEditorView` component; section-based editing UI with sidebar navigation, expandable section panels, and an AI operations toolbar. AI operations call `POST /api/jobs/{jobId}/ai`. Artifact download uses `exportCourseToDocx` to produce a `.docx` client-side via the `docx` package.
 
 ### State: Zustand stores
 
-- **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths. Uses `devtools` + `persist`; `partialize` returns `{}` so **nothing is persisted**.
+- **`courseStore.ts`** (`src/modules/course-generation/store/`) — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths, course configuration (topic, duration, difficulty, word count, custom prompt). Uses `devtools` + `persist`; `partialize` saves **only** `{ activeJobId, phase }` when `activeJobId` is set — this allows reconnecting to an in-flight job after page refresh. All other state is ephemeral.
 - **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. Uses `devtools` only (no persist). Log entries are capped at 400. Backend log IDs are deduplicated via a module-level `_maxSeenBackendLogId` counter — on SSE reconnect, re-delivered log entries are skipped.
 - **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state, preview open flag. Uses `devtools` only (no persist). Section tree mutations use recursive `updateSectionTree`.
+- **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`. DOM side-effects from theme changes are applied in `AppLayout`, not in the store.
 
 Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are `Set<string>` of dot-joined paths. `updateTOField` / `updateRulesField` add paths; `resetTOField` / `resetRulesField` remove them and restore the original value via `deepGet`/`deepSet` from `utils/deepUpdate.ts`.
+
+**Bidirectional TO sync** (`courseStore.ts`): editing `totals.word_count` or `totals.credit_hours` proportionally redistributes values across all `sections[*]`; editing a section value recalculates the `totals` sum. `FINALIZATION` and `EXPORT` stages are auto-completed by the pipeline store when `overallStatus` reaches `completed`.
 
 ### Pipeline stages
 
@@ -77,40 +83,42 @@ Defined in `config/pipelineConfig.ts`. The six visible stages are:
 | `FINALIZATION` | `A6` | Course Assembly |
 | `EXPORT` | `__export__` | Final Export (virtual, FE only) |
 
-`A0`, `SECTION_MAPPER`, and `KC_PLANNER` are internal backend stages folded into adjacent visible stages. `FINALIZATION` and `EXPORT` are auto-completed by the store when `overallStatus` reaches `completed`.
+`A0`, `SECTION_MAPPER`, and `KC_PLANNER` are internal backend stages folded into adjacent visible stages.
 
-### SSE client (`services/pipelineSSE.ts`)
+### SSE client (`src/api/pipeline/sse.ts`)
 
 `PipelineSSEClient` is a class-based SSE client. It connects to `GET /api/jobs/{jobId}/events` using the browser's native `EventSource` (which automatically sends `Last-Event-ID` on reconnect). It handles three server-sent event types: `message` (stage updates), `done` (pipeline complete), and `timeout` (30-minute hard limit). On connection error it retries with exponential backoff — base 1.5 s, up to 30 s, max 8 retries.
 
 ### API layer
 
-`src/services/axiosInstance.ts` — single Axios instance with 120 s timeout. `baseURL` comes from `src/config/api.ts` (`API_BASE_URL`): in dev it resolves to `/api` (Vite proxy → `http://localhost:8000`); in production it defaults to the Render backend URL, overridable via `VITE_API_BASE_URL`. The Vite proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (required for SSE streams); all other `/api` routes use 120 s. Both rules must exist — changing the order or merging them breaks SSE.
+All API modules live under `src/api/`, each focused on a domain:
 
-`src/features/course-generation/api/courseApi.ts` — typed wrappers for all backend endpoints.
+- `src/api/client.ts` — shared Axios instance (120 s timeout, error-normalisation interceptor). Import this instead of creating ad-hoc instances.
+- `src/api/course-generation/api.ts` — `uploadDocument`, `generateTO` (with async-poll fallback)
+- `src/api/jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`
+- `src/api/pipeline/sse.ts` — `PipelineSSEClient`
+- `src/api/editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`. The download call handles two shapes: binary blob (local dev) triggers a browser download; JSON `{ url }` (production) opens a signed blob URL.
+- `src/api/storage/api.ts` — storage browsing, download, delete
+- `src/api/settings/api.ts` — settings persistence
 
-**`generateTO` uses an async poll pattern.** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`) instead of the result immediately. When it does, `courseApi.generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes until status is `completed` or `failed`. If the POST returns the result directly (`GenerateTOResponse`), polling is skipped. Both shapes are discriminated by checking for the `to` key (`isCompletedResponse`). The function also accepts an `AbortSignal` and a `difficulty` parameter (default `'intermediate'`).
+`baseURL` comes from `src/config/api.ts` (`API_BASE_URL`): in dev it resolves to `/api` (Vite proxy → `http://localhost:8000`); in production it defaults to the Render backend URL, overridable via `VITE_API_BASE_URL`. The Vite proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (required for SSE streams); all other `/api` routes use 120 s. **Do not merge or reorder these rules** — SSE will break.
 
-### Storage layer (`src/lib/storageApi.ts`)
+**`generateTO` uses an async poll pattern.** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`) instead of the result immediately. When it does, `generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes. Requires `durationHours` + `difficultyLevel` to be set in the store (unless the user uploaded a custom TO document).
 
-Shared API for the Asset Library and Documents Library pages. Exposes:
-- `browseStorage(prefix, source)` — lists files/folders; `source` is `'uploads'` or `'artifacts'`, routing to different backend endpoints.
-- `fetchStorageFileBlob` / `fetchStorageFileText` — downloads a file by path.
-- `deleteStorageFiles` — deletes files and/or folders by path.
-- `storageFileUrl(path, source)` — builds a full URL for use in `<img>` or `<a>` tags.
+Hooks use **TanStack Query** (`@tanstack/react-query`) for mutations — e.g. `useGenerateTO` wraps `generateTO` in `useMutation`.
 
-The `StorageExplorer` component (`src/components/storage/`) is shared between both library pages and handles folder navigation, file preview (`FilePreviewDialog`), and deletion (`StorageDeleteConfirmDialog`).
+**Page-refresh reconnect** (`useJobPipeline`): on mount, the hook calls `getJobDetail` to verify the job still exists before opening SSE. A 404 response (server restarted / stale session) silently calls `reset()` and returns the user to the upload phase — no error is shown. Any other error surfaces a recoverable message in the log panel.
+
+### Storage module (`src/modules/storage/`)
+
+`StorageExplorer` is shared between `AssetLibraryPage` and `DocumentsLibraryPage`. It handles folder navigation, file preview (`FilePreviewDialog`), and deletion (`StorageDeleteConfirmDialog`). The underlying `src/api/storage/api.ts` exposes `browseStorage(prefix, source)` where `source` is `'uploads'` or `'artifacts'`.
 
 ### Types
 
-Split across three files:
-- `types/index.ts` — workflow, file upload, TO, job, and API response types.
-- `types/pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
-- `types/editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
-
-### Dev-mode fallbacks
-
-When the backend is unreachable, `useFileUpload` marks the file with `status: 'error'` and message `'Upload failed — server unreachable'`. `useGenerateTO` detects a `__mock__/` blob path and returns hardcoded `MOCK_TO` / `MOCK_RULES` after a 1.2 s delay, allowing the three-panel phase to be reached without a running backend.
+Split across three files under `src/modules/course-generation/types/`:
+- `index.ts` — workflow, file upload, TO, job, and API response types.
+- `pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
+- `editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
 
 ### Path alias
 

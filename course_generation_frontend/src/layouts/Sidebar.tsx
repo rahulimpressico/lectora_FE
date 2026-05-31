@@ -7,6 +7,7 @@ import {
   Settings,
   HelpCircle,
   X,
+  CircleDollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -15,6 +16,7 @@ const navItems = [
   { to: "/generate", label: "Generate", icon: Sparkles },
   { to: "/assert_library", label: "Asset Library", icon: Database },
   { to: "/documents_library", label: "Documents", icon: FileUp },
+  { to: "/costing", label: "Costing", icon: CircleDollarSign },
 ];
 
 interface SidebarProps {
