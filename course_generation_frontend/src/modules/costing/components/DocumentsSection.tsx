@@ -71,9 +71,9 @@ function EmptyAll() {
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100">
         <FolderOpen size={22} className="text-slate-400" />
       </div>
-      <p className="text-sm font-semibold text-slate-700">No documents yet</p>
+      <p className="text-sm font-semibold text-slate-700">No processed documents yet</p>
       <p className="mt-1 text-xs text-slate-400 max-w-xs leading-relaxed">
-        Generated documents will appear here once processing is complete.
+        As soon as course or TO runs complete with trace-backed costing, they will appear here for drilldown analysis.
       </p>
     </motion.div>
   )
@@ -244,6 +244,34 @@ export function DocumentsSection({ documents, isLoading, onSelectDocument }: Pro
 
   return (
     <div className="space-y-5" ref={gridRef}>
+
+      <div className="rounded-[22px] border border-slate-200/70 bg-[linear-gradient(180deg,_rgba(255,255,255,0.98)_0%,_rgba(248,250,255,0.98)_100%)] p-5 shadow-[0_14px_40px_-30px_rgba(15,23,42,0.22)]">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-indigo-500">
+              Document Cost Explorer
+            </p>
+            <h3 className="mt-1 text-lg font-bold tracking-tight text-slate-900">
+              Analyze cost per course run
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+              Search processed runs, compare document-level spend, and open a full drilldown for exact model and stage contribution.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {[
+              { label: 'Documents', value: totalCount },
+              { label: 'Filtered', value: filteredCount },
+              { label: 'Pages', value: totalPages },
+            ].map((item) => (
+              <div key={item.label} className="rounded-2xl border border-slate-200/70 bg-white px-3 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">{item.label}</p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_8px_0_rgba(0,0,0,0.04)] overflow-hidden">

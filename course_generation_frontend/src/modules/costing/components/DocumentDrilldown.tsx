@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, DollarSign, Zap, BarChart2, Layers } from 'lucide-react'
+import { ArrowLeft, FileText, DollarSign, Zap, BarChart2, Layers, Cpu, CalendarClock, ReceiptText } from 'lucide-react'
 import type { DocumentCost } from '../types'
 import { ModelBreakdownTable } from './ModelBreakdownTable'
 import { StageCostChart } from './charts/StageCostChart'
@@ -40,6 +40,7 @@ function SectionHeader({ icon: Icon, title }: { icon: typeof DollarSign; title: 
 
 export function DocumentDrilldown({ doc, onBack }: Props) {
   const totalCost = doc.modelBreakdown.reduce((s, m) => s + m.cost, 0)
+  const totalTokens = doc.inputTokens + doc.outputTokens
 
   return (
     <motion.div
@@ -50,7 +51,7 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
       className="flex-1 overflow-y-auto"
     >
       {/* Drilldown header */}
-      <div className="border-b border-slate-200/50 bg-white/90 backdrop-blur-xl px-8 pt-4 pb-5 sticky top-0 z-10 shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
+      <div className="sticky top-0 z-10 border-b border-slate-200/50 bg-white/90 px-8 pt-3 pb-4 backdrop-blur-xl shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
         <div className="mx-auto max-w-7xl space-y-3">
           <button
             type="button"
@@ -61,24 +62,66 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
             Back to Costing Dashboard
           </button>
 
-          <div className="flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-violet-100 border border-indigo-100/60">
-              <FileText size={16} className="text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-0.5">
-                Document Detail
-              </p>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                {doc.documentName}
-              </h1>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">{doc.documentType}</p>
+          <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_36%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] px-5 py-4 shadow-[0_14px_46px_-30px_rgba(15,23,42,0.28)]">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)] xl:items-center">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-indigo-100/60 bg-gradient-to-br from-indigo-50 to-violet-100 shadow-[0_10px_24px_-16px_rgba(99,102,241,0.45)]">
+                  <FileText size={18} className="text-indigo-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-indigo-500 mb-0.5">
+                    Document Detail
+                  </p>
+                  <h1 className="text-lg font-bold tracking-tight text-slate-900 break-words">
+                    {doc.documentName}
+                  </h1>
+                  <p className="mt-1 text-xs font-medium text-slate-400">{doc.documentType}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  {
+                    icon: ReceiptText,
+                    label: 'Run Cost',
+                    value: `$${doc.totalCost.toFixed(4)}`,
+                    meta: `${doc.totalRequests} requests`,
+                  },
+                  {
+                    icon: Cpu,
+                    label: 'Tracked Tokens',
+                    value: fmtTokens(totalTokens),
+                    meta: `${fmtTokens(doc.inputTokens)} in · ${fmtTokens(doc.outputTokens)} out`,
+                  },
+                  {
+                    icon: CalendarClock,
+                    label: 'Last Updated',
+                    value: new Date(doc.lastUpdated).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    }),
+                    meta: doc.status,
+                  },
+                ].map(({ icon: Icon, label, value, meta }) => (
+                  <div key={label} className="rounded-2xl border border-white/70 bg-white/88 px-4 py-3 shadow-[0_10px_24px_-24px_rgba(15,23,42,0.25)]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 shrink-0">
+                        <Icon size={14} className="text-indigo-600" />
+                      </div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+                    </div>
+                    <p className="mt-2 text-base font-bold tracking-tight text-slate-900">{value}</p>
+                    <p className="mt-1 text-[11px] text-slate-500 break-words">{meta}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-8 py-8 space-y-8">
+      <div className="mx-auto max-w-7xl px-8 py-6 space-y-8">
 
         {/* Document Summary KPIs */}
         <section>

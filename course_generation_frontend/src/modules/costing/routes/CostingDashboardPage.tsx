@@ -12,6 +12,10 @@ import {
   RefreshCw,
   BookMarked,
   LayoutDashboard,
+  ShieldCheck,
+  Sparkles,
+  Activity,
+  ReceiptText,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCostingStore } from '../store/costingStore'
@@ -44,6 +48,17 @@ function fmtTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
   return n.toLocaleString()
+}
+
+function fmtCurrency(n: number): string {
+  return `$${n.toFixed(4)}`
+}
+
+function getCurrentMonthLabel() {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date())
 }
 
 // ─── Shared sub-components ─────────────────────────────────────────────────────
@@ -122,6 +137,150 @@ function LoadingShimmer() {
             <div className="h-full w-full animate-pulse bg-gradient-to-r from-slate-100 to-slate-50" />
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+function EmptyCostingState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="mx-auto max-w-5xl px-8 py-12">
+      <div className="overflow-hidden rounded-[28px] border border-slate-200/70 bg-white shadow-[0_20px_70px_-42px_rgba(15,23,42,0.35)]">
+        <div className="relative border-b border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f8faff_100%)] px-8 py-8">
+          <div className="absolute -right-16 top-0 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
+          <div className="relative flex items-start gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_10px_30px_-12px_rgba(99,102,241,0.55)]">
+              <ReceiptText size={22} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-indigo-500">
+                Cost Visibility
+              </p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+                No run-backed costing data yet
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                This page is ready, but it will populate only after trace-tagged TO or course-generation
+                runs are completed. Once a run executes, this dashboard will show per-model spend,
+                token consumption, and per-document cost breakdown automatically.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 border-b border-slate-200/70 bg-slate-50/60 px-8 py-5 md:grid-cols-3">
+          {[
+            {
+              icon: ShieldCheck,
+              title: 'Run-linked costing',
+              text: 'Every new run is linked to the exact models and token usage recorded in backend traces.',
+            },
+            {
+              icon: Activity,
+              title: 'Live trend tracking',
+              text: 'Daily spend and token graphs populate as soon as real traces are available.',
+            },
+            {
+              icon: Sparkles,
+              title: 'Document drilldown',
+              text: 'Each processed course gets its own cost card with model and stage-level analysis.',
+            },
+          ].map(({ icon: Icon, title, text }) => (
+            <div key={title} className="rounded-2xl border border-slate-200/70 bg-white px-4 py-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50">
+                  <Icon size={15} className="text-indigo-600" />
+                </div>
+                <p className="text-sm font-semibold text-slate-800">{title}</p>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-slate-500">{text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="px-8 py-5">
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+          >
+            <RefreshCw size={14} />
+            Refresh costing data
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CostingHero({ summary }: { summary: CostingSummary }) {
+  const monthLabel = getCurrentMonthLabel()
+
+  return (
+    <div className="relative overflow-hidden rounded-[30px] border border-slate-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.18),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_26%),linear-gradient(180deg,_#ffffff_0%,_#f7faff_100%)] px-7 py-7 shadow-[0_25px_80px_-45px_rgba(15,23,42,0.38)]">
+      <div className="absolute -left-12 top-10 h-24 w-24 rounded-full bg-indigo-100/70 blur-3xl" />
+      <div className="absolute -right-10 bottom-0 h-28 w-28 rounded-full bg-cyan-100/60 blur-3xl" />
+
+      <div className="relative grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200/70 bg-white/80 px-3 py-1 text-[11px] font-semibold tracking-wide text-indigo-700 shadow-sm backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Live AI spend visibility
+          </div>
+          <h1 className="mt-4 max-w-3xl text-[30px] font-bold leading-[1.1] tracking-tight text-slate-900">
+            Costing Dashboard
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+            Monitor actual model usage, token consumption, and course-generation spend across TO creation
+            and full pipeline runs. This view is backed by recorded traces, not static estimates.
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+              <ShieldCheck size={12} className="text-emerald-600" />
+              Run-backed pricing
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+              <Cpu size={12} className="text-indigo-600" />
+              {summary.modelSummary.length} models tracked
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+              <FileText size={12} className="text-cyan-600" />
+              {summary.totalDocumentsProcessed} documents processed
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+          {[
+            {
+              label: 'Current Total',
+              value: fmtCurrency(summary.totalCost),
+              meta: monthLabel,
+            },
+            {
+              label: 'Tracked Tokens',
+              value: `${fmtTokens(summary.totalInputTokens + summary.totalOutputTokens)}`,
+              meta: `${fmtTokens(summary.totalInputTokens)} in · ${fmtTokens(summary.totalOutputTokens)} out`,
+            },
+            {
+              label: 'Avg / Document',
+              value: fmtCurrency(summary.averageCostPerDocument),
+              meta: `${summary.totalDocumentsProcessed} total documents`,
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="rounded-2xl border border-white/70 bg-white/80 px-4 py-4 shadow-[0_12px_32px_-24px_rgba(15,23,42,0.35)] backdrop-blur"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">
+                {item.label}
+              </p>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{item.meta}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -272,10 +431,10 @@ function OverviewTab({
         <SectionHeader
           icon={BarChart2}
           title="Cost Trends"
-          subtitle="Daily spend and token consumption over the current period"
+          subtitle="Daily spend and token consumption across trace-backed runs"
         />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <ChartCard title="Cost Trend — May 2026" subtitle="Daily AI spend over the last 31 days">
+          <ChartCard title={`Cost Trend — ${getCurrentMonthLabel()}`} subtitle="Daily AI spend across recorded activity">
             <CostTrendChart data={summary.costTrend} />
           </ChartCard>
           <ChartCard title="Token Consumption Trend" subtitle="Daily input and output token volume">
@@ -427,40 +586,30 @@ export function CostingDashboardPage() {
     )
   }
 
+  if (!isLoading && summary && summary.totalDocumentsProcessed === 0) {
+    return <EmptyCostingState onRetry={() => void loadSummary()} />
+  }
+
   return (
     <div className="flex-1 overflow-y-auto">
-
-      {/* Sticky page header */}
-      <div className="border-b border-slate-200/50 bg-white/90 backdrop-blur-xl px-8 pt-4 pb-4 sticky top-0 z-20 shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 mb-1">
-                AI Operations
-              </p>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Costing Dashboard
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-500 max-w-md leading-relaxed">
-                Token consumption, model usage, and cost visibility across all generated courses.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/60 px-3 py-1.5 text-[11px] font-semibold text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Live data · May 2026
-              </span>
-              <button
-                type="button"
-                onClick={() => void loadSummary()}
-                disabled={isLoading}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-all disabled:opacity-40"
-                title="Refresh"
-              >
-                <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
-              </button>
-            </div>
+      <div className="sticky top-0 z-20 border-b border-slate-200/50 bg-white/88 px-8 py-4 backdrop-blur-xl shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-indigo-500">
+              AI Operations
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-800">Model usage, spend, and document-level cost analytics</p>
           </div>
+          <button
+            type="button"
+            onClick={() => void loadSummary()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition-all hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40"
+            title="Refresh"
+          >
+            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -473,6 +622,9 @@ export function CostingDashboardPage() {
           <LoadingShimmer />
         ) : summary ? (
           <div className="mx-auto max-w-7xl px-8 py-8">
+            <div className="mb-8">
+              <CostingHero summary={summary} />
+            </div>
             <AnimatePresence mode="wait">
               {activeTab === 'overview' && (
                 <OverviewTab key="overview" summary={summary} />
