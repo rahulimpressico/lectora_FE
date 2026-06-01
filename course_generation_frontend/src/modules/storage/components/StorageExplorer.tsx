@@ -25,9 +25,11 @@ import {
 import { cn } from '@/lib/cn'
 import {
   browseStorage,
+  browseStorageCategory,
   deleteStorageFiles,
   storageFileUrl,
   toRelativeUploadPrefix,
+  type StorageCategory,
   type StorageEntry,
   type StorageSource,
 } from '@/api/storage/api'
@@ -326,6 +328,7 @@ export interface StorageExplorerProps {
   subtitle: string
   headerIcon: ElementType
   source: StorageSource
+  category?: StorageCategory
   emptyHint: string
   /** When set, only files with these extensions are shown (e.g. ['.docx']). */
   fileExtensions?: string[]
@@ -338,6 +341,7 @@ export function StorageExplorer({
   subtitle,
   headerIcon: HeaderIcon,
   source,
+  category,
   emptyHint,
   fileExtensions,
   allowDelete = true,
@@ -350,6 +354,7 @@ export function StorageExplorer({
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [deleteFeedback, setDeleteFeedback] = useState<string | null>(null)
+  const [showLegacyFolders, setShowLegacyFolders] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -359,8 +364,11 @@ export function StorageExplorer({
     error: browseError,
     refetch,
   } = useQuery({
-    queryKey: ['storage-browse', source, prefix] as const,
-    queryFn: ({ signal }) => browseStorage(prefix, source, signal),
+    queryKey: ['storage-browse', source, category ?? 'none', prefix] as const,
+    queryFn: ({ signal }) =>
+      category
+        ? browseStorageCategory(category, prefix, signal)
+        : browseStorage(prefix, source, signal),
     staleTime: 30_000,
     retry: false,
     refetchOnMount: false,
@@ -399,7 +407,14 @@ export function StorageExplorer({
     setSelectionMode(false)
     setSelectedPaths(new Set())
     setDeleteFeedback(null)
-  }, [prefix, source])
+  }, [prefix, source, category])
+
+  useEffect(() => {
+    setPrefix('')
+    setSearch('')
+    setPreviewEntry(null)
+    setShowLegacyFolders(false)
+  }, [source, category])
 
   const exitSelectionMode = useCallback(() => {
     setSelectionMode(false)
@@ -428,7 +443,16 @@ export function StorageExplorer({
   const filtered = search
     ? byExtension.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
     : byExtension
-  const folders = filtered.filter((e) => e.entryType === 'folder')
+  const allFolders = filtered.filter((e) => e.entryType === 'folder')
+  const isLegacyJobFolder = (entry: StorageEntry) =>
+    /^j-[a-z0-9]+$/i.test(entry.name)
+  const splitLegacyAtRoot = source === 'artifacts' && prefix === ''
+  const legacyFolders = splitLegacyAtRoot
+    ? allFolders.filter(isLegacyJobFolder)
+    : []
+  const folders = splitLegacyAtRoot
+    ? allFolders.filter((entry) => !isLegacyJobFolder(entry))
+    : allFolders
   const files = filtered.filter((e) => e.entryType === 'file')
   const imageFiles = files.filter(isImageEntry)
   const otherFiles = files.filter((e) => !isImageEntry(e))
@@ -715,6 +739,49 @@ export function StorageExplorer({
                 />
               ))}
             </div>
+          </section>
+        )}
+
+        {!showLoading && legacyFolders.length > 0 && (
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                Legacy Folders ({legacyFolders.length})
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowLegacyFolders((prev) => !prev)}
+                className="text-xs font-medium text-slate-500 hover:text-slate-700"
+              >
+                {showLegacyFolders ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {showLegacyFolders && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {legacyFolders.map((entry, i) => (
+                  <FolderCard
+                    key={entry.path}
+                    entry={entry}
+                    animDelay={i * 30}
+                    selectionMode={selectionMode && allowDelete}
+                    selected={selectedPaths.has(entry.path)}
+                    onToggleSelect={() => toggleSelect(entry.path)}
+                    onClick={() => {
+                      if (selectionMode && allowDelete) {
+                        toggleSelect(entry.path)
+                        return
+                      }
+                      setSearch('')
+                      setPrefix(
+                        source === 'uploads'
+                          ? toRelativeUploadPrefix(entry.path)
+                          : entry.path,
+                      )
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
 

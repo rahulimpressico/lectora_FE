@@ -26,6 +26,10 @@ function isDocxExt(ext?: string) {
   return e === '.docx' || e === '.doc'
 }
 
+function isPdfExt(ext?: string) {
+  return (ext ?? '').toLowerCase() === '.pdf'
+}
+
 function isTextExt(ext?: string) {
   const e = (ext ?? '').toLowerCase()
   return e === '.txt' || e === '.csv'
@@ -54,6 +58,7 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
   const showImage = isImageExt(ext)
   const showJson = isJsonExt(ext)
   const showDocx = isDocxExt(ext)
+  const showPdf = isPdfExt(ext)
   const showText = isTextExt(ext)
 
   useEffect(() => {
@@ -79,7 +84,7 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
       return
     }
 
-    if (showImage) {
+    if (showImage || showPdf) {
       setLoading(false)
       setError(null)
       return
@@ -127,7 +132,7 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
     return () => {
       cancelled = true
     }
-  }, [entry, source, showJson, showDocx, showText, showImage])
+  }, [entry, source, showJson, showDocx, showPdf, showText, showImage])
 
   if (!open || !entry) return null
 
@@ -214,13 +219,23 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
               />
             )}
 
+            {!loading && !error && showPdf && (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                <iframe
+                  src={fileUrl}
+                  title={entry.name}
+                  className="h-[75vh] w-full bg-white"
+                />
+              </div>
+            )}
+
             {!loading && !error && showText && plainText !== null && (
               <pre className="text-xs leading-relaxed bg-slate-50 border border-slate-200 rounded-xl p-4 overflow-auto max-h-[70vh] whitespace-pre-wrap font-mono text-slate-700">
                 {plainText}
               </pre>
             )}
 
-            {!loading && !error && !showImage && !showJson && !showDocx && !showText && (
+            {!loading && !error && !showImage && !showJson && !showDocx && !showPdf && !showText && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <p className="text-sm text-slate-600 mb-4">
                   Preview is not available for this file type.

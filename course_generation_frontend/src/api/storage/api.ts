@@ -10,6 +10,11 @@ import apiClient from '@/api/client'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type StorageSource = 'artifacts' | 'uploads'
+export type StorageCategory =
+  | 'source-documents'
+  | 'generated-courses'
+  | 'pipeline-artifacts'
+  | 'test-data'
 
 export const UPLOAD_BLOB_ROOTS = ['uploaded-documents'] as const
 
@@ -85,6 +90,21 @@ export async function browseStorage(
     params: { prefix },
     signal,
   })
+  return data
+}
+
+export async function browseStorageCategory(
+  category: StorageCategory,
+  prefix: string,
+  signal?: AbortSignal,
+): Promise<BrowseResponse> {
+  const { data } = await apiClient.get<BrowseResponse>(
+    `/storage/categories/${category}/browse`,
+    {
+      params: { prefix },
+      signal,
+    },
+  )
   return data
 }
 

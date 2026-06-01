@@ -1,14 +1,194 @@
-import { Database } from 'lucide-react'
+import { useMemo } from 'react'
+import { useQueries } from '@tanstack/react-query'
+import {
+  ArrowRight,
+  Database,
+  FileText,
+  FolderKanban,
+  FlaskConical,
+  FolderOpen,
+  Wrench,
+} from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import {
+  browseStorageCategory,
+  type BrowseResponse,
+  type StorageCategory,
+  type StorageSource,
+} from '@/api/storage/api'
 import { StorageExplorer } from '@/modules/storage'
 
+type CategoryConfig = {
+  key: StorageCategory
+  label: string
+  subtitle: string
+  icon: typeof FileText
+  source: StorageSource
+  emptyHint: string
+}
+
+const CATEGORIES: CategoryConfig[] = [
+  {
+    key: 'source-documents',
+    label: 'Source Documents',
+    subtitle: 'Uploaded DOCX/PDF files from Azure uploaded-documents.',
+    icon: FileText,
+    source: 'uploads',
+    emptyHint: 'No source documents found yet.',
+  },
+  {
+    key: 'generated-courses',
+    label: 'Generated Courses',
+    subtitle: 'Final course outputs grouped by course and job.',
+    icon: FolderKanban,
+    source: 'artifacts',
+    emptyHint: 'No generated courses found yet.',
+  },
+  {
+    key: 'pipeline-artifacts',
+    label: 'Pipeline Artifacts',
+    subtitle: 'Technical JSON, logs, and intermediate files.',
+    icon: Wrench,
+    source: 'artifacts',
+    emptyHint: 'No pipeline artifacts found yet.',
+  },
+  {
+    key: 'test-data',
+    label: 'Test / Smoke Data',
+    subtitle: 'Non-client test and smoke-run files.',
+    icon: FlaskConical,
+    source: 'artifacts',
+    emptyHint: 'No test/smoke data found yet.',
+  },
+]
+
 export function AssetLibraryPage() {
+  const [params, setParams] = useSearchParams()
+  const selected =
+    (params.get('category') as StorageCategory | null) ?? 'generated-courses'
+  const active = CATEGORIES.find((c) => c.key === selected) ?? CATEGORIES[1]
+  const categoryCounts = useQueries({
+    queries: CATEGORIES.map((item) => ({
+      queryKey: ['asset-category-count', item.key] as const,
+      queryFn: () => browseStorageCategory(item.key, ''),
+      staleTime: 30_000,
+      retry: false,
+    })),
+  })
+
+  const countByKey = useMemo(() => {
+    const map = new Map<StorageCategory, { folders: number; files: number }>()
+    CATEGORIES.forEach((item, idx) => {
+      const data = categoryCounts[idx]?.data as BrowseResponse | undefined
+      map.set(item.key, {
+        folders: data?.totalFolders ?? 0,
+        files: data?.totalFiles ?? 0,
+      })
+    })
+    return map
+  }, [categoryCounts])
+
   return (
-    <StorageExplorer
-      title="Asset Library"
-      subtitle="Browse Azure container regedlectoraaistorage — course folders and pipeline artifacts"
-      headerIcon={Database}
-      source="artifacts"
-      emptyHint="No folders in regedlectoraaistorage yet. Run a course to create a course folder at the container root."
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,#eef2ff,transparent_45%),radial-gradient(circle_at_top_right,#f5f3ff,transparent_40%),#ffffff] px-8 py-7">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_8px_24px_-8px_rgba(79,70,229,0.55)]">
+            <Database size={18} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Asset Library
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Categorized Azure storage views for source, outputs, artifacts, and test data.
+            </p>
+          </div>
+        </div>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {CATEGORIES.map((item) => {
+            const Icon = item.icon
+            const isActive = item.key === active.key
+            const counts = countByKey.get(item.key) ?? { folders: 0, files: 0 }
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setParams({ category: item.key })}
+                className={[
+                  'group relative overflow-hidden rounded-3xl border px-5 py-4 text-left transition-all duration-300',
+                  isActive
+                    ? 'border-violet-300 bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-[0_14px_36px_-16px_rgba(109,40,217,0.75)]'
+                    : 'border-slate-200/90 bg-white hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_12px_30px_-18px_rgba(79,70,229,0.45)]',
+                ].join(' ')}
+              >
+                <div className="absolute inset-0 pointer-events-none">
+                  {isActive ? (
+                    <div className="h-full w-full bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.24),transparent_50%)]" />
+                  ) : null}
+                </div>
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={[
+                        'flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors',
+                        isActive
+                          ? 'border-white/35 bg-white/20 text-white'
+                          : 'border-indigo-100 bg-indigo-50 text-indigo-600',
+                      ].join(' ')}
+                    >
+                      <Icon size={20} />
+                    </div>
+                    <span className={['text-base font-semibold', isActive ? 'text-white' : 'text-slate-900'].join(' ')}>
+                      {item.label}
+                    </span>
+                  </div>
+                  <FolderOpen
+                    size={16}
+                    className={isActive ? 'text-white/90' : 'text-slate-400 group-hover:text-indigo-500'}
+                  />
+                </div>
+                <p
+                  className={[
+                    'relative mt-3 text-sm leading-relaxed',
+                    isActive ? 'text-white/88' : 'text-slate-600',
+                  ].join(' ')}
+                >
+                  {item.subtitle}
+                </p>
+                <div className="relative mt-4 flex items-center justify-between">
+                  <div
+                    className={[
+                      'inline-flex items-center rounded-xl px-3 py-1.5 text-xs font-semibold',
+                      isActive
+                        ? 'bg-white/18 text-white'
+                        : 'bg-slate-50 text-slate-600',
+                    ].join(' ')}
+                  >
+                    <span>{counts.folders} folders</span>
+                  </div>
+                  <span
+                    className={[
+                      'inline-flex items-center gap-1 text-sm font-semibold',
+                      isActive ? 'text-white' : 'text-indigo-600',
+                    ].join(' ')}
+                  >
+                    Open <ArrowRight size={14} />
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <StorageExplorer
+        title={active.label}
+        subtitle={active.subtitle}
+        headerIcon={Database}
+        source={active.source}
+        category={active.key}
+        emptyHint={active.emptyHint}
+      />
+    </div>
   )
 }
