@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -11,6 +11,9 @@ import {
   Hash,
   Clock,
   CloudUpload,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
@@ -53,6 +56,11 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     expandAll,
     collapseAll,
   } = useEditorStore()
+
+  const sections = useEditorStore((s) => s.sectionEditStates)
+  const dirtySectionCount = [...sections.values()].filter(s => s.isDirty).length
+
+  const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
 
   const { setPhase } = useCourseStore()
 
@@ -125,16 +133,45 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             Preview
           </Button>
 
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<CloudUpload size={13} />}
-            onClick={() => { resetSaveToAzure(); saveToAzure(jobId) }}
-            disabled={!courseContent}
-            loading={saveStatus === 'loading'}
-          >
-            Save to Azure
-          </Button>
+          <div className="flex flex-col items-end">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<CloudUpload size={13} />}
+              onClick={() => {
+                if (dirtySectionCount > 0 && !confirmPendingEdits) {
+                  setConfirmPendingEdits(true)
+                  return
+                }
+                setConfirmPendingEdits(false)
+                resetSaveToAzure()
+                saveToAzure(jobId)
+              }}
+              disabled={!courseContent}
+              loading={saveStatus === 'loading'}
+            >
+              Save to Azure
+            </Button>
+
+            {confirmPendingEdits && (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] max-w-xs text-left">
+                <p className="font-semibold text-amber-800">
+                  You have {dirtySectionCount} unsaved edit{dirtySectionCount !== 1 ? 's' : ''}.
+                </p>
+                <p className="mt-0.5 text-amber-700">
+                  Only saved edits will be included in the exported DOCX.
+                  Click <strong>Save to Azure</strong> again to export the last saved version, or save your edits first.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setConfirmPendingEdits(false)}
+                  className="mt-1.5 text-amber-600 underline text-[11px] hover:text-amber-800"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+          </div>
 
           <Button
             variant="primary"
@@ -150,30 +187,45 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
       {/* ── Save to Azure status banner ───────────────────────────────── */}
       {saveStatus === 'success' && saveResult && (
-        <div className="shrink-0 bg-emerald-50 border-b border-emerald-200 px-5 py-2 flex items-center justify-between">
-          <span className="text-xs text-emerald-700 font-medium">
-            Saved to Azure: <span className="font-mono">{saveResult.blobPath}</span>
-          </span>
+        <div className="mx-4 mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle2 size={14} className="text-emerald-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-emerald-800">Course saved to Azure</p>
+            <p className="text-[11px] text-emerald-600 mt-0.5 break-all leading-relaxed">
+              {saveResult.blobPath}
+            </p>
+            {saveResult.savedAt && (
+              <p className="text-[11px] text-emerald-500 mt-0.5">
+                Saved {new Date(saveResult.savedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={resetSaveToAzure}
-            className="text-emerald-500 hover:text-emerald-700 text-xs ml-4"
+            className="shrink-0 text-emerald-400 hover:text-emerald-600 transition-colors"
           >
-            ✕
+            <X size={13} />
           </button>
         </div>
       )}
       {saveStatus === 'error' && (
-        <div className="shrink-0 bg-red-50 border-b border-red-200 px-5 py-2 flex items-center justify-between">
-          <span className="text-xs text-red-700 font-medium">
-            {saveError ?? 'Upload to Azure failed.'}
-          </span>
+        <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+          <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-red-700">Failed to save to Azure</p>
+            <p className="text-[11px] text-red-500 mt-0.5 leading-relaxed">
+              {saveError ?? 'An unexpected error occurred. Please try again.'}
+            </p>
+          </div>
           <button
             type="button"
             onClick={resetSaveToAzure}
-            className="text-red-400 hover:text-red-600 text-xs ml-4"
+            className="shrink-0 text-red-400 hover:text-red-600 transition-colors"
           >
-            ✕
+            <X size={13} />
           </button>
         </div>
       )}

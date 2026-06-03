@@ -92,4 +92,5 @@ export interface SaveToAzureResponse {
   fileName: string
   blobPath: string
   containerName: string
+  savedAt?: string
 }
