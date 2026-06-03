@@ -148,6 +148,10 @@ export interface GenerateCoursePayload {
   /** All source file blob paths (DOCX + PDF) uploaded during the generate-TO step.
    *  Passed to A2 so it can build a chunk index for topic-wise content retrieval. */
   sourceFilePaths?: string[]
+  /** Target audience — mandatory, drives content calibration throughout the pipeline. */
+  audience: string
+  /** Optional special instructions from the user, injected into A2 generation prompts. */
+  specialInstructions?: string
 }
 
 // ─── SSE Pipeline Events (GET /jobs/{jobId}/events) ───────────────────────────

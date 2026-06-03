@@ -13,6 +13,7 @@ import {
   Clock,
   BarChart2,
   BookOpen,
+  Users,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { cn } from "@/lib/cn";
@@ -63,6 +64,8 @@ export function UploadPhase() {
     setCustomToPrompt,
     courseTypeHint,
     setCourseTypeHint,
+    audience,
+    setAudience,
     toDocument,
     setToDocument,
     durationHours,
@@ -77,6 +80,9 @@ export function UploadPhase() {
 
   const [uploadMode, setUploadMode] = useState<UploadMode>("system");
   const [toUploadError, setToUploadError] = useState<string | null>(null);
+  const [showAudienceModal, setShowAudienceModal] = useState(false);
+  const [modalAudienceInput, setModalAudienceInput] = useState("");
+  const [modalAudienceError, setModalAudienceError] = useState<string | null>(null);
 
   // Computed word count shown to the user
   const previewWordCount =
@@ -856,6 +862,118 @@ export function UploadPhase() {
         </div>
       </div>
 
+      {/* ── Audience Modal ──────────────────────────────────────────── */}
+      {showAudienceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-slate-100">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_8px_0_rgb(99,102,241,0.4)]">
+                <Users size={16} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold text-slate-900 leading-tight">
+                  Enter Your Audience
+                </h2>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  Please specify the target audience for this course.
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-3">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="modal-audience"
+                  className="text-[11px] font-bold uppercase tracking-widest text-slate-400"
+                >
+                  Target Audience <span className="text-red-400">*</span>
+                </label>
+                <input
+                  id="modal-audience"
+                  type="text"
+                  autoFocus
+                  value={modalAudienceInput}
+                  onChange={(e) => {
+                    setModalAudienceInput(e.target.value);
+                    if (modalAudienceError) setModalAudienceError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = modalAudienceInput.trim();
+                      if (!val) {
+                        setModalAudienceError("Please enter the target audience before continuing.");
+                        return;
+                      }
+                      setAudience(val);
+                      setShowAudienceModal(false);
+                      generateTO.mutate();
+                    }
+                  }}
+                  placeholder="e.g. Trained Insurance Agents, New Agents, Business Owners"
+                  className={cn(
+                    "w-full rounded-xl border px-4 py-2.5 text-[13px] text-slate-800 outline-none transition-all",
+                    "placeholder:text-slate-400",
+                    modalAudienceError
+                      ? "border-red-300 focus:ring-2 focus:ring-red-100"
+                      : "border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50",
+                  )}
+                />
+                {modalAudienceError && (
+                  <p className="text-[12px] font-medium text-red-500">{modalAudienceError}</p>
+                )}
+                {!modalAudienceError && (
+                  <p className="text-[12px] text-slate-400">
+                    The course writing style, examples, and content depth will be calibrated for this audience.
+                  </p>
+                )}
+              </div>
+
+              {/* Examples */}
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Examples</p>
+                <ul className="text-[12px] text-slate-500 space-y-0.5">
+                  <li>· Trained Insurance Agents → Advanced professional content</li>
+                  <li>· New Insurance Agents → Foundational educational content</li>
+                  <li>· Business Owners → Business-focused explanations</li>
+                  <li>· HR Professionals → Employee-benefit-focused content</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 pb-5">
+              <button
+                type="button"
+                onClick={() => setShowAudienceModal(false)}
+                className="h-9 px-4 rounded-lg text-[13px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const val = modalAudienceInput.trim();
+                  if (!val) {
+                    setModalAudienceError("Please enter the target audience before continuing.");
+                    return;
+                  }
+                  setAudience(val);
+                  setShowAudienceModal(false);
+                  generateTO.mutate();
+                }}
+                className="h-9 px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-[0_2px_8px_0_rgb(99,102,241,0.35)] transition-all flex items-center gap-1.5"
+              >
+                <Wand2 size={13} />
+                Generate Training Outline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Action bar ──────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-t border-slate-200/60 shadow-[0_-2px_12px_-4px_rgb(0,0,0,0.08)]">
         <div className="mx-auto max-w-[1400px] flex items-center justify-between gap-4 px-6 sm:px-10 py-4">
@@ -907,9 +1025,16 @@ export function UploadPhase() {
                     {durationHours}h {difficultyLevel}
                     {previewWordCount != null && ` · ${previewWordCount.toLocaleString()} words`}
                   </p>
-                  <p className="text-[12px] text-slate-500 mt-0.5">
-                    Click Generate TO to build the Training Outline.
-                  </p>
+                  {audience.trim() ? (
+                    <p className="text-[12px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Users size={10} className="text-indigo-500 shrink-0" />
+                      <span>Audience: <span className="font-semibold text-indigo-600">{audience.trim()}</span></span>
+                    </p>
+                  ) : (
+                    <p className="text-[12px] text-slate-500 mt-0.5">
+                      Click Generate TO — you'll be asked for the target audience.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : successFiles.length > 0 && !configReady ? (
@@ -950,7 +1075,14 @@ export function UploadPhase() {
             loading={generateTO.isPending}
             disabled={!canGenerate || generateTO.isPending || isUploadingTO}
             onClick={() => {
-              if (!generateTO.isPending) generateTO.mutate();
+              if (generateTO.isPending) return;
+              if (audience.trim()) {
+                generateTO.mutate();
+              } else {
+                setModalAudienceInput("");
+                setModalAudienceError(null);
+                setShowAudienceModal(true);
+              }
             }}
           >
             {generateTO.isPending
@@ -959,6 +1091,117 @@ export function UploadPhase() {
           </Button>
         </div>
       </div>
+
+      {/* ── Audience Modal ──────────────────────────────────────────── */}
+      {showAudienceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-slate-100">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_8px_0_rgb(99,102,241,0.4)]">
+                <Users size={16} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold text-slate-900 leading-tight">
+                  Enter Your Audience
+                </h2>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  Please specify the target audience for this course.
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-3">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="modal-audience"
+                  className="text-[11px] font-bold uppercase tracking-widest text-slate-400"
+                >
+                  Target Audience <span className="text-red-400">*</span>
+                </label>
+                <input
+                  id="modal-audience"
+                  type="text"
+                  autoFocus
+                  value={modalAudienceInput}
+                  onChange={(e) => {
+                    setModalAudienceInput(e.target.value);
+                    if (modalAudienceError) setModalAudienceError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = modalAudienceInput.trim();
+                      if (!val) {
+                        setModalAudienceError("Please enter the target audience before continuing.");
+                        return;
+                      }
+                      setAudience(val);
+                      setShowAudienceModal(false);
+                      generateTO.mutate();
+                    }
+                  }}
+                  placeholder="e.g. Trained Insurance Agents, New Agents, Business Owners"
+                  className={cn(
+                    "w-full rounded-xl border px-4 py-2.5 text-[13px] text-slate-800 outline-none transition-all",
+                    "placeholder:text-slate-400",
+                    modalAudienceError
+                      ? "border-red-300 focus:ring-2 focus:ring-red-100"
+                      : "border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50",
+                  )}
+                />
+                {modalAudienceError ? (
+                  <p className="text-[12px] font-medium text-red-500">{modalAudienceError}</p>
+                ) : (
+                  <p className="text-[12px] text-slate-400">
+                    Writing style, examples, and content depth will be calibrated for this audience.
+                  </p>
+                )}
+              </div>
+
+              {/* Examples */}
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Examples</p>
+                <ul className="text-[12px] text-slate-500 space-y-0.5">
+                  <li>· Trained Insurance Agents → Advanced professional content</li>
+                  <li>· New Insurance Agents → Foundational educational content</li>
+                  <li>· Business Owners → Business-focused explanations</li>
+                  <li>· HR Professionals → Employee-benefit-focused content</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 pb-5">
+              <button
+                type="button"
+                onClick={() => setShowAudienceModal(false)}
+                className="h-9 px-4 rounded-lg text-[13px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const val = modalAudienceInput.trim();
+                  if (!val) {
+                    setModalAudienceError("Please enter the target audience before continuing.");
+                    return;
+                  }
+                  setAudience(val);
+                  setShowAudienceModal(false);
+                  generateTO.mutate();
+                }}
+                className="h-9 px-4 rounded-lg text-[13px] font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-[0_2px_8px_0_rgb(99,102,241,0.35)] transition-all flex items-center gap-1.5"
+              >
+                <Wand2 size={13} />
+                Generate Training Outline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

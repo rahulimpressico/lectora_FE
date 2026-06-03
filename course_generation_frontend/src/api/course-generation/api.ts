@@ -84,6 +84,7 @@ export async function generateTO(
   durationHours?: number | null,
   difficultyLevel?: string | null,
   calculatedWordCount?: number | null,
+  audience?: string,
 ): Promise<GenerateTOResponse> {
   const paths = Array.isArray(blobPaths) ? blobPaths : [blobPaths]
   const body: Record<string, unknown> = { blobPaths: paths, difficulty }
@@ -94,6 +95,7 @@ export async function generateTO(
   if (durationHours != null) body.durationHours = durationHours
   if (difficultyLevel) body.difficultyLevel = difficultyLevel
   if (calculatedWordCount != null) body.calculatedWordCount = calculatedWordCount
+  if (audience?.trim()) body.audience = audience.trim()
 
   const { data: start } = await apiClient.post<GenerateTOResponse | GenerateTOJobAccepted>(
     '/documents/generate-to',

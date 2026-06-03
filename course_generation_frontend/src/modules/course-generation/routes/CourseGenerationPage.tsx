@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation } from '@tanstack/react-query'
 import type { AxiosError } from 'axios'
 import {
@@ -6,6 +8,9 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  MessageSquarePlus,
+  X,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { UploadPhase } from '../components/upload/UploadPhase'
@@ -59,6 +64,93 @@ function isFileNotFoundError(err: unknown): boolean {
   )
 }
 
+// ─── Special Instructions Modal ──────────────────────────────────────────────
+
+interface SpecialInstructionsModalProps {
+  onConfirm: (instructions: string) => void
+  onCancel: () => void
+}
+
+function SpecialInstructionsModal({ onConfirm, onCancel }: SpecialInstructionsModalProps) {
+  const [instructions, setInstructions] = useState('')
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-[0_2px_8px_0_rgb(139,92,246,0.3)]">
+              <MessageSquarePlus size={16} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-slate-900 leading-tight">
+                Special Instructions
+              </h2>
+              <p className="text-[12px] text-slate-500 mt-0.5">
+                Optional — customize how the course is written
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-3">
+          <p className="text-[13px] text-slate-600 leading-relaxed">
+            Do you want to add any special instructions for generating this course?
+          </p>
+          <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Examples</p>
+            <ul className="text-[12px] text-slate-500 space-y-0.5">
+              <li>· Focus more on compliance and regulatory requirements</li>
+              <li>· Include more real-world case studies and examples</li>
+              <li>· Use beginner-friendly language throughout</li>
+              <li>· Emphasize underwriting considerations</li>
+              <li>· Add practical decision-making scenarios</li>
+            </ul>
+          </div>
+          <textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            placeholder="Enter any special instructions here (optional)…"
+            rows={4}
+            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-[13px] text-slate-800 outline-none placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all"
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 pb-5">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="h-9 px-4 rounded-lg text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(instructions)}
+            className="h-9 px-4 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-[0_2px_8px_0_rgb(99,102,241,0.35)] transition-all"
+          >
+            <span className="flex items-center gap-1.5">
+              <Sparkles size={13} />
+              Generate Course
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 // ─── Generate Course Banner (three-panel phase) ───────────────────────────────
 function GenerateCourseBanner() {
   const {
@@ -69,10 +161,16 @@ function GenerateCourseBanner() {
     modifiedTOPaths,
     modifiedRulesPaths,
     generatedToBlobPath,
+    audience,
+    courseTitle,
+    detectedRuleFamily,
+    setSpecialInstructions,
     setPhase,
     setActiveJobId,
     updateRawDocument,
   } = useCourseStore()
+
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false)
 
   if (phase !== 'three-panel') return null
 
@@ -95,10 +193,10 @@ function GenerateCourseBanner() {
     timedOutlineFile?.blobPath ?? generatedToBlobPath ?? undefined
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
-    mutationFn: () =>
+    mutationFn: (specialInstructions?: string) =>
       createJob({
-        courseTitle: (toData?.course_name as string) ?? (toData?.courseTitle as string) ?? 'Untitled Course',
-        courseType: (rulesData?.ruleFamily as string) ?? (toData?.rule_family as string) ?? 'insurance_ce',
+        courseTitle: courseTitle || ((toData?.course_name as string) ?? (toData?.courseTitle as string) ?? 'Untitled Course'),
+        courseType: detectedRuleFamily || ((rulesData?.ruleFamily as string) ?? (toData?.rule_family as string) ?? 'insurance_ce'),
         inputs: {
           studyGuide: { blobPath: studyGuideFile?.blobPath ?? '' },
           ...(timedOutlineBlobPath
@@ -114,6 +212,8 @@ function GenerateCourseBanner() {
         sourceFilePaths: successFiles
           .map((f) => f.blobPath)
           .filter((p): p is string => typeof p === 'string' && p.length > 0),
+        audience: audience || '',
+        ...(specialInstructions?.trim() ? { specialInstructions: specialInstructions.trim() } : {}),
       }),
     onSuccess: (response) => {
       setActiveJobId(response.jobId)
@@ -205,7 +305,7 @@ function GenerateCourseBanner() {
             icon={isPending ? undefined : <Sparkles size={14} />}
             disabled={!canGenerate || isPending}
             loading={isPending}
-            onClick={() => startGeneration()}
+            onClick={() => setShowInstructionsModal(true)}
           >
             {isPending ? (
               <>
@@ -218,17 +318,59 @@ function GenerateCourseBanner() {
           </Button>
         </div>
       </div>
+      {showInstructionsModal && (
+        <SpecialInstructionsModal
+          onCancel={() => setShowInstructionsModal(false)}
+          onConfirm={(instructions) => {
+            setShowInstructionsModal(false)
+            if (instructions.trim()) setSpecialInstructions(instructions)
+            startGeneration(instructions.trim() || undefined)
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ─── Three-panel top header ───────────────────────────────────────────────────
-function ThreePanelHeader() {
-  const { setPhase, toData, rawDocuments } = useCourseStore()
 
-  const courseTitle =
-    (toData?.course_name as string) ?? (toData?.courseTitle as string) ?? null
+const RULE_FAMILY_LABELS: Record<string, string> = {
+  insurance_ce: 'Insurance CE',
+  iarce: 'IARCE',
+  firm_element: 'Firm Element',
+}
+
+const RULE_FAMILY_OPTIONS = [
+  { key: 'insurance_ce', label: 'Insurance CE' },
+  { key: 'iarce', label: 'IARCE' },
+  { key: 'firm_element', label: 'Firm Element' },
+]
+
+function ThreePanelHeader() {
+  const { setPhase, rawDocuments, audience, courseTitle, setCourseTitle, detectedRuleFamily, setDetectedRuleFamily } = useCourseStore()
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [localTitle, setLocalTitle] = useState('')
+  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false)
+
   const fileCount = rawDocuments.filter((f) => f.status === 'success').length
+  const displayTitle = courseTitle || 'Review & Generate'
+  const familyLabel = RULE_FAMILY_LABELS[detectedRuleFamily] ?? detectedRuleFamily
+
+  function startEditTitle() {
+    setLocalTitle(courseTitle)
+    setEditingTitle(true)
+  }
+
+  function commitTitle() {
+    const trimmed = localTitle.trim()
+    if (trimmed) setCourseTitle(trimmed)
+    setEditingTitle(false)
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') commitTitle()
+    if (e.key === 'Escape') setEditingTitle(false)
+  }
 
   return (
     <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3 z-10">
@@ -244,15 +386,79 @@ function ThreePanelHeader() {
       <div className="w-px h-5 bg-slate-200 shrink-0" />
 
       <div className="flex-1 min-w-0">
-        <h1 className="text-sm font-bold text-slate-900 truncate leading-tight">
-          {courseTitle ?? 'Review & Generate'}
-        </h1>
+        {editingTitle ? (
+          <input
+            autoFocus
+            type="text"
+            value={localTitle}
+            onChange={(e) => setLocalTitle(e.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={handleTitleKeyDown}
+            className="w-full text-sm font-bold text-slate-900 bg-white border border-indigo-400 rounded-md px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-100"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={startEditTitle}
+            className="group flex items-center gap-1.5 text-left max-w-full"
+            title="Click to edit course title"
+          >
+            <h1 className="text-sm font-bold text-slate-900 truncate leading-tight">
+              {displayTitle}
+            </h1>
+            <Pencil size={11} className="shrink-0 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+          </button>
+        )}
         <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">
           {fileCount > 0
-            ? `${fileCount} file${fileCount !== 1 ? 's' : ''} ready · Review the outline and rules before generating`
+            ? `${fileCount} file${fileCount !== 1 ? 's' : ''} ready`
             : 'Review the Training Outline and Rules before generating'}
+          {audience.trim() && (
+            <span className="ml-1.5 text-indigo-500 font-semibold">
+              · Audience: {audience.trim()}
+            </span>
+          )}
         </p>
       </div>
+
+      {detectedRuleFamily && (
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowFamilyDropdown((v) => !v)}
+            className="flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1 ring-1 ring-violet-200/80 hover:bg-violet-100 transition-colors"
+            title="Change rule family"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+            <span className="text-xs font-semibold text-violet-700">{familyLabel}</span>
+          </button>
+          {showFamilyDropdown && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowFamilyDropdown(false)} />
+              <div className="absolute right-0 top-full mt-1 z-20 w-40 rounded-xl bg-white shadow-lg ring-1 ring-slate-200 overflow-hidden">
+                {RULE_FAMILY_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => {
+                      setDetectedRuleFamily(opt.key)
+                      setShowFamilyDropdown(false)
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs font-semibold transition-colors ${
+                      detectedRuleFamily === opt.key
+                        ? 'bg-violet-50 text-violet-700'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {opt.key === detectedRuleFamily && <span className="mr-1">✓</span>}
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

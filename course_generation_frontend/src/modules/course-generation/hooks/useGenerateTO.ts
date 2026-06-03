@@ -4,7 +4,7 @@ import { generateTO } from '@/api/course-generation/api'
 import { useCourseStore } from '../store/courseStore'
 
 export function useGenerateTO() {
-  const { setTOData, setRulesData, setPhase, setGeneratedToBlobPath } = useCourseStore()
+  const { setTOData, setRulesData, setPhase, setGeneratedToBlobPath, setCourseTitle, setDetectedRuleFamily } = useCourseStore()
   const abortRef = useRef<AbortController | null>(null)
 
   return useMutation({
@@ -22,6 +22,7 @@ export function useGenerateTO() {
         durationHours,
         difficultyLevel,
         calculatedWordCount,
+        audience,
       } = useCourseStore.getState()
 
       // Collect all successfully uploaded file blob paths (preserving order).
@@ -30,6 +31,10 @@ export function useGenerateTO() {
         .map((f) => f.blobPath as string)
 
       if (blobPaths.length === 0) throw new Error('No uploaded documents found.')
+
+      if (!audience.trim()) {
+        throw new Error('Please provide the target audience before generating the Training Outline.')
+      }
 
       // Validate that the user has selected both duration and difficulty
       // (required for the new dynamic TO generation flow).
@@ -55,12 +60,19 @@ export function useGenerateTO() {
         durationHours,
         difficultyLevel,
         calculatedWordCount,
+        audience.trim() || undefined,
       )
     },
     onSuccess: ({ to, rules, toBlobPath }) => {
       setTOData(to, to)
       setRulesData(rules, rules)
       setGeneratedToBlobPath(toBlobPath ?? null)
+      if (to.course_name && typeof to.course_name === 'string') {
+        setCourseTitle(to.course_name)
+      }
+      if (to.rule_family && typeof to.rule_family === 'string') {
+        setDetectedRuleFamily(to.rule_family)
+      }
       setPhase('three-panel')
     },
   })

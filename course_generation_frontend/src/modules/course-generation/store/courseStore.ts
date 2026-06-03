@@ -56,12 +56,25 @@ interface CourseState {
   /** Word count target calculated from duration + difficulty. Sent to backend. */
   calculatedWordCount: number | null
 
+  /** Target audience for the course — mandatory before generating a TO or course. */
+  audience: string
+  /** Optional special instructions the user provides before final course generation. */
+  specialInstructions: string
+  /** Course title — initialized from TO generation, editable by user. */
+  courseTitle: string
+  /** Rule family key detected by A0 (e.g. "insurance_ce"). Editable by user. */
+  detectedRuleFamily: string
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
   setUploadFolder: (folder: string | null) => void
   setCustomToPrompt: (prompt: string) => void
   setCourseTypeHint: (hint: string) => void
+  setAudience: (audience: string) => void
+  setSpecialInstructions: (instructions: string) => void
+  setCourseTitle: (title: string) => void
+  setDetectedRuleFamily: (family: string) => void
   setDurationHours: (hours: number | null) => void
   setDifficultyLevel: (level: string | null) => void
 
@@ -232,6 +245,10 @@ const initialState = {
   uploadFolder:         null as string | null,
   customToPrompt:       '',
   courseTypeHint:       '',
+  audience:             '',
+  specialInstructions:  '',
+  courseTitle:          '',
+  detectedRuleFamily:   '',
   toDocument:           null as UploadedFile | null,
   durationHours:        null as number | null,
   difficultyLevel:      null as string | null,
@@ -250,6 +267,10 @@ export const useCourseStore = create<CourseState>()(
         setUploadFolder: (folder) => set({ uploadFolder: folder }),
         setCustomToPrompt: (prompt) => set({ customToPrompt: prompt }),
         setCourseTypeHint: (hint) => set({ courseTypeHint: hint }),
+        setAudience: (audience) => set({ audience }),
+        setSpecialInstructions: (instructions) => set({ specialInstructions: instructions }),
+        setCourseTitle: (title) => set({ courseTitle: title }),
+        setDetectedRuleFamily: (family) => set({ detectedRuleFamily: family }),
 
         setDurationHours: (hours) =>
           set((s) => {
