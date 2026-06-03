@@ -5,7 +5,7 @@
  * persisting section edits, and downloading the final DOCX artifact.
  */
 import apiClient from '@/api/client'
-import type { CourseContent, AIOperationRequest, AIOperationResponse } from '@/modules/course-generation/types/editor'
+import type { CourseContent, AIOperationRequest, AIOperationResponse, SaveToAzureResponse } from '@/modules/course-generation/types/editor'
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
@@ -52,28 +52,33 @@ export async function saveSectionContent(
  *   - Production: JSON { url: string }       → opens signed blob URL
  */
 export async function downloadCourseArtifact(jobId: string): Promise<void> {
-  try {
-    const { data, headers } = await apiClient.get(
-      `/jobs/${jobId}/artifacts/download`,
-      { responseType: 'blob' },
-    )
-    const contentType = String(headers['content-type'] ?? '')
+  const { data, headers } = await apiClient.get(
+    `/jobs/${jobId}/artifacts/download`,
+    { responseType: 'blob' },
+  )
+  const contentType = String(headers['content-type'] ?? '')
 
-    if (contentType.includes('application/json')) {
-      const text = await (data as Blob).text()
-      const json = JSON.parse(text) as { url?: string }
-      if (json.url) window.open(json.url, '_blank')
-    } else {
-      const blobUrl = URL.createObjectURL(data as Blob)
-      const anchor = document.createElement('a')
-      anchor.href = blobUrl
-      anchor.download = `course_${jobId}.docx`
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      URL.revokeObjectURL(blobUrl)
-    }
-  } catch {
-    console.warn('Could not download artifact for job', jobId)
+  if (contentType.includes('application/json')) {
+    const text = await (data as Blob).text()
+    const json = JSON.parse(text) as { url?: string }
+    if (json.url) window.open(json.url, '_blank')
+  } else {
+    const blobUrl = URL.createObjectURL(data as Blob)
+    const anchor = document.createElement('a')
+    anchor.href = blobUrl
+    anchor.download = `course_${jobId}.docx`
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(blobUrl)
   }
+}
+
+export async function saveToAzure(jobId: string): Promise<SaveToAzureResponse> {
+  const { data } = await apiClient.post<SaveToAzureResponse>(
+    `/jobs/${jobId}/artifacts/save-to-azure`,
+    {},
+    { timeout: 120_000 },
+  )
+  return data
 }

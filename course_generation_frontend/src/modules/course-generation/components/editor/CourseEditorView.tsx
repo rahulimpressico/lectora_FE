@@ -10,11 +10,13 @@ import {
   BookOpen,
   Hash,
   Clock,
+  CloudUpload,
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
 import { useEditorStore } from '../../store/editorStore'
 import { useCourseStore } from '../../store/courseStore'
+import { useSaveToAzure } from '../../hooks/useSaveToAzure'
 import { SectionNavigation } from './SectionNavigation'
 import { CourseSectionCard } from './CourseSectionCard'
 import { CoursePreviewModal } from '../preview/CoursePreviewModal'
@@ -54,6 +56,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const { setPhase } = useCourseStore()
 
+  const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
+
   const { data: content, isLoading, error } = useQuery({
     queryKey: ['course-content', jobId],
     queryFn: () => getCourseContent(jobId),
@@ -69,7 +73,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   const totalSections = courseContent?.meta.sectionCount ?? 0
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#f4f6f9]">
+    <div className="relative flex-1 flex flex-col min-h-0 bg-[#f4f6f9]">
 
       {/* ── Top bar ────────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
@@ -122,6 +126,17 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           </Button>
 
           <Button
+            variant="secondary"
+            size="sm"
+            icon={<CloudUpload size={13} />}
+            onClick={() => { resetSaveToAzure(); saveToAzure(jobId) }}
+            disabled={!courseContent}
+            loading={saveStatus === 'loading'}
+          >
+            Save to Azure
+          </Button>
+
+          <Button
             variant="primary"
             size="sm"
             icon={<Download size={13} />}
@@ -132,6 +147,36 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           </Button>
         </div>
       </div>
+
+      {/* ── Save to Azure status banner ───────────────────────────────── */}
+      {saveStatus === 'success' && saveResult && (
+        <div className="shrink-0 bg-emerald-50 border-b border-emerald-200 px-5 py-2 flex items-center justify-between">
+          <span className="text-xs text-emerald-700 font-medium">
+            Saved to Azure: <span className="font-mono">{saveResult.blobPath}</span>
+          </span>
+          <button
+            type="button"
+            onClick={resetSaveToAzure}
+            className="text-emerald-500 hover:text-emerald-700 text-xs ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {saveStatus === 'error' && (
+        <div className="shrink-0 bg-red-50 border-b border-red-200 px-5 py-2 flex items-center justify-between">
+          <span className="text-xs text-red-700 font-medium">
+            {saveError ?? 'Upload to Azure failed.'}
+          </span>
+          <button
+            type="button"
+            onClick={resetSaveToAzure}
+            className="text-red-400 hover:text-red-600 text-xs ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* AI processing bar */}
       {Array.from(sectionEditStates.values()).some(s => s.isAIProcessing) && (

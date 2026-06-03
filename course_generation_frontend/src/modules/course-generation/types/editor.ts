@@ -84,3 +84,12 @@ export interface SectionEditState {
   currentAIOperation?: AIOperationType
   isExpanded: boolean
 }
+
+// ─── Save to Azure ────────────────────────────────────────────────────────────
+export interface SaveToAzureResponse {
+  status: 'uploaded'
+  jobId: string
+  fileName: string
+  blobPath: string
+  containerName: string
+}
