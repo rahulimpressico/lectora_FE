@@ -66,6 +66,18 @@ export function UploadPhase() {
     setCourseTypeHint,
     audience,
     setAudience,
+    courseId,
+    setCourseId,
+    courseTitle,
+    setCourseTitle,
+    courseType,
+    setCourseType,
+    domain,
+    setDomain,
+    additionalContext,
+    setAdditionalContext,
+    finalOutputFormat,
+    setFinalOutputFormat,
     toDocument,
     setToDocument,
     durationHours,
@@ -803,6 +815,110 @@ export function UploadPhase() {
                 </div>
 
                 <div className="px-5 py-3.5 space-y-3">
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Course Title
+                      </label>
+                      <input
+                        type="text"
+                        value={courseTitle}
+                        onChange={(e) => setCourseTitle(e.target.value)}
+                        placeholder="e.g. Advanced Flood Insurance Training"
+                        className={cn(
+                          "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                          "placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                        )}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Course ID
+                      </label>
+                      <input
+                        type="text"
+                        value={courseId}
+                        onChange={(e) => setCourseId(e.target.value)}
+                        placeholder="e.g. 533"
+                        className={cn(
+                          "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                          "placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                        )}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Audience
+                      </label>
+                      <input
+                        type="text"
+                        value={audience}
+                        onChange={(e) => setAudience(e.target.value)}
+                        placeholder="e.g. trained insurance agents"
+                        className={cn(
+                          "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                          "placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                          Course Type
+                        </label>
+                        <input
+                          type="text"
+                          value={courseType}
+                          onChange={(e) => setCourseType(e.target.value)}
+                          placeholder="e.g. insurance"
+                          className={cn(
+                            "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                            "placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                          )}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                          Domain
+                        </label>
+                        <input
+                          type="text"
+                          value={domain}
+                          onChange={(e) => setDomain(e.target.value)}
+                          placeholder="e.g. flood insurance"
+                          className={cn(
+                            "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                            "placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                          )}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                        Final Output Format
+                      </label>
+                      <select
+                        value={finalOutputFormat}
+                        onChange={(e) =>
+                          setFinalOutputFormat(e.target.value as "wrapped" | "raw")
+                        }
+                        className={cn(
+                          "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                          "focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                        )}
+                      >
+                        <option value="wrapped">Wrapped</option>
+                        <option value="raw">Raw</option>
+                      </select>
+                    </div>
+
+                  </div>
+
                   {/* Course type */}
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
@@ -852,6 +968,22 @@ export function UploadPhase() {
                         </p>
                       </div>
                     )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                      Additional Context
+                    </label>
+                    <textarea
+                      value={additionalContext}
+                      onChange={(e) => setAdditionalContext(e.target.value)}
+                      placeholder="e.g. Create an advanced-level course for trained insurance agents."
+                      rows={3}
+                      className={cn(
+                        "w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[13px] text-slate-800 outline-none",
+                        "placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-50 transition-all",
+                      )}
+                    />
                   </div>
                 </div>
               </div>

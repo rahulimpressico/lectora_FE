@@ -9,7 +9,7 @@ import apiClient from '@/api/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type StorageSource = 'artifacts' | 'uploads'
+export type StorageSource = 'artifacts' | 'uploads' | 'generated-courses'
 export type StorageCategory =
   | 'source-documents'
   | 'generated-courses'
@@ -48,6 +48,13 @@ export interface DeleteStorageFileResult {
 export interface DeleteStorageFilesResponse {
   results: DeleteStorageFileResult[]
   deletedCount: number
+}
+
+export interface ExternalPreviewUrlResponse {
+  provider: 'microsoft-office-web-viewer'
+  fileUrl: string
+  previewUrl: string
+  expiresAt: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -138,6 +145,17 @@ export async function fetchStorageFileText(
   const { data } = await apiClient.get<string>(storageFileApiPath(path, source), {
     responseType: 'text',
   })
+  return data
+}
+
+export async function fetchExternalPreviewUrl(
+  path: string,
+  source: Extract<StorageSource, 'uploads' | 'generated-courses'>,
+): Promise<ExternalPreviewUrlResponse> {
+  const { data } = await apiClient.get<ExternalPreviewUrlResponse>(
+    '/storage/external-preview-url',
+    { params: { path, source } },
+  )
   return data
 }
 

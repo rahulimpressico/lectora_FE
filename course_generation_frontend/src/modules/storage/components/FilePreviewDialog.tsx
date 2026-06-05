@@ -3,6 +3,7 @@ import { X, FileText, Loader2, Download, ExternalLink } from 'lucide-react'
 import mammoth from 'mammoth'
 import { cn } from '@/lib/cn'
 import {
+  fetchExternalPreviewUrl,
   fetchStorageFileBlob,
   fetchStorageFileText,
   storageFileUrl,
@@ -51,6 +52,8 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
   const [jsonText, setJsonText] = useState<string | null>(null)
   const [docxHtml, setDocxHtml] = useState<string | null>(null)
   const [plainText, setPlainText] = useState<string | null>(null)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [officePreviewUrl, setOfficePreviewUrl] = useState<string | null>(null)
 
   const open = Boolean(entry)
   const ext = entry ? resolveExtension(entry) : ''
@@ -80,6 +83,8 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
       setJsonText(null)
       setDocxHtml(null)
       setPlainText(null)
+      setPdfPreviewUrl(null)
+      setOfficePreviewUrl(null)
       setError(null)
       return
     }
@@ -96,6 +101,10 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
     setJsonText(null)
     setDocxHtml(null)
     setPlainText(null)
+    setPdfPreviewUrl(null)
+    setOfficePreviewUrl(null)
+
+    let objectUrl: string | null = null
 
     async function load() {
       try {
@@ -109,6 +118,31 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
             setJsonText(raw)
           }
         } else if (showDocx) {
+          if (source === 'generated-courses' || source === 'uploads') {
+            try {
+              const preview = await fetchExternalPreviewUrl(entry!.path, source)
+              if (cancelled) return
+              setOfficePreviewUrl(preview.previewUrl)
+              return
+            } catch {
+              // Fall through to PDF fallback / simplified HTML preview.
+            }
+          }
+
+          // Generated-course DOCX files can also be previewed more faithfully via
+          // a sibling PDF saved at the same output path. Prefer that when present.
+          if (source === 'generated-courses') {
+            const pdfPath = entry!.path.replace(/\.(docx|doc)$/i, '.pdf')
+            try {
+              const pdfBlob = await fetchStorageFileBlob(pdfPath, source)
+              if (cancelled) return
+              objectUrl = URL.createObjectURL(pdfBlob)
+              setPdfPreviewUrl(objectUrl)
+              return
+            } catch {
+              // Fall back to Mammoth HTML conversion when no PDF preview is stored.
+            }
+          }
           const blob = await fetchStorageFileBlob(entry!.path, source)
           if (cancelled) return
           const buf = await blob.arrayBuffer()
@@ -131,6 +165,7 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
     void load()
     return () => {
       cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [entry, source, showJson, showDocx, showPdf, showText, showImage])
 
@@ -212,7 +247,27 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
               </pre>
             )}
 
-            {!loading && !error && showDocx && docxHtml !== null && (
+            {!loading && !error && showDocx && officePreviewUrl !== null && (
+              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                <iframe
+                  src={officePreviewUrl}
+                  title={entry.name}
+                  className="w-full min-h-[75vh] bg-white"
+                />
+              </div>
+            )}
+
+            {!loading && !error && showDocx && officePreviewUrl === null && pdfPreviewUrl !== null && (
+              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                <iframe
+                  src={pdfPreviewUrl}
+                  title={entry.name}
+                  className="w-full min-h-[75vh] bg-white"
+                />
+              </div>
+            )}
+
+            {!loading && !error && showDocx && officePreviewUrl === null && pdfPreviewUrl === null && docxHtml !== null && (
               <div
                 className="docx-preview prose prose-sm max-w-none text-slate-800 leading-relaxed"
                 dangerouslySetInnerHTML={{ __html: docxHtml }}

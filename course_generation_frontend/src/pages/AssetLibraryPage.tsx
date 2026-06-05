@@ -5,7 +5,6 @@ import {
   Database,
   FileText,
   FolderKanban,
-  FlaskConical,
   FolderOpen,
   Wrench,
 } from 'lucide-react'
@@ -41,7 +40,7 @@ const CATEGORIES: CategoryConfig[] = [
     label: 'Generated Courses',
     subtitle: 'Final course outputs grouped by course and job.',
     icon: FolderKanban,
-    source: 'artifacts',
+    source: 'generated-courses',
     emptyHint: 'No generated courses found yet.',
   },
   {
@@ -51,14 +50,6 @@ const CATEGORIES: CategoryConfig[] = [
     icon: Wrench,
     source: 'artifacts',
     emptyHint: 'No pipeline artifacts found yet.',
-  },
-  {
-    key: 'test-data',
-    label: 'Test / Smoke Data',
-    subtitle: 'Non-client test and smoke-run files.',
-    icon: FlaskConical,
-    source: 'artifacts',
-    emptyHint: 'No test/smoke data found yet.',
   },
 ]
 
@@ -100,11 +91,11 @@ export function AssetLibraryPage() {
               Asset Library
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Categorized Azure storage views for source, outputs, artifacts, and test data.
+              Categorized Azure storage views for source documents, generated outputs, and pipeline artifacts.
             </p>
           </div>
         </div>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {CATEGORIES.map((item) => {
             const Icon = item.icon
             const isActive = item.key === active.key

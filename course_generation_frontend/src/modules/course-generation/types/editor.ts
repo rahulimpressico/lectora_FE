@@ -91,6 +91,8 @@ export interface SaveToAzureResponse {
   jobId: string
   fileName: string
   blobPath: string
+  pdfBlobPath?: string | null
   containerName: string
   savedAt?: string
+  warning?: string | null
 }

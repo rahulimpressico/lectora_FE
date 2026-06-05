@@ -28,6 +28,16 @@ interface CourseEditorViewProps {
   jobId: string
 }
 
+function isExpiredJobError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return (
+    message.includes('unknown or expired jobid') ||
+    message.includes('unknown jobid') ||
+    message.includes('expired jobid')
+  )
+}
+
 function SkeletonLoader() {
   return (
     <div className="max-w-3xl mx-auto space-y-4 px-6 py-6">
@@ -62,7 +72,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
 
-  const { setPhase } = useCourseStore()
+  const { setPhase, reset } = useCourseStore()
+  
 
   const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
 
@@ -76,6 +87,13 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   useEffect(() => {
     if (content) setCourseContent(content)
   }, [content, setCourseContent])
+
+  useEffect(() => {
+    if (!error) return
+    if (!isExpiredJobError(error)) return
+    reset()
+    setPhase('upload')
+  }, [error, reset, setPhase])
 
   const expandedCount = expandedSectionIds.size
   const totalSections = courseContent?.meta.sectionCount ?? 0

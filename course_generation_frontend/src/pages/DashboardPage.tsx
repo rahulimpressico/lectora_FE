@@ -1,12 +1,19 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Sparkles, ArrowRight, BookOpen, Clock, CheckCircle, Plus, ArrowUpRight } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/shared/components/Button'
+import apiClient from '@/api/client'
 
-const stats = [
+type DashboardSummary = {
+  coursesGenerated: number
+  inProgress: number
+  completed: number
+}
+
+const BASE_STATS = [
   {
     label: 'Courses Generated',
-    value: '0',
     icon: BookOpen,
     iconColor: 'text-indigo-600',
     iconBg: 'bg-gradient-to-br from-indigo-50 to-indigo-100/70',
@@ -15,7 +22,6 @@ const stats = [
   },
   {
     label: 'In Progress',
-    value: '0',
     icon: Clock,
     iconColor: 'text-amber-600',
     iconBg: 'bg-gradient-to-br from-amber-50 to-amber-100/70',
@@ -24,7 +30,6 @@ const stats = [
   },
   {
     label: 'Completed',
-    value: '0',
     icon: CheckCircle,
     iconColor: 'text-emerald-600',
     iconBg: 'bg-gradient-to-br from-emerald-50 to-emerald-100/70',
@@ -32,6 +37,11 @@ const stats = [
     glow: '0 2px 20px 0 rgba(16,185,129,0.10)',
   },
 ]
+
+async function fetchDashboardSummary(): Promise<DashboardSummary> {
+  const { data } = await apiClient.get<DashboardSummary>('/dashboard/summary')
+  return data
+}
 
 const howItWorks = [
   {
@@ -68,6 +78,19 @@ const itemVariants = {
 }
 
 export function DashboardPage() {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['dashboard-summary'],
+    queryFn: fetchDashboardSummary,
+    staleTime: 30_000,
+    retry: false,
+  })
+
+  const stats = [
+    { ...BASE_STATS[0], value: isLoading ? '...' : String(data?.coursesGenerated ?? 0) },
+    { ...BASE_STATS[1], value: isLoading ? '...' : String(data?.inProgress ?? 0) },
+    { ...BASE_STATS[2], value: isLoading ? '...' : String(data?.completed ?? 0) },
+  ]
+
   return (
     <div className="flex-1 overflow-y-auto">
 
@@ -91,6 +114,11 @@ export function DashboardPage() {
               <p className="mt-0.5 text-sm text-slate-500 max-w-md leading-relaxed">
                 Manage your AI-powered course generation pipeline for enterprise learning.
               </p>
+              {isError ? (
+                <p className="mt-2 text-xs font-medium text-amber-600">
+                  Dashboard summary API could not be loaded. Showing fallback values.
+                </p>
+              ) : null}
             </div>
             <Link to="/generate">
               <Button icon={<Plus size={14} />} size="md">

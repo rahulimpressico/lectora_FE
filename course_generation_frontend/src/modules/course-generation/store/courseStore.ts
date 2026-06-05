@@ -44,6 +44,11 @@ interface CourseState {
   customToPrompt: string
   /** Optional course/domain type hint (e.g. "Washington LTC Compliance Course"). */
   courseTypeHint: string
+  courseId: string
+  courseType: string
+  domain: string
+  additionalContext: string
+  finalOutputFormat: 'wrapped' | 'raw'
 
   /** Optional user-uploaded TO document (replaces AI generation when set). */
   toDocument: UploadedFile | null
@@ -73,10 +78,15 @@ interface CourseState {
   setCourseTypeHint: (hint: string) => void
   setAudience: (audience: string) => void
   setSpecialInstructions: (instructions: string) => void
-  setCourseTitle: (title: string) => void
   setDetectedRuleFamily: (family: string) => void
   setDurationHours: (hours: number | null) => void
   setDifficultyLevel: (level: string | null) => void
+  setCourseId: (courseId: string) => void
+  setCourseTitle: (courseTitle: string) => void
+  setCourseType: (courseType: string) => void
+  setDomain: (domain: string) => void
+  setAdditionalContext: (context: string) => void
+  setFinalOutputFormat: (format: 'wrapped' | 'raw') => void
 
   addRawDocument: (file: UploadedFile) => void
   updateRawDocument: (id: string, patch: Partial<UploadedFile>) => void
@@ -245,9 +255,14 @@ const initialState = {
   uploadFolder:         null as string | null,
   customToPrompt:       '',
   courseTypeHint:       '',
-  audience:             '',
-  specialInstructions:  '',
+  audience:             'trained insurance agents',
+  courseId:             '',
   courseTitle:          '',
+  courseType:           'insurance',
+  domain:               '',
+  additionalContext:    '',
+  finalOutputFormat:    'wrapped' as const,
+  specialInstructions:  '',
   detectedRuleFamily:   '',
   toDocument:           null as UploadedFile | null,
   durationHours:        null as number | null,
@@ -269,8 +284,13 @@ export const useCourseStore = create<CourseState>()(
         setCourseTypeHint: (hint) => set({ courseTypeHint: hint }),
         setAudience: (audience) => set({ audience }),
         setSpecialInstructions: (instructions) => set({ specialInstructions: instructions }),
-        setCourseTitle: (title) => set({ courseTitle: title }),
         setDetectedRuleFamily: (family) => set({ detectedRuleFamily: family }),
+        setCourseId: (courseId) => set({ courseId }),
+        setCourseTitle: (courseTitle) => set({ courseTitle }),
+        setCourseType: (courseType) => set({ courseType }),
+        setDomain: (domain) => set({ domain }),
+        setAdditionalContext: (additionalContext) => set({ additionalContext }),
+        setFinalOutputFormat: (finalOutputFormat) => set({ finalOutputFormat }),
 
         setDurationHours: (hours) =>
           set((s) => {
