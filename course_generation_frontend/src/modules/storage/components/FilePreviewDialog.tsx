@@ -118,7 +118,7 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
             setJsonText(raw)
           }
         } else if (showDocx) {
-          if (source === 'generated-courses' || source === 'uploads') {
+          if (source === 'uploads') {
             try {
               const preview = await fetchExternalPreviewUrl(entry!.path, source)
               if (cancelled) return

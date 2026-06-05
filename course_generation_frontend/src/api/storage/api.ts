@@ -73,7 +73,11 @@ export function toRelativeUploadPrefix(fullPath: string): string {
 
 /** Relative API path (e.g. `/storage/file?...`) — suitable for axios calls. */
 export function storageFileApiPath(path: string, source: StorageSource): string {
-  const params = new URLSearchParams({ path, source })
+  // Generated Courses is a UI category. The underlying files currently live in the
+  // main artifacts storage path on the deployed backend, so file fetch/download
+  // requests must use the stable `artifacts` source for compatibility.
+  const requestSource = source === 'generated-courses' ? 'artifacts' : source
+  const params = new URLSearchParams({ path, source: requestSource })
   return `/storage/file?${params.toString()}`
 }
 
