@@ -59,4 +59,6 @@ export interface CostingSummary {
   documents: DocumentCost[]
   costChangePercent: number
   documentsChangePercent: number
+  /** "azure_cost_management" | "llm_traces" | "empty" — indicates which backend source was used */
+  dataSource?: string
 }

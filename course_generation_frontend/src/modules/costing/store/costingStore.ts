@@ -45,7 +45,7 @@ export const useCostingStore = create<CostingStoreState>()(
         } catch (err) {
           set({
             isDocumentLoading: false,
-            error: err instanceof Error ? err.message : 'Failed to load document detail',
+            error: err instanceof Error ? err.message : 'Failed to load document cost',
           })
         }
       },

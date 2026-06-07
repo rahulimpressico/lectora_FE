@@ -16,6 +16,8 @@ import {
   Sparkles,
   Activity,
   ReceiptText,
+  CloudCog,
+  Database,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCostingStore } from '../store/costingStore'
@@ -600,16 +602,30 @@ export function CostingDashboardPage() {
             </p>
             <p className="mt-1 text-sm font-semibold text-slate-800">Model usage, spend, and document-level cost analytics</p>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadSummary()}
-            disabled={isLoading}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition-all hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40"
-            title="Refresh"
-          >
-            <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            {summary?.dataSource === 'azure_cost_management' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                <CloudCog size={11} className="text-emerald-600" />
+                Azure Cost Management
+              </span>
+            )}
+            {summary?.dataSource === 'llm_traces' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                <Database size={11} className="text-amber-600" />
+                LLM Trace Estimates
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => void loadSummary()}
+              disabled={isLoading}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition-all hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40"
+              title="Refresh"
+            >
+              <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
