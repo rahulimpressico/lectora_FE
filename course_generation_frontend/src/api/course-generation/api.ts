@@ -4,6 +4,7 @@
  * Document upload and Training Outline (TO) generation.
  * Covers the upload phase and TO async-poll flow.
  */
+import axios from 'axios'
 import apiClient from '@/api/client'
 import type {
   GenerateTOJobAccepted,
@@ -109,10 +110,23 @@ export async function generateTO(
   const deadline = Date.now() + POLL_MAX_MS
 
   while (Date.now() < deadline) {
-    const { data: poll } = await apiClient.get<GenerateTOJobPollResponse>(
-      `/documents/generate-to/jobs/${jobId}`,
-      { signal, timeout: 30_000 },
-    )
+    let poll: GenerateTOJobPollResponse
+    try {
+      const { data } = await apiClient.get<GenerateTOJobPollResponse>(
+        `/documents/generate-to/jobs/${jobId}`,
+        { signal, timeout: 30_000 },
+      )
+      poll = data
+    } catch (err) {
+      // 404 means the server restarted and lost the in-memory job store.
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        throw new Error(
+          'The server was restarted while the Training Outline was being generated. ' +
+          'Please click "Generate TO" again.',
+        )
+      }
+      throw err
+    }
     if (poll.status === 'completed') {
       if (!poll.to || !poll.rules)
         throw new Error('A0 finished but response is missing TO or rules.')

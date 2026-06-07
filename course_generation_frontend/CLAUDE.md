@@ -38,6 +38,7 @@ There is no test suite yet.
 - `/generate` → `CourseGenerationPage`
 - `/assert_library` → `AssetLibraryPage`
 - `/documents_library` → `DocumentsLibraryPage`
+- `/costing` → `CostingDashboardPage`
 
 `AppLayout` (`src/layouts/AppLayout.tsx`) provides the sidebar + topbar shell for all routes except `/`.
 
@@ -61,7 +62,7 @@ All active UI lives under `src/modules/course-generation/`. The module is self-c
 
 ### State: Zustand stores
 
-- **`courseStore.ts`** (`src/modules/course-generation/store/`) — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths, course configuration (topic, duration, difficulty, word count, custom prompt). Uses `devtools` + `persist`; `partialize` saves **only** `{ activeJobId, phase }` when `activeJobId` is set — this allows reconnecting to an in-flight job after page refresh. All other state is ephemeral.
+- **`courseStore.ts`** (`src/modules/course-generation/store/`) — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths, course configuration (topic, duration, difficulty, word count, custom prompt, `audience`, `specialInstructions`, `courseTitle`, `detectedRuleFamily`). Uses `devtools` + `persist`; `partialize` saves **only** `{ activeJobId, phase }` when `activeJobId` is set — this allows reconnecting to an in-flight job after page refresh. All other state is ephemeral. `audience` is mandatory — `useGenerateTO` throws if it is empty.
 - **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. Uses `devtools` only (no persist). Log entries are capped at 400. Backend log IDs are deduplicated via a module-level `_maxSeenBackendLogId` counter — on SSE reconnect, re-delivered log entries are skipped.
 - **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state, preview open flag. Uses `devtools` only (no persist). Section tree mutations use recursive `updateSectionTree`.
 - **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`. DOM side-effects from theme changes are applied in `AppLayout`, not in the store.
@@ -97,17 +98,21 @@ All API modules live under `src/api/`, each focused on a domain:
 - `src/api/course-generation/api.ts` — `uploadDocument`, `generateTO` (with async-poll fallback)
 - `src/api/jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`
 - `src/api/pipeline/sse.ts` — `PipelineSSEClient`
-- `src/api/editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`. The download call handles two shapes: binary blob (local dev) triggers a browser download; JSON `{ url }` (production) opens a signed blob URL.
+- `src/api/editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure`. The download call handles two shapes: binary blob (local dev) triggers a browser download; JSON `{ url }` (production) opens a signed blob URL. `saveToAzure` calls `POST /jobs/{jobId}/artifacts/save-to-azure` and is wrapped by `useSaveToAzure` (TanStack Query mutation).
 - `src/api/storage/api.ts` — storage browsing, download, delete
 - `src/api/settings/api.ts` — settings persistence
 
 `baseURL` comes from `src/config/api.ts` (`API_BASE_URL`): in dev it resolves to `/api` (Vite proxy → `http://localhost:8000`); in production it defaults to the Render backend URL, overridable via `VITE_API_BASE_URL`. The Vite proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (required for SSE streams); all other `/api` routes use 120 s. **Do not merge or reorder these rules** — SSE will break.
 
-**`generateTO` uses an async poll pattern.** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`) instead of the result immediately. When it does, `generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes. Requires `durationHours` + `difficultyLevel` to be set in the store (unless the user uploaded a custom TO document).
+**`generateTO` uses an async poll pattern.** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`) instead of the result immediately. When it does, `generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes. Requires `audience`, `durationHours`, and `difficultyLevel` to be set in the store (unless the user uploaded a custom TO document). On success, `useGenerateTO` also seeds `courseTitle` from `to.course_name` and `detectedRuleFamily` from `to.rule_family`. `GenerateCoursePayload` (`POST /jobs`) also carries `audience` (mandatory) and `specialInstructions` (optional).
 
 Hooks use **TanStack Query** (`@tanstack/react-query`) for mutations — e.g. `useGenerateTO` wraps `generateTO` in `useMutation`.
 
 **Page-refresh reconnect** (`useJobPipeline`): on mount, the hook calls `getJobDetail` to verify the job still exists before opening SSE. A 404 response (server restarted / stale session) silently calls `reset()` and returns the user to the upload phase — no error is shown. Any other error surfaces a recoverable message in the log panel.
+
+### Costing module (`src/modules/costing/`)
+
+`CostingDashboardPage` at `/costing` shows LLM usage and cost analytics. It owns its own Zustand store (`costingStore.ts`, no persist) that fetches from two backend endpoints: `GET /costing/summary` (`CostingSummary`) and `GET /costing/documents/{documentId}` (`DocumentCost`). Charts are built with Recharts and live in `components/charts/`. `DocumentDrilldown` renders per-document stage and model breakdowns when a document row is selected. The module has a `mock/data.ts` for offline development — the store API calls fall back to mock data when the backend is unreachable.
 
 ### Storage module (`src/modules/storage/`)
 
