@@ -16,7 +16,7 @@ import { usePipelineStore } from "../../store/pipelineStore";
 import { useCourseStore } from "../../store/courseStore";
 import { retryJob } from "@/api/jobs/api";
 import { useJobPipeline } from "../../hooks/useJobPipeline";
-import { RobotLoader } from "./RobotLoader";
+import { CourseGifLoader } from "./CourseGifLoader";
 import { PipelinePageBackground } from "./PipelinePageBackground";
 import type { PipelineStageState } from "../../types/pipeline";
 import type { LogEntry } from "../../store/pipelineStore";
@@ -675,7 +675,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
               )}
             </AnimatePresence>
 
-            <RobotLoader
+            <CourseGifLoader
               activeStageId={activeStageId}
               overallStatus={overallStatus}
               size="large"
