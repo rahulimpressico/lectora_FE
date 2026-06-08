@@ -39,7 +39,7 @@ const MODEL_PRICING: ModelPricing[] = [
     tierLabel: 'Flagship Reasoning',
     inputCostPer1M: 2.0,
     outputCostPer1M: 8.0,
-    tagline: 'Highest-capability reasoning model for complex analysis',
+    tagline: 'A0 rule-family classification — default deployment for Request Synthesizer',
     color: '#f59e0b',
     accentFrom: 'from-amber-500',
     accentTo: 'to-orange-500',
@@ -59,28 +59,13 @@ const MODEL_PRICING: ModelPricing[] = [
     iconBg: 'bg-orange-50 border-orange-200/60',
   },
   {
-    modelId: 'gpt-5-4',
-    modelName: 'GPT-5.4',
-    tier: 'balanced',
-    tierLabel: 'Premium',
-    inputCostPer1M: 2.5,
-    outputCostPer1M: 15.0,
-    approximate: true,
-    tagline: 'Premium generation model powering course content creation',
-    color: '#10b981',
-    accentFrom: 'from-emerald-500',
-    accentTo: 'to-teal-500',
-    iconBg: 'bg-emerald-50 border-emerald-200/60',
-  },
-  {
-    modelId: 'gpt-5-4-mini',
+    modelId: 'gpt-5.4-mini',
     modelName: 'GPT-5.4 Mini',
     tier: 'economy',
     tierLabel: 'Economy',
     inputCostPer1M: 0.75,
     outputCostPer1M: 4.50,
-    approximate: true,
-    tagline: 'Fast, cost-efficient processing for outline interpretation',
+    tagline: 'A0_TO, A1, and A2 — default deployment for TO extraction, outline, and content',
     color: '#8b5cf6',
     accentFrom: 'from-violet-500',
     accentTo: 'to-purple-500',
@@ -515,9 +500,8 @@ export function ModelPricingReference() {
 
         {/* ── Footnote ─────────────────────────────────────────────────────── */}
         <p className="text-[10px] text-slate-400 leading-relaxed">
-          Prices shown reflect published Azure OpenAI rates where available. GPT-5.4 and GPT-5.4 Mini
-          rates are indicative estimates marked with &ldquo;~&rdquo; as Azure pricing for these models
-          has not been formally published. O3, O4 Mini, GPT-4o, and GPT-4o Mini rates are based on
+          Prices shown reflect published Azure OpenAI rates where available. GPT-5.4 Mini rates
+          match tracer.py billing config. O3, O4 Mini, GPT-4o, and GPT-4o Mini rates are based on
           published OpenAI pricing. Actual billing is determined by the Azure OpenAI platform based on
           metered token consumption and may differ from values shown here.
         </p>

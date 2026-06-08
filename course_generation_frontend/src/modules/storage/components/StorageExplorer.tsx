@@ -334,6 +334,11 @@ export interface StorageExplorerProps {
   fileExtensions?: string[]
   /** Show checkboxes and bulk delete (with confirm dialog). */
   allowDelete?: boolean
+  /**
+   * When provided, clicking a DOCX file calls this instead of opening the
+   * built-in preview dialog — used by Asset Library to open the course editor.
+   */
+  onOpenDocx?: (entry: StorageEntry) => void
 }
 
 export function StorageExplorer({
@@ -345,6 +350,7 @@ export function StorageExplorer({
   emptyHint,
   fileExtensions,
   allowDelete = true,
+  onOpenDocx,
 }: StorageExplorerProps) {
   const queryClient = useQueryClient()
   const [prefix, setPrefix] = useState('')
@@ -812,17 +818,27 @@ export function StorageExplorer({
               {imageFiles.length > 0 ? `Other files (${otherFiles.length})` : `Files (${otherFiles.length})`}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {otherFiles.map((entry, i) => (
-                <FileCard
-                  key={entry.path}
-                  entry={entry}
-                  animDelay={(folders.length + imageFiles.length + i) * 30}
-                  onOpen={() => setPreviewEntry(entry)}
-                  selectionMode={selectionMode && allowDelete}
-                  selected={selectedPaths.has(entry.path)}
-                  onToggleSelect={() => toggleSelect(entry.path)}
-                />
-              ))}
+              {otherFiles.map((entry, i) => {
+                const ext = (entry.extension ?? fileExtension(entry.name)).toLowerCase()
+                const isDocx = ext === '.docx' || ext === '.doc'
+                return (
+                  <FileCard
+                    key={entry.path}
+                    entry={entry}
+                    animDelay={(folders.length + imageFiles.length + i) * 30}
+                    onOpen={() => {
+                      if (isDocx && onOpenDocx) {
+                        onOpenDocx(entry)
+                      } else {
+                        setPreviewEntry(entry)
+                      }
+                    }}
+                    selectionMode={selectionMode && allowDelete}
+                    selected={selectedPaths.has(entry.path)}
+                    onToggleSelect={() => toggleSelect(entry.path)}
+                  />
+                )
+              })}
             </div>
           </section>
         )}

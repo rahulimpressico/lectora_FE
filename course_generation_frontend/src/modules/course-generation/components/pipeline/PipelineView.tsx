@@ -9,12 +9,13 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Ban,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { usePipelineStore } from "../../store/pipelineStore";
 import { useCourseStore } from "../../store/courseStore";
-import { retryJob } from "@/api/jobs/api";
+import { retryJob, cancelJob } from "@/api/jobs/api";
 import { useJobPipeline } from "../../hooks/useJobPipeline";
 import { CourseGifLoader } from "./CourseGifLoader";
 import { PipelinePageBackground } from "./PipelinePageBackground";
@@ -501,11 +502,20 @@ export function PipelineView({ jobId }: PipelineViewProps) {
   const [feedCollapsed, setFeedCollapsed] = useState(false);
   const { pipeline, logs, fatalError } = usePipelineStore();
   const { setPhase, reset } = useCourseStore();
+  const { clearPipeline } = usePipelineStore();
 
   useJobPipeline(jobId);
 
   const retryMutation = useMutation({
     mutationFn: () => retryJob(jobId, pipeline?.error?.stage ?? "A1"),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelJob(jobId),
+    onSettled: () => {
+      clearPipeline();
+      setPhase("three-panel");
+    },
   });
 
   const statusMessage = useRotatingMessage(pipeline?.activeStageId ?? null);
@@ -614,9 +624,24 @@ export function PipelineView({ jobId }: PipelineViewProps) {
           <span className="hidden sm:inline">Back</span>
         </button>
         <div className="w-px h-3.5 bg-slate-200 shrink-0" />
-        <span className="text-[12px] font-medium text-slate-400 truncate">
+        <span className="text-[12px] font-medium text-slate-400 truncate flex-1">
           Course Generation Pipeline
         </span>
+        {isProcessing && (
+          <button
+            type="button"
+            disabled={cancelMutation.isPending}
+            onClick={() => cancelMutation.mutate()}
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition-all duration-150 disabled:opacity-50 shrink-0"
+          >
+            {cancelMutation.isPending ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Ban size={12} />
+            )}
+            Cancel Generation
+          </button>
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden max-lg:flex-col max-lg:overflow-x-hidden">

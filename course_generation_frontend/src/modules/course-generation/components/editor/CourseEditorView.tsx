@@ -23,19 +23,10 @@ import { useSaveToAzure } from '../../hooks/useSaveToAzure'
 import { SectionNavigation } from './SectionNavigation'
 import { CourseSectionCard } from './CourseSectionCard'
 import { CoursePreviewModal } from '../preview/CoursePreviewModal'
+import { isExpiredJobError } from '@/api/errors'
 
 interface CourseEditorViewProps {
   jobId: string
-}
-
-function isExpiredJobError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  const message = error.message.toLowerCase()
-  return (
-    message.includes('unknown or expired jobid') ||
-    message.includes('unknown jobid') ||
-    message.includes('expired jobid')
-  )
 }
 
 function SkeletonLoader() {

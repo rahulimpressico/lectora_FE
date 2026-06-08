@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import {
   ArrowRight,
+  Code2,
   Database,
   FileText,
   FolderKanban,
@@ -14,8 +15,11 @@ import {
   type BrowseResponse,
   type StorageCategory,
   type StorageSource,
+  type StorageEntry,
 } from '@/api/storage/api'
 import { StorageExplorer } from '@/modules/storage'
+import { CourseEditorModal } from '@/modules/storage/components/CourseEditorModal'
+import { getJobByCourseSlug } from '@/api/jobs/api'
 
 type CategoryConfig = {
   key: StorageCategory
@@ -38,7 +42,7 @@ const CATEGORIES: CategoryConfig[] = [
   {
     key: 'generated-courses',
     label: 'Generated Courses',
-    subtitle: 'Final course outputs grouped by course and job.',
+    subtitle: 'Final DOCX/PDF outputs from Azure generated-courses.',
     icon: FolderKanban,
     source: 'generated-courses',
     emptyHint: 'No generated courses found yet.',
@@ -46,18 +50,53 @@ const CATEGORIES: CategoryConfig[] = [
   {
     key: 'pipeline-artifacts',
     label: 'Pipeline Artifacts',
-    subtitle: 'Technical JSON, logs, and intermediate files.',
+    subtitle: 'Live pipeline run logs and intermediate JSON (regedlectoraaistorage).',
     icon: Wrench,
     source: 'artifacts',
-    emptyHint: 'No pipeline artifacts found yet.',
+    emptyHint: 'No pipeline JSON logs found yet. Start a course generation to see live logs.',
+  },
+  {
+    key: 'course-generation-artifacts',
+    label: 'Course Generation Artifacts',
+    subtitle: 'Production pipeline JSON per course from Azure course-generation-artifacts.',
+    icon: Code2,
+    source: 'course-generation-artifacts',
+    emptyHint: 'No JSON artifacts found in course-generation-artifacts yet.',
   },
 ]
 
 export function AssetLibraryPage() {
   const [params, setParams] = useSearchParams()
+  const [modalJobId, setModalJobId] = useState<string | null>(null)
+
   const selected =
     (params.get('category') as StorageCategory | null) ?? 'generated-courses'
   const active = CATEGORIES.find((c) => c.key === selected) ?? CATEGORIES[1]
+
+  const handleOpenDocx = useCallback(async (entry: StorageEntry) => {
+    const pathParts = entry.path.split('/')
+    const slug = pathParts[0]
+    if (!slug) return
+
+    // New isolated layout: {courseSlug}/{jobId}/output/study_guide.docx
+    const potentialJobId = pathParts[1]
+    const looksLikeJobId =
+      !!potentialJobId &&
+      (/^j-[a-z0-9]+$/i.test(potentialJobId) || /^[a-f0-9]{32}$/i.test(potentialJobId))
+    if (looksLikeJobId) {
+      setModalJobId(potentialJobId)
+      return
+    }
+
+    // Fallback: look up most recent job by course slug (legacy layout or root-level path)
+    const result = await getJobByCourseSlug(slug)
+    if (!result) {
+      alert(`No completed job found for course "${slug}". The course may still be generating.`)
+      return
+    }
+    setModalJobId(result.jobId)
+  }, [])
+
   const categoryCounts = useQueries({
     queries: CATEGORIES.map((item) => ({
       queryKey: ['asset-category-count', item.key] as const,
@@ -91,11 +130,11 @@ export function AssetLibraryPage() {
               Asset Library
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Categorized Azure storage views for source documents, generated outputs, and pipeline artifacts.
+              Browse Azure storage by category — source docs, generated courses, dev pipeline files, and production JSON artifacts.
             </p>
           </div>
         </div>
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {CATEGORIES.map((item) => {
             const Icon = item.icon
             const isActive = item.key === active.key
@@ -179,7 +218,22 @@ export function AssetLibraryPage() {
         source={active.source}
         category={active.key}
         emptyHint={active.emptyHint}
+        fileExtensions={
+          active.key === 'course-generation-artifacts' || active.key === 'pipeline-artifacts'
+            ? ['.json']
+            : undefined
+        }
+        allowDelete
+        onOpenDocx={active.key === 'generated-courses' ? handleOpenDocx : undefined}
       />
+
+      {/* Course editor / preview modal — opened when user clicks a DOCX */}
+      {modalJobId && (
+        <CourseEditorModal
+          jobId={modalJobId}
+          onClose={() => setModalJobId(null)}
+        />
+      )}
     </div>
   )
 }

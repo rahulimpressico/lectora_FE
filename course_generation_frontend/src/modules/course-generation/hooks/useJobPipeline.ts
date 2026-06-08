@@ -14,7 +14,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { useCourseStore } from '../store/courseStore'
 import { PipelineSSEClient } from '@/api/pipeline/sse'
 import { getJobDetail } from '@/api/jobs/api'
-import type { AxiosError } from 'axios'
+import { isAuthError, isExpiredJobError } from '@/api/errors'
 
 export function useJobPipeline(jobId: string | null) {
   const {
@@ -51,18 +51,24 @@ export function useJobPipeline(jobId: string | null) {
       } catch (err) {
         if (cancelled) return
 
-        const status = (err as AxiosError)?.response?.status
-
-        if (status === 404) {
-          // Job no longer exists (server restart or stale session).
-          // Reset silently to upload phase so the user can start fresh.
+        if (isExpiredJobError(err)) {
+          // Job no longer exists (server restart, TTL expiry, or stale browser session).
           clearPipeline()
           reset()
           return
         }
 
+        if (isAuthError(err)) {
+          setFatalError(
+            'Authentication required. For local development run dev_app (uvicorn lectora_backend.dev_app:app --reload) instead of main.py.',
+          )
+          return
+        }
+
+        const detail =
+          err instanceof Error ? err.message : 'Unknown error'
         setFatalError(
-          'Could not reach the backend. Make sure the server is running and try again.',
+          `Could not reach the backend (${detail}). Make sure dev_app is running on port 8000 and try again.`,
         )
         return
       }

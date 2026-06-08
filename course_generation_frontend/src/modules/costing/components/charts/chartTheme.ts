@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 
 export const MODEL_COLORS: Record<string, string> = {
-  'gpt-5.4': '#6366f1',
+  o3: '#f59e0b',
+  'o4-mini': '#f97316',
+  'gpt-5.4-mini': '#8b5cf6',
   'gpt-5-mini': '#8b5cf6',
+  'gpt-4o': '#06b6d4',
+  'gpt-4o-mini': '#14b8a6',
   'text-embedding-3-small': '#10b981',
-  default: '#f59e0b',
+  default: '#94a3b8',
 }
 
 export const STAGE_COLORS: Record<string, string> = {

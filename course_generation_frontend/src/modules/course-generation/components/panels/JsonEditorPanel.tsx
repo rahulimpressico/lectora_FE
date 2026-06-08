@@ -15,6 +15,9 @@ interface JsonEditorPanelProps {
   onUpdate: (path: string[], value: JsonValue) => void
   onReset: (path: string[]) => void
   onResetAll: () => void
+  loading?: boolean
+  loadError?: string | null
+  emptyMessage?: string
 }
 
 export function JsonEditorPanel({
@@ -28,6 +31,9 @@ export function JsonEditorPanel({
   onUpdate,
   onReset,
   onResetAll,
+  loading = false,
+  loadError = null,
+  emptyMessage = 'No data available yet.',
 }: JsonEditorPanelProps) {
   const dirtyCount = modifiedPaths.size
 
@@ -69,9 +75,17 @@ export function JsonEditorPanel({
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {!data ? (
+        {loading ? (
           <div className="flex h-full items-center justify-center">
             <Spinner />
+          </div>
+        ) : loadError ? (
+          <div className="flex h-full items-center justify-center px-6 text-center">
+            <p className="text-sm text-red-600">{loadError}</p>
+          </div>
+        ) : !data ? (
+          <div className="flex h-full items-center justify-center px-6 text-center">
+            <p className="text-sm text-slate-500">{emptyMessage}</p>
           </div>
         ) : (
           <RecursiveJsonEditor

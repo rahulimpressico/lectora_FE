@@ -25,6 +25,7 @@ import { useCourseStore } from '../store/courseStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useEditorStore } from '../store/editorStore'
 import { createJob } from '@/api/jobs/api'
+import { useLoadTrainingOutline } from '../hooks/useLoadTrainingOutline'
 
 // ─── Error helpers ────────────────────────────────────────────────────────────
 
@@ -465,14 +466,16 @@ function ThreePanelHeader() {
 
 // ─── Three-panel layout wrapper ───────────────────────────────────────────────
 function ThreePanelPhase() {
+  const { loading, error } = useLoadTrainingOutline()
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <ThreePanelHeader />
       <div className="flex-1 min-h-0 overflow-hidden">
         <ThreePanelLayout
           left={<DocViewerPanel />}
-          middle={<TOPanel />}
-          right={<RulesPanel />}
+          middle={<TOPanel loading={loading} loadError={error} />}
+          right={<RulesPanel loading={loading} loadError={error} />}
         />
       </div>
       <GenerateCourseBanner />

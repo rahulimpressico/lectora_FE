@@ -9,11 +9,16 @@ import apiClient from '@/api/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type StorageSource = 'artifacts' | 'uploads' | 'generated-courses'
+export type StorageSource =
+  | 'artifacts'
+  | 'uploads'
+  | 'generated-courses'
+  | 'course-generation-artifacts'
 export type StorageCategory =
   | 'source-documents'
   | 'generated-courses'
   | 'pipeline-artifacts'
+  | 'course-generation-artifacts'
   | 'test-data'
 
 export const UPLOAD_BLOB_ROOTS = ['uploaded-documents'] as const
@@ -73,11 +78,7 @@ export function toRelativeUploadPrefix(fullPath: string): string {
 
 /** Relative API path (e.g. `/storage/file?...`) — suitable for axios calls. */
 export function storageFileApiPath(path: string, source: StorageSource): string {
-  // Generated Courses is a UI category. The underlying files currently live in the
-  // main artifacts storage path on the deployed backend, so file fetch/download
-  // requests must use the stable `artifacts` source for compatibility.
-  const requestSource = source === 'generated-courses' ? 'artifacts' : source
-  const params = new URLSearchParams({ path, source: requestSource })
+  const params = new URLSearchParams({ path, source })
   return `/storage/file?${params.toString()}`
 }
 

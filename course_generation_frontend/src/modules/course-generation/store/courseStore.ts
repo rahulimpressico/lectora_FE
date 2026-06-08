@@ -425,10 +425,18 @@ export const useCourseStore = create<CourseState>()(
         // Persist only the fields needed to reconnect after a page refresh.
         // If the user refreshes during pipeline/course-editor, we reattach to
         // the same job via SSE using the persisted jobId and phase.
-        partialize: (s) =>
-          s.activeJobId
-            ? { activeJobId: s.activeJobId, phase: s.phase }
-            : {},
+        partialize: (s) => {
+          if (s.activeJobId) {
+            return { activeJobId: s.activeJobId, phase: s.phase }
+          }
+          if (s.phase === 'three-panel' && s.generatedToBlobPath) {
+            return {
+              phase: s.phase,
+              generatedToBlobPath: s.generatedToBlobPath,
+            }
+          }
+          return {}
+        },
       },
     ),
     { name: 'course-store' },

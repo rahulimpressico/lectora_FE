@@ -47,6 +47,30 @@ export interface CostingTrendPoint {
   outputTokens: number
 }
 
+export interface ServiceCostBreakdown {
+  serviceName: string
+  cost: number
+  sharePercent: number
+}
+
+export interface AgentModelSummary {
+  agentId: string
+  agentName: string
+  role: string
+  pipelineStep: number
+  stageKey: StageKey
+  stageName: string
+  configuredDeployment: string
+  configuredDeploymentLabel: string
+  defaultDeployment: string
+  isOverridden: boolean
+  totalRequests: number
+  inputTokens: number
+  outputTokens: number
+  cost: number
+  observedDeployments: string[]
+}
+
 export interface CostingSummary {
   totalCost: number
   totalInputTokens: number
@@ -57,8 +81,22 @@ export interface CostingSummary {
   costTrend: CostingTrendPoint[]
   modelSummary: ModelUsage[]
   documents: DocumentCost[]
-  costChangePercent: number
-  documentsChangePercent: number
+  stageSummary?: StageBreakdown[]
+  serviceBreakdown?: ServiceCostBreakdown[]
+  agentModelSummary?: AgentModelSummary[]
+  traceTotalCost?: number
+  azureTotalCost?: number
+  /** Omitted when the backend cannot compare against a prior period */
+  costChangePercent?: number | null
+  documentsChangePercent?: number | null
   /** "azure_cost_management" | "llm_traces" | "empty" — indicates which backend source was used */
   dataSource?: string
+  /** Billing currency for cost totals (Azure CostUSD aggregation → USD). */
+  currency?: string
+  azureBillingConfigured?: boolean
+  /** Populated when Azure Cost Management is configured but the query failed (e.g. missing RBAC). */
+  azureBillingError?: string | null
+  azureBillingSource?: string | null
+  azureBillingStale?: boolean
+  azureFetchedAt?: string | null
 }

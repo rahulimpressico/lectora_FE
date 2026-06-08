@@ -35,3 +35,33 @@ export async function getArtifacts(
   const { data } = await apiClient.get(`/jobs/${jobId}/artifacts`)
   return data
 }
+
+export async function cancelJob(
+  jobId: string,
+): Promise<{ jobId: string; status: string }> {
+  const { data } = await apiClient.delete(`/jobs/${jobId}`)
+  return data
+}
+
+export async function loadJobTrainingOutline(
+  jobId: string,
+): Promise<{ to: Record<string, unknown>; rules: Record<string, unknown> }> {
+  const { data } = await apiClient.get<{ to: Record<string, unknown>; rules: Record<string, unknown> }>(
+    `/jobs/${jobId}/training-outline`,
+    { timeout: 30_000 },
+  )
+  return data
+}
+
+export async function getJobByCourseSlug(
+  slug: string,
+): Promise<{ jobId: string; status: string; courseTitle: string } | null> {
+  try {
+    const { data } = await apiClient.get<{ jobId: string; status: string; courseTitle: string }>(
+      `/jobs/by-course-slug/${encodeURIComponent(slug)}`,
+    )
+    return data
+  } catch {
+    return null
+  }
+}

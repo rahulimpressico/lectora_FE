@@ -28,6 +28,8 @@ import { TOGenerationLoader } from "./TOGenerationLoader";
 import { InlineAzureBrowser } from "./InlineAzureBrowser";
 
 // ── Course configuration constants ──────────────────────────────────────────
+const DEFAULT_AUDIENCE = "Trained Insurance Agents"
+
 const DURATION_OPTIONS = [1, 2, 3, 4, 5] as const
 
 const DIFFICULTY_OPTIONS = [
@@ -1005,8 +1007,8 @@ export function UploadPhase() {
               if (audience.trim()) {
                 generateTO.mutate();
               } else {
-                // Pre-seed the modal with any value already typed in the inline field
-                setModalAudienceInput(audience);
+                // Pre-seed with existing value or the default audience
+                setModalAudienceInput(audience || DEFAULT_AUDIENCE);
                 setModalAudienceError(null);
                 setShowAudienceModal(true);
               }
@@ -1069,7 +1071,7 @@ export function UploadPhase() {
                       generateTO.mutate();
                     }
                   }}
-                  placeholder="e.g. Trained Insurance Agents, New Agents, Business Owners"
+                  placeholder={DEFAULT_AUDIENCE}
                   className={cn(
                     "w-full rounded-xl border px-4 py-2.5 text-[13px] text-slate-800 outline-none transition-all",
                     "placeholder:text-slate-400",

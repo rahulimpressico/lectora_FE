@@ -112,7 +112,7 @@ Hooks use **TanStack Query** (`@tanstack/react-query`) for mutations — e.g. `u
 
 ### Costing module (`src/modules/costing/`)
 
-`CostingDashboardPage` at `/costing` shows LLM usage and cost analytics. It owns its own Zustand store (`costingStore.ts`, no persist) that fetches from two backend endpoints: `GET /costing/summary` (`CostingSummary`) and `GET /costing/documents/{documentId}` (`DocumentCost`). Charts are built with Recharts and live in `components/charts/`. `DocumentDrilldown` renders per-document stage and model breakdowns when a document row is selected. The module has a `mock/data.ts` for offline development — the store API calls fall back to mock data when the backend is unreachable.
+`CostingDashboardPage` at `/costing` shows LLM usage and cost analytics. It owns its own Zustand store (`costingStore.ts`, no persist) that fetches from two backend endpoints: `GET /costing/summary` (`CostingSummary`) and `GET /costing/documents/{documentId}` (`DocumentCost`). Charts are built with Recharts and live in `components/charts/`. `DocumentDrilldown` renders per-document stage and model breakdowns when a document row is selected. Billing totals come from Azure Cost Management (`AZURE_SUBSCRIPTION_ID` + service principal with **Cost Management Reader**); per-document/token breakdowns come from `llm_traces.jsonl` synced to Azure Blob. No mock fallback — errors and empty states surface directly.
 
 ### Storage module (`src/modules/storage/`)
 

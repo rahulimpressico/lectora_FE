@@ -134,6 +134,7 @@ export const usePipelineStore = create<PipelineStoreState>()(
           // New job (or pipeline was cleared) — full reset.
           resetBackendLogCursor()
           return {
+            fatalError: null,
             lastSeenLogId: 0,
             pipeline: {
               jobId,

@@ -4,8 +4,8 @@
  * Document upload and Training Outline (TO) generation.
  * Covers the upload phase and TO async-poll flow.
  */
-import axios from 'axios'
 import apiClient from '@/api/client'
+import { ApiClientError } from '@/api/errors'
 import type {
   GenerateTOJobAccepted,
   GenerateTOJobPollResponse,
@@ -119,7 +119,7 @@ export async function generateTO(
       poll = data
     } catch (err) {
       // 404 means the server restarted and lost the in-memory job store.
-      if (axios.isAxiosError(err) && err.response?.status === 404) {
+      if (err instanceof ApiClientError && err.status === 404) {
         throw new Error(
           'The server was restarted while the Training Outline was being generated. ' +
           'Please click "Generate TO" again.',
@@ -140,4 +140,16 @@ export async function generateTO(
   }
 
   throw new Error('Timed out waiting for Training Outline generation. Try again.')
+}
+
+/** Load a previously saved TO JSON (generated_to.json or llm_to_outline.json). */
+export async function loadTrainingOutlineFromPath(
+  path: string,
+  source: 'uploads' | 'artifacts' = 'uploads',
+): Promise<GenerateTOResponse> {
+  const { data } = await apiClient.get<GenerateTOResponse>('/documents/load-to', {
+    params: { path, source },
+    timeout: 30_000,
+  })
+  return data
 }

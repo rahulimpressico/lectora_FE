@@ -3,7 +3,12 @@ import { JsonEditorPanel } from './JsonEditorPanel'
 import { useCourseStore } from '../../store/courseStore'
 import type { JsonValue } from '../../types'
 
-export function RulesPanel() {
+interface RulesPanelProps {
+  loading?: boolean
+  loadError?: string | null
+}
+
+export function RulesPanel({ loading = false, loadError = null }: RulesPanelProps) {
   const {
     rulesData,
     rulesOriginal,
@@ -29,6 +34,9 @@ export function RulesPanel() {
       onUpdate={(path: string[], value: JsonValue) => updateRulesField(path, value)}
       onReset={(path: string[]) => resetRulesField(path)}
       onResetAll={handleResetAll}
+      loading={loading}
+      loadError={loadError}
+      emptyMessage="Rule pack loads with the Training Outline."
     />
   )
 }

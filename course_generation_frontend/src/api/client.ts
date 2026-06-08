@@ -6,6 +6,7 @@
  */
 import axios from 'axios'
 import { API_BASE_URL } from '@/config/api'
+import { ApiClientError } from '@/api/errors'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -59,7 +60,9 @@ apiClient.interceptors.response.use(
         error.message ??
         'An unexpected error occurred',
     )
-    return Promise.reject(new Error(message))
+    return Promise.reject(
+      new ApiClientError(message, error.response?.status),
+    )
   },
 )
 

@@ -11,22 +11,13 @@ const MODEL_O3: ModelUsage = {
   cost: 2.163,
 }
 
-const MODEL_GPT54: ModelUsage = {
-  modelId: 'gpt-5.4',
-  modelName: 'GPT-5.4',
-  inputTokens: 1_784_000,
-  outputTokens: 536_000,
-  totalRequests: 85,
-  cost: 16.96,
-}
-
 const MODEL_GPT54_MINI: ModelUsage = {
   modelId: 'gpt-5.4-mini',
   modelName: 'GPT-5.4 Mini',
-  inputTokens: 3_565_000,
-  outputTokens: 1_132_000,
-  totalRequests: 185,
-  cost: 1.214,
+  inputTokens: 5_349_000,
+  outputTokens: 1_668_000,
+  totalRequests: 270,
+  cost: 18.174,
 }
 
 // ─── Document: Flood Insurance Course ────────────────────────────────────────
@@ -92,20 +83,12 @@ const floodInsuranceModels: ModelUsage[] = [
     cost: 0.285,
   },
   {
-    modelId: 'gpt-5.4',
-    modelName: 'GPT-5.4',
-    inputTokens: 772_000,
-    outputTokens: 230_000,
-    totalRequests: 31,
-    cost: 7.365,
-  },
-  {
     modelId: 'gpt-5.4-mini',
     modelName: 'GPT-5.4 Mini',
-    inputTokens: 1_600_000,
-    outputTokens: 520_000,
-    totalRequests: 75,
-    cost: 0.552,
+    inputTokens: 2_372_000,
+    outputTokens: 750_000,
+    totalRequests: 106,
+    cost: 7.917,
   },
 ]
 
@@ -118,7 +101,7 @@ const floodInsuranceDoc: DocumentCost = {
   inputTokens: 2_410_000,
   outputTokens: 760_000,
   totalRequests: 110,
-  modelsUsed: ['O3', 'GPT-5.4', 'GPT-5.4 Mini'],
+  modelsUsed: ['O3', 'GPT-5.4 Mini'],
   lastUpdated: '2026-05-04T14:32:00Z',
   modelBreakdown: floodInsuranceModels,
   stageBreakdown: floodInsuranceStages,
@@ -187,20 +170,12 @@ const commercialAutoModels: ModelUsage[] = [
     cost: 0.225,
   },
   {
-    modelId: 'gpt-5.4',
-    modelName: 'GPT-5.4',
-    inputTokens: 600_000,
-    outputTokens: 184_000,
-    totalRequests: 27,
-    cost: 5.805,
-  },
-  {
     modelId: 'gpt-5.4-mini',
     modelName: 'GPT-5.4 Mini',
-    inputTokens: 1_265_000,
-    outputTokens: 397_000,
-    totalRequests: 62,
-    cost: 0.428,
+    inputTokens: 1_865_000,
+    outputTokens: 581_000,
+    totalRequests: 89,
+    cost: 6.233,
   },
 ]
 
@@ -213,7 +188,7 @@ const commercialAutoDoc: DocumentCost = {
   inputTokens: 1_895_000,
   outputTokens: 589_000,
   totalRequests: 92,
-  modelsUsed: ['O3', 'GPT-5.4', 'GPT-5.4 Mini'],
+  modelsUsed: ['O3', 'GPT-5.4 Mini'],
   lastUpdated: '2026-05-10T09:15:00Z',
   modelBreakdown: commercialAutoModels,
   stageBreakdown: commercialAutoStages,
@@ -282,20 +257,12 @@ const complianceModels: ModelUsage[] = [
     cost: 0.135,
   },
   {
-    modelId: 'gpt-5.4',
-    modelName: 'GPT-5.4',
-    inputTokens: 326_000,
-    outputTokens: 99_000,
-    totalRequests: 17,
-    cost: 3.145,
-  },
-  {
     modelId: 'gpt-5.4-mini',
     modelName: 'GPT-5.4 Mini',
-    inputTokens: 700_000,
-    outputTokens: 215_000,
-    totalRequests: 48,
-    cost: 0.234,
+    inputTokens: 1_026_000,
+    outputTokens: 314_000,
+    totalRequests: 65,
+    cost: 3.379,
   },
 ]
 
@@ -308,7 +275,7 @@ const complianceCertDoc: DocumentCost = {
   inputTokens: 1_044_000,
   outputTokens: 319_000,
   totalRequests: 68,
-  modelsUsed: ['O3', 'GPT-5.4', 'GPT-5.4 Mini'],
+  modelsUsed: ['O3', 'GPT-5.4 Mini'],
   lastUpdated: '2026-05-29T16:45:00Z',
   modelBreakdown: complianceModels,
   stageBreakdown: complianceStages,
@@ -352,7 +319,7 @@ const TREND_DATA: Array<{ date: string; cost: number; inputTokens: number; outpu
 
 // ─── Generated document builder ──────────────────────────────────────────────
 // Produces a realistic DocumentCost from a minimal spec, distributing cost
-// across pipeline stages and the three active models (O3, GPT-5.4, GPT-5.4 Mini).
+// across pipeline stages and the two active models (O3, GPT-5.4 Mini).
 
 interface DocSpec {
   documentId: string
@@ -367,10 +334,10 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
   const c = spec.totalCost
 
   // Stage cost splits — reflect actual pipeline agent roles
-  const stgTO      = c * 0.08   // A0 + A0_TO: O3 classification + GPT-5.4 outline extraction
-  const stgContent = c * 0.60   // A2: GPT-5.4 content generation
+  const stgTO      = c * 0.08   // A0 + A0_TO: O3 classification + GPT-5.4 Mini outline extraction
+  const stgContent = c * 0.60   // A2: GPT-5.4 Mini content generation
   const stgAssess  = c * 0.18   // A1 + S1/S2 checks: GPT-5.4 Mini
-  const stgImage   = c * 0.06   // A2 image handling: GPT-5.4
+  const stgImage   = c * 0.06   // A2 image handling: GPT-5.4 Mini
   const stgMeta    = c * 0.04   // Metadata enrichment: GPT-5.4 Mini
   const stgOther   = c - stgTO - stgContent - stgAssess - stgImage - stgMeta
 
@@ -378,9 +345,6 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
   // O3: $2.00/1M input, $8.00/1M output
   const o3In  = (stageCost: number) => Math.round(stageCost * 350_000)
   const o3Out = (stageCost: number) => Math.round(stageCost *  88_000)
-  // GPT-5.4: $2.50/1M input, $15.00/1M output
-  const g54In  = (stageCost: number) => Math.round(stageCost * 280_000)
-  const g54Out = (stageCost: number) => Math.round(stageCost *  47_000)
   // GPT-5.4 Mini: $0.75/1M input, $4.50/1M output
   const mnIn  = (stageCost: number) => Math.round(stageCost * 950_000)
   const mnOut = (stageCost: number) => Math.round(stageCost * 158_000)
@@ -390,22 +354,22 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
 
   // O3 handles A0 classification — a slice of the TO generation stage
   const stgTOo3  = stgTO * 0.45
-  const stgTOg54 = stgTO * 0.55
+  const stgTOMini = stgTO * 0.55
 
   const stageBreakdown: StageBreakdown[] = [
     {
       stageKey: 'to_generation',
       stageName: 'TO Generation',
-      inputTokens:  o3In(stgTOo3) + g54In(stgTOg54),
-      outputTokens: o3Out(stgTOo3) + g54Out(stgTOg54),
+      inputTokens:  o3In(stgTOo3) + mnIn(stgTOMini),
+      outputTokens: o3Out(stgTOo3) + mnOut(stgTOMini),
       cost: stgTO,
       requests: req(stgTO, 4, 2),
     },
     {
       stageKey: 'content_generation',
       stageName: 'Content Generation',
-      inputTokens:  g54In(stgContent),
-      outputTokens: g54Out(stgContent),
+      inputTokens:  mnIn(stgContent),
+      outputTokens: mnOut(stgContent),
       cost: stgContent,
       requests: req(stgContent, 6, 5),
     },
@@ -420,8 +384,8 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
     {
       stageKey: 'image_generation',
       stageName: 'Image Generation',
-      inputTokens:  g54In(stgImage),
-      outputTokens: g54Out(stgImage),
+      inputTokens:  mnIn(stgImage),
+      outputTokens: mnOut(stgImage),
       cost: stgImage,
       requests: req(stgImage, 6, 4),
     },
@@ -445,11 +409,9 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
 
   // Model aggregates — matches actual pipeline agent assignments:
   // O3 → A0 classification (slice of TO stage)
-  // GPT-5.4 → A0_TO outline extraction + A2 content + image handling
-  // GPT-5.4 Mini → A1 outline interpretation + assessment + metadata + other
-  const o3Cost    = stgTOo3
-  const gpt54Cost = stgTOg54 + stgContent + stgImage
-  const miniCost  = stgAssess + stgMeta + stgOther
+  // GPT-5.4 Mini → A0_TO, A1, A2, and all other generation stages
+  const o3Cost   = stgTOo3
+  const miniCost = stgTOMini + stgContent + stgAssess + stgImage + stgMeta + stgOther
 
   const modelBreakdown: ModelUsage[] = [
     {
@@ -459,14 +421,6 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
       outputTokens:  o3Out(o3Cost),
       totalRequests: req(o3Cost, 8, 1),
       cost: o3Cost,
-    },
-    {
-      modelId: 'gpt-5.4',
-      modelName: 'GPT-5.4',
-      inputTokens:   g54In(gpt54Cost),
-      outputTokens:  g54Out(gpt54Cost),
-      totalRequests: req(gpt54Cost, 6, 5),
-      cost: gpt54Cost,
     },
     {
       modelId: 'gpt-5.4-mini',
@@ -491,7 +445,7 @@ function buildMockDocument(spec: DocSpec): DocumentCost {
     inputTokens:  totalInputTokens,
     outputTokens: totalOutputTokens,
     totalRequests,
-    modelsUsed: ['O3', 'GPT-5.4', 'GPT-5.4 Mini'],
+    modelsUsed: ['O3', 'GPT-5.4 Mini'],
     lastUpdated: spec.lastUpdated,
     modelBreakdown,
     stageBreakdown,
@@ -547,7 +501,7 @@ export const MOCK_COSTING_SUMMARY: CostingSummary = {
   averageCostPerDocument: 6.058,
   estimatedMonthlyCost: 36.35,
   costTrend: TREND_DATA,
-  modelSummary: [MODEL_O3, MODEL_GPT54, MODEL_GPT54_MINI],
+  modelSummary: [MODEL_O3, MODEL_GPT54_MINI],
   documents: ALL_DOCUMENTS,
   costChangePercent: 23.4,
   documentsChangePercent: 50,
