@@ -35,9 +35,20 @@ export class PipelineSSEClient {
   private _onError: SSEErrorHandler | null = null
 
   private readonly _jobId: string
+  /**
+   * The last backend log ID the client has already seen.
+   * Sent as `?lastEventId=N` on the initial connection so the server delivers
+   * only new log entries (delta sync) rather than replaying the full history.
+   *
+   * After the first successful message the browser's native EventSource
+   * mechanism takes over: the server sets `id:` on each SSE frame and the
+   * browser automatically sends `Last-Event-ID` on its own reconnects.
+   */
+  private readonly _initialLastEventId: number
 
-  constructor(jobId: string) {
+  constructor(jobId: string, lastSeenLogId = 0) {
     this._jobId = jobId
+    this._initialLastEventId = lastSeenLogId
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -66,7 +77,14 @@ export class PipelineSSEClient {
   private _openSource(): void {
     if (this._closed) return
 
-    const url = `${SSE_BASE}/${this._jobId}/events`
+    // On the very first connection, pass the last-seen log ID as a query param
+    // so the server sends only new entries.  Subsequent reconnects by the same
+    // EventSource instance use the browser's automatic Last-Event-ID header.
+    const cursor =
+      this._retryCount === 0 && this._initialLastEventId > 0
+        ? `?lastEventId=${this._initialLastEventId}`
+        : ''
+    const url = `${SSE_BASE}/${this._jobId}/events${cursor}`
     const source = new EventSource(url)
     this._source = source
 

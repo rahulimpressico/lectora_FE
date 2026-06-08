@@ -8,7 +8,7 @@ import type {
   StageBlocker,
   BlockerSeverity,
 } from '../types/pipeline'
-import type { SSEPipelineEvent } from '../types'
+import type { JobDetail, SSEPipelineEvent } from '../types'
 import { buildInitialPipelineStages } from '../config/pipelineConfig'
 
 // ─── Log entry ────────────────────────────────────────────────────────────────
@@ -27,8 +27,27 @@ interface PipelineStoreState {
   pipeline: PipelineOverview | null
   logs: LogEntry[]
   fatalError: string | null
+  /**
+   * The highest backend log ID ingested so far.
+   * Exposed so the SSE client can pass it as a `lastEventId` query param when
+   * creating a new EventSource after navigation, ensuring only new log entries
+   * are delivered (delta sync rather than full replay).
+   */
+  lastSeenLogId: number
 
+  /**
+   * Initialise or re-attach to a pipeline run.
+   * Idempotent: if the store is already tracking this exact jobId the call is a
+   * no-op so that navigation away and back does not reset accumulated state.
+   */
   initPipeline: (jobId: string) => void
+  /**
+   * Hydrate stage statuses from a REST snapshot (GET /jobs/{jobId}).
+   * Called immediately after the job-existence check in useJobPipeline so the
+   * UI shows current stage state without waiting for the first SSE event.
+   * Does NOT clear log entries — existing logs are preserved.
+   */
+  hydrateFromSnapshot: (detail: JobDetail) => void
   syncFromSSEEvent: (event: SSEPipelineEvent) => void
   appendLog: (entry: Omit<LogEntry, 'id' | 'timestamp'>) => void
   setFatalError: (message: string) => void
@@ -104,22 +123,105 @@ export const usePipelineStore = create<PipelineStoreState>()(
       pipeline: null,
       logs: [],
       fatalError: null,
+      lastSeenLogId: 0,
 
       initPipeline: (jobId) => {
-        resetBackendLogCursor()
-        set({
-          pipeline: {
-            jobId,
-            overallStatus: 'pending',
-            stages: buildInitialPipelineStages(),
-            activeStageId: null,
-          },
-          logs: [
-            makeLog({
-              level: 'info',
-              message: 'Connecting to generation pipeline…',
-            }),
-          ],
+        set((state) => {
+          // Idempotent: already tracking this job — skip reset so accumulated
+          // stage state and logs are preserved across navigation.
+          if (state.pipeline?.jobId === jobId) return state
+
+          // New job (or pipeline was cleared) — full reset.
+          resetBackendLogCursor()
+          return {
+            lastSeenLogId: 0,
+            pipeline: {
+              jobId,
+              overallStatus: 'pending',
+              stages: buildInitialPipelineStages(),
+              activeStageId: null,
+            },
+            logs: [
+              makeLog({
+                level: 'info',
+                message: 'Connecting to generation pipeline…',
+              }),
+            ],
+          }
+        })
+      },
+
+      hydrateFromSnapshot: (detail: JobDetail) => {
+        set((state) => {
+          if (!state.pipeline || state.pipeline.jobId !== detail.jobId) return state
+
+          const backendMap = new Map(detail.stages.map((s) => [s.stage, s]))
+
+          const updatedStages = state.pipeline.stages.map(
+            (stage): PipelineStageState => {
+              const be = backendMap.get(stage.backendId)
+              if (!be) return stage
+
+              return {
+                ...stage,
+                status: mapStageStatus(be.status, be.outcome),
+                startedAt: be.startedAt ?? undefined,
+                completedAt: be.completedAt ?? undefined,
+                durationMs: calcDurationMs(be.startedAt, be.completedAt),
+                outcome: (be.outcome as PipelineStageState['outcome']) ?? undefined,
+              }
+            },
+          )
+
+          // Fold internal backend stages the same way syncFromSSEEvent does
+          const a0Status = backendMap.get('A0')?.status?.toUpperCase()
+          const sectionMapperStatus = backendMap.get('SECTION_MAPPER')?.status?.toUpperCase()
+          const kcPlannerStatus = backendMap.get('KC_PLANNER')?.status?.toUpperCase()
+
+          const foldedStages = updatedStages.map((s): PipelineStageState => {
+            if (s.id === 'A1' && s.status === 'pending' && a0Status === 'PROCESSING')
+              return { ...s, status: 'processing' as PipelineStageStatus }
+            if (
+              s.id === 'A2' &&
+              s.status === 'pending' &&
+              (sectionMapperStatus === 'PROCESSING' || kcPlannerStatus === 'PROCESSING')
+            )
+              return { ...s, status: 'processing' as PipelineStageStatus }
+            return s
+          })
+
+          const overallStatus = mapOverallStatus(detail.status)
+
+          // Auto-complete virtual stages if job is already done
+          const finalStages = foldedStages.map((s) => {
+            if (overallStatus !== 'completed') return s
+            if (s.id === 'FINALIZATION' || s.id === 'EXPORT')
+              return { ...s, status: 'completed' as PipelineStageStatus }
+            if (s.id === 'S2' && s.status === 'pending')
+              return { ...s, status: 'completed' as PipelineStageStatus }
+            return s
+          })
+
+          const activeStageId =
+            finalStages.find((s) => s.status === 'processing')?.id ?? null
+
+          return {
+            pipeline: {
+              ...state.pipeline,
+              overallStatus,
+              stages: finalStages,
+              activeStageId,
+              error: detail.error
+                ? {
+                    code: detail.error.code,
+                    message: detail.error.message,
+                    stage: detail.error.stage ?? undefined,
+                    retryable: detail.error.retryable,
+                  }
+                : undefined,
+            },
+            // Logs are intentionally NOT cleared — preserve history across navigation
+          }
         })
       },
 
@@ -293,6 +395,7 @@ export const usePipelineStore = create<PipelineStoreState>()(
             finalStages.find((s) => s.status === 'processing')?.id ?? null
 
           return {
+            lastSeenLogId: _maxSeenBackendLogId,
             pipeline: {
               ...state.pipeline,
               overallStatus,
@@ -320,7 +423,7 @@ export const usePipelineStore = create<PipelineStoreState>()(
 
       clearPipeline: () => {
         resetBackendLogCursor()
-        set({ pipeline: null, logs: [], fatalError: null })
+        set({ pipeline: null, logs: [], fatalError: null, lastSeenLogId: 0 })
       },
     }),
     { name: 'pipeline-store' },

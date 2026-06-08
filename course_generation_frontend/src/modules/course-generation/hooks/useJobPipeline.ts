@@ -17,16 +17,27 @@ import { getJobDetail } from '@/api/jobs/api'
 import type { AxiosError } from 'axios'
 
 export function useJobPipeline(jobId: string | null) {
-  const { initPipeline, syncFromSSEEvent, appendLog, setFatalError, clearPipeline } = usePipelineStore()
+  const {
+    initPipeline,
+    hydrateFromSnapshot,
+    syncFromSSEEvent,
+    appendLog,
+    setFatalError,
+    clearPipeline,
+    lastSeenLogId,
+  } = usePipelineStore()
   const { setPhase, reset } = useCourseStore()
 
-  // Initialise pipeline state exactly once per jobId
+  // Initialise pipeline state once per jobId.
+  // initPipeline is idempotent: if the store is already tracking this jobId
+  // (user navigated away and came back), the call is a no-op and accumulated
+  // stage state + logs are preserved.
   useEffect(() => {
     if (!jobId) return
     initPipeline(jobId)
   }, [jobId, initPipeline])
 
-  // Verify job exists, then open SSE connection
+  // Verify job exists, hydrate stage state from REST snapshot, then open SSE.
   useEffect(() => {
     if (!jobId) return
 
@@ -34,31 +45,52 @@ export function useJobPipeline(jobId: string | null) {
     let client: PipelineSSEClient | null = null
 
     async function start() {
+      let detail
       try {
-        await getJobDetail(jobId!)
+        detail = await getJobDetail(jobId!)
       } catch (err) {
         if (cancelled) return
 
         const status = (err as AxiosError)?.response?.status
 
         if (status === 404) {
-          // Job no longer exists (server restart cleared in-memory state, or
-          // the session genuinely expired).  Reset silently to upload phase.
+          // Job no longer exists (server restart or stale session).
+          // Reset silently to upload phase so the user can start fresh.
           clearPipeline()
           reset()
           return
         }
 
-        // Backend reachable but returned an unexpected error, or network is down.
         setFatalError(
-          'Could not reach the backend. Make sure main.py is running and try again.',
+          'Could not reach the backend. Make sure the server is running and try again.',
         )
         return
       }
 
       if (cancelled) return
 
-      client = new PipelineSSEClient(jobId!)
+      // Immediately apply the REST snapshot so the UI reflects current stage
+      // statuses before the first SSE event arrives.  This eliminates the
+      // "blank/pending" flash that occurred when returning from navigation.
+      hydrateFromSnapshot(detail)
+
+      // If the job already finished before we reconnected, drive the phase
+      // transition now rather than waiting for an SSE done event.
+      const finalStatus = detail.status.toUpperCase()
+      if (finalStatus === 'COMPLETED') {
+        setPhase('course-editor')
+        return
+      }
+      if (finalStatus === 'FAILED') {
+        // Store is already hydrated — nothing more to do, SSE not needed.
+        return
+      }
+
+      // Open SSE.  Pass lastSeenLogId so the backend sends only NEW log entries
+      // (delta sync) rather than replaying the entire history from the start.
+      // This is critical when the user navigates away and back: a new EventSource
+      // is created each time, so the browser cannot auto-send Last-Event-ID.
+      client = new PipelineSSEClient(jobId!, lastSeenLogId)
 
       client.connect({
         onEvent: (event) => {
@@ -100,5 +132,9 @@ export function useJobPipeline(jobId: string | null) {
       cancelled = true
       client?.disconnect()
     }
-  }, [jobId, syncFromSSEEvent, appendLog, setPhase, setFatalError, clearPipeline, reset])
+  // lastSeenLogId is intentionally excluded from deps: we only want the value
+  // that was current when this effect fires (on mount / jobId change), not to
+  // re-run the effect every time a new SSE log arrives.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, hydrateFromSnapshot, syncFromSSEEvent, appendLog, setPhase, setFatalError, clearPipeline, reset])
 }

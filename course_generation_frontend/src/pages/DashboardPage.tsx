@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Sparkles, ArrowRight, BookOpen, Clock, CheckCircle, Plus, ArrowUpRight } from 'lucide-react'
+import { Sparkles, ArrowRight, BookOpen, Clock, CheckCircle, Plus, ArrowUpRight, CloudCog } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/shared/components/Button'
 import apiClient from '@/api/client'
@@ -9,6 +9,7 @@ type DashboardSummary = {
   coursesGenerated: number
   inProgress: number
   completed: number
+  dataSource?: string
 }
 
 const BASE_STATS = [
@@ -78,17 +79,21 @@ const itemVariants = {
 }
 
 export function DashboardPage() {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: fetchDashboardSummary,
     staleTime: 30_000,
-    retry: false,
+    refetchInterval: 60_000,  // auto-refresh every 60 s
+    retry: 1,
   })
 
+  const displayValue = (n: number | undefined) =>
+    isLoading ? '...' : isError ? '—' : String(n ?? 0)
+
   const stats = [
-    { ...BASE_STATS[0], value: isLoading ? '...' : String(data?.coursesGenerated ?? 0) },
-    { ...BASE_STATS[1], value: isLoading ? '...' : String(data?.inProgress ?? 0) },
-    { ...BASE_STATS[2], value: isLoading ? '...' : String(data?.completed ?? 0) },
+    { ...BASE_STATS[0], value: displayValue(data?.coursesGenerated) },
+    { ...BASE_STATS[1], value: displayValue(data?.inProgress) },
+    { ...BASE_STATS[2], value: displayValue(data?.completed) },
   ]
 
   return (
@@ -115,8 +120,20 @@ export function DashboardPage() {
                 Manage your AI-powered course generation pipeline for enterprise learning.
               </p>
               {isError ? (
-                <p className="mt-2 text-xs font-medium text-amber-600">
-                  Dashboard summary API could not be loaded. Showing fallback values.
+                <p className="mt-2 text-xs font-medium text-rose-500">
+                  Could not reach the dashboard API — counts are unavailable.{' '}
+                  <button
+                    type="button"
+                    onClick={() => void refetch()}
+                    className="underline hover:no-underline"
+                  >
+                    Retry
+                  </button>
+                </p>
+              ) : data ? (
+                <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                  <CloudCog size={11} />
+                  Live from Azure Blob Storage
                 </p>
               ) : null}
             </div>
