@@ -9,23 +9,24 @@ import {
 } from 'recharts'
 import type { CostingTrendPoint } from '../../types'
 import { useIsDarkMode, chartAxisStyle, chartGridColor, tooltipStyle } from './chartTheme'
+import { formatTrendDate, formatTrendDateFull, getTrendTickStep, hasTrendData } from './chartHelpers'
+import { ChartEmptyState } from './ChartEmptyState'
 
 interface Props {
   data: CostingTrendPoint[]
-}
-
-function fmtDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 export function CostTrendChart({ data }: Props) {
   const isDark = useIsDarkMode()
   const axisStyle = chartAxisStyle(isDark)
 
-  // Show every 5th label to avoid crowding
-  const tickFormatter = (_: string, index: number) =>
-    index % 5 === 0 ? fmtDate(data[index]?.date ?? '') : ''
+  if (!hasTrendData(data)) {
+    return <ChartEmptyState message="No daily cost trend yet — run a course or TO job first" height={240} />
+  }
+
+  const tickStep = getTrendTickStep(data.length)
+  const tickFormatter = (value: string, index: number) =>
+    index % tickStep === 0 || index === data.length - 1 ? formatTrendDate(value) : ''
 
   return (
     <ResponsiveContainer width="100%" height={240}>
@@ -43,6 +44,7 @@ export function CostTrendChart({ data }: Props) {
           axisLine={false}
           tickLine={false}
           tickFormatter={tickFormatter}
+          minTickGap={12}
         />
         <YAxis
           tick={axisStyle}
@@ -53,7 +55,7 @@ export function CostTrendChart({ data }: Props) {
         />
         <Tooltip
           contentStyle={tooltipStyle(isDark)}
-          labelFormatter={(label: unknown) => fmtDate(String(label))}
+          labelFormatter={(label: unknown) => formatTrendDateFull(String(label))}
           formatter={(value: unknown) => [`$${(value as number).toFixed(4)}`, 'Cost']}
         />
         <Area
@@ -62,7 +64,7 @@ export function CostTrendChart({ data }: Props) {
           stroke="#6366f1"
           strokeWidth={2}
           fill="url(#costGradient)"
-          dot={false}
+          dot={data.length <= 14}
           activeDot={{ r: 4, fill: '#6366f1', strokeWidth: 0 }}
         />
       </AreaChart>

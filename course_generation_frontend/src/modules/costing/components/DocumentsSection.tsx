@@ -255,7 +255,7 @@ export function DocumentsSection({ documents, isLoading, onSelectDocument }: Pro
               Analyze cost per course run
             </h3>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-              Search processed runs, compare document-level spend, and open a full drilldown for exact model and stage contribution.
+              Each card is one traced document or pipeline run. Open it to see which agents, models, and pipeline stages drove the cost.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">

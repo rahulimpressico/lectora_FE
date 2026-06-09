@@ -12,12 +12,15 @@ export const MODEL_COLORS: Record<string, string> = {
 }
 
 export const STAGE_COLORS: Record<string, string> = {
+  a0_classification: '#f59e0b',
   to_generation: '#6366f1',
+  outline_interpretation: '#06b6d4',
+  structure_review: '#14b8a6',
+  section_mapping: '#f97316',
+  kc_planning: '#ec4899',
   content_generation: '#8b5cf6',
-  assessment_generation: '#06b6d4',
-  image_generation: '#10b981',
-  metadata_generation: '#f59e0b',
-  search_operations: '#f97316',
+  quality_assurance: '#10b981',
+  course_editor: '#64748b',
   other: '#94a3b8',
 }
 

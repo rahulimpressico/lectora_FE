@@ -10,14 +10,11 @@ import {
 } from 'recharts'
 import type { CostingTrendPoint } from '../../types'
 import { useIsDarkMode, chartAxisStyle, chartGridColor, tooltipStyle } from './chartTheme'
+import { formatTrendDate, formatTrendDateFull, getTrendTickStep, hasTrendData } from './chartHelpers'
+import { ChartEmptyState } from './ChartEmptyState'
 
 interface Props {
   data: CostingTrendPoint[]
-}
-
-function fmtDate(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 function fmtTokens(v: number): string {
@@ -30,8 +27,13 @@ export function TokenTrendChart({ data }: Props) {
   const isDark = useIsDarkMode()
   const axisStyle = chartAxisStyle(isDark)
 
-  const tickFormatter = (_: string, index: number) =>
-    index % 5 === 0 ? fmtDate(data[index]?.date ?? '') : ''
+  if (!hasTrendData(data)) {
+    return <ChartEmptyState message="No daily token trend yet — run a course or TO job first" height={240} />
+  }
+
+  const tickStep = getTrendTickStep(data.length)
+  const tickFormatter = (value: string, index: number) =>
+    index % tickStep === 0 || index === data.length - 1 ? formatTrendDate(value) : ''
 
   return (
     <ResponsiveContainer width="100%" height={240}>
@@ -53,6 +55,7 @@ export function TokenTrendChart({ data }: Props) {
           axisLine={false}
           tickLine={false}
           tickFormatter={tickFormatter}
+          minTickGap={12}
         />
         <YAxis
           tick={axisStyle}
@@ -63,12 +66,10 @@ export function TokenTrendChart({ data }: Props) {
         />
         <Tooltip
           contentStyle={tooltipStyle(isDark)}
-          labelFormatter={(label: unknown) => fmtDate(String(label))}
+          labelFormatter={(label: unknown) => formatTrendDateFull(String(label))}
           formatter={(value: unknown, name: unknown) => [fmtTokens(value as number), name as string]}
         />
-        <Legend
-          wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif' }}
-        />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif' }} />
         <Area
           type="monotone"
           dataKey="inputTokens"

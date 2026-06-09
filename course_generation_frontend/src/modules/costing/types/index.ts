@@ -8,12 +8,15 @@ export interface ModelUsage {
 }
 
 export type StageKey =
+  | 'a0_classification'
   | 'to_generation'
+  | 'outline_interpretation'
+  | 'structure_review'
+  | 'section_mapping'
+  | 'kc_planning'
   | 'content_generation'
-  | 'assessment_generation'
-  | 'image_generation'
-  | 'metadata_generation'
-  | 'search_operations'
+  | 'quality_assurance'
+  | 'course_editor'
   | 'other'
 
 export interface StageBreakdown {
@@ -29,12 +32,14 @@ export interface DocumentCost {
   documentId: string
   documentName: string
   documentType: string
+  runSummary: string
   status: 'completed' | 'in-progress' | 'failed'
   totalCost: number
   inputTokens: number
   outputTokens: number
   totalRequests: number
   modelsUsed: string[]
+  agentsUsed?: string[]
   lastUpdated: string
   modelBreakdown: ModelUsage[]
   stageBreakdown: StageBreakdown[]
@@ -45,12 +50,6 @@ export interface CostingTrendPoint {
   cost: number
   inputTokens: number
   outputTokens: number
-}
-
-export interface ServiceCostBreakdown {
-  serviceName: string
-  cost: number
-  sharePercent: number
 }
 
 export interface AgentModelSummary {
@@ -82,21 +81,12 @@ export interface CostingSummary {
   modelSummary: ModelUsage[]
   documents: DocumentCost[]
   stageSummary?: StageBreakdown[]
-  serviceBreakdown?: ServiceCostBreakdown[]
   agentModelSummary?: AgentModelSummary[]
   traceTotalCost?: number
-  azureTotalCost?: number
   /** Omitted when the backend cannot compare against a prior period */
   costChangePercent?: number | null
   documentsChangePercent?: number | null
-  /** "azure_cost_management" | "llm_traces" | "empty" — indicates which backend source was used */
+  /** "llm_traces" | "empty" — indicates which backend source was used */
   dataSource?: string
-  /** Billing currency for cost totals (Azure CostUSD aggregation → USD). */
   currency?: string
-  azureBillingConfigured?: boolean
-  /** Populated when Azure Cost Management is configured but the query failed (e.g. missing RBAC). */
-  azureBillingError?: string | null
-  azureBillingSource?: string | null
-  azureBillingStale?: boolean
-  azureFetchedAt?: string | null
 }

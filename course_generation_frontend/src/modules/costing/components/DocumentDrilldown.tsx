@@ -1,11 +1,23 @@
 import { motion } from 'framer-motion'
-import { ArrowLeft, FileText, DollarSign, Zap, BarChart2, Layers, Cpu, CalendarClock, ReceiptText } from 'lucide-react'
+import {
+  ArrowLeft,
+  FileText,
+  DollarSign,
+  Zap,
+  BarChart2,
+  Layers,
+  Cpu,
+  CalendarClock,
+  ReceiptText,
+  Info,
+} from 'lucide-react'
+import { cn } from '@/lib/cn'
 import type { DocumentCost } from '../types'
 import { ModelBreakdownTable } from './ModelBreakdownTable'
 import { StageCostChart } from './charts/StageCostChart'
 import { StageTokenChart } from './charts/StageTokenChart'
 import { ModelContributionChart } from './charts/ModelContributionChart'
-import { getStageColor } from './charts/chartTheme'
+import { getDocumentTypeBadgeClass, getStageColor } from '../utils/documentCosting'
 
 interface Props {
   doc: DocumentCost
@@ -75,7 +87,14 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
                   <h1 className="text-lg font-bold tracking-tight text-slate-900 break-words">
                     {doc.documentName}
                   </h1>
-                  <p className="mt-1 text-xs font-medium text-slate-400">{doc.documentType}</p>
+                  <span
+                    className={cn(
+                      'mt-1 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold',
+                      getDocumentTypeBadgeClass(doc.documentType),
+                    )}
+                  >
+                    {doc.documentType}
+                  </span>
                 </div>
               </div>
 
@@ -123,6 +142,33 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
 
       <div className="mx-auto max-w-7xl px-8 py-6 space-y-8">
 
+        <section className="rounded-2xl border border-indigo-100/80 bg-indigo-50/50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white border border-indigo-100">
+              <Info size={15} className="text-indigo-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-800">What this document cost includes</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                {doc.runSummary ||
+                  'Every traced LLM request tagged to this document in tracer.py, summed by model and pipeline stage.'}
+              </p>
+              {doc.agentsUsed && doc.agentsUsed.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {doc.agentsUsed.map((agent) => (
+                    <span
+                      key={agent}
+                      className="rounded-md border border-indigo-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700"
+                    >
+                      {agent}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Document Summary KPIs */}
         <section>
           <SectionHeader icon={DollarSign} title="Document Summary" />
@@ -158,9 +204,14 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
           <ModelBreakdownTable models={doc.modelBreakdown} totalCost={totalCost} />
         </section>
 
-        {/* Generation Stage Breakdown */}
+        {/* Pipeline Stage Breakdown */}
         <section>
-          <SectionHeader icon={Layers} title="Generation Stage Breakdown" />
+          <SectionHeader icon={Layers} title="Pipeline Stage Breakdown" />
+          {doc.stageBreakdown.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-5 py-8 text-center text-sm text-slate-500">
+              No pipeline-stage breakdown recorded for this document yet.
+            </div>
+          ) : (
           <div className="overflow-hidden rounded-xl border border-slate-200/70">
             <div className="grid grid-cols-5 gap-4 bg-slate-50/80 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <div className="col-span-2">Stage</div>
@@ -211,6 +262,7 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
               )
             })}
           </div>
+          )}
         </section>
 
         {/* Charts */}

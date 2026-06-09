@@ -1,6 +1,13 @@
 import { motion } from 'framer-motion'
 import { FileText, CheckCircle, Clock, AlertCircle, ArrowRight, Cpu, Layers, ReceiptText } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import type { DocumentCost } from '../types'
+import {
+  formatStageShare,
+  getDocumentTypeBadgeClass,
+  getStageColor,
+  getTopStages,
+} from '../utils/documentCosting'
 
 interface Props {
   doc: DocumentCost
@@ -49,6 +56,7 @@ function StatusBadge({ status }: { status: DocumentCost['status'] }) {
 
 export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
   const totalTokens = doc.inputTokens + doc.outputTokens
+  const topStages = getTopStages(doc, 2)
 
   return (
     <motion.button
@@ -75,11 +83,24 @@ export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
             <p className="mt-1 text-sm font-bold text-slate-800 truncate leading-none">
               {doc.documentName}
             </p>
-            <p className="mt-0.5 text-[10px] font-medium text-slate-400">{doc.documentType}</p>
+            <span
+              className={cn(
+                'mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                getDocumentTypeBadgeClass(doc.documentType),
+              )}
+            >
+              {doc.documentType}
+            </span>
           </div>
         </div>
         <StatusBadge status={doc.status} />
       </div>
+
+      {doc.runSummary && (
+        <p className="relative mb-4 line-clamp-2 text-[11px] leading-5 text-slate-500">
+          {doc.runSummary}
+        </p>
+      )}
 
       {/* Cost highlight */}
       <div className="mb-4 rounded-2xl border border-indigo-100/50 bg-gradient-to-br from-indigo-50/70 to-violet-50/50 px-4 py-3.5">
@@ -125,6 +146,33 @@ export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
           <p className="mt-1 text-sm font-bold text-slate-700 tabular-nums">{fmtTokens(doc.outputTokens)}</p>
         </div>
       </div>
+
+      {topStages.length > 0 && (
+        <div className="mb-4 space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            Top spend by stage
+          </p>
+          {topStages.map((stage) => (
+            <div key={stage.stageKey} className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <div
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: getStageColor(stage.stageKey) }}
+                />
+                <span className="truncate text-[11px] font-medium text-slate-600">
+                  {stage.stageName}
+                </span>
+              </div>
+              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-700">
+                ${stage.cost.toFixed(4)}
+                <span className="ml-1 font-medium text-slate-400">
+                  ({formatStageShare(stage, doc.totalCost)})
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Models used */}
       <div className="flex flex-wrap gap-1 mb-4">

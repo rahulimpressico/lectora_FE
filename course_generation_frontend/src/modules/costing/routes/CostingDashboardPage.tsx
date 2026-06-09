@@ -16,7 +16,6 @@ import {
   Sparkles,
   Activity,
   ReceiptText,
-  CloudCog,
   Database,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -74,104 +73,12 @@ function hasLiveCostingData(summary: CostingSummary | null | undefined): boolean
   return (
     summary.totalCost > 0 ||
     (summary.traceTotalCost ?? 0) > 0 ||
-    (summary.azureTotalCost ?? 0) > 0 ||
     summary.totalDocumentsProcessed > 0 ||
     summary.costTrend.length > 0 ||
     summary.modelSummary.length > 0 ||
     (summary.stageSummary?.length ?? 0) > 0 ||
     (summary.agentModelSummary?.length ?? 0) > 0 ||
     summary.documents.length > 0
-  )
-}
-
-function serviceBreakdownAsModels(
-  services: NonNullable<CostingSummary['serviceBreakdown']>,
-): import('../types').ModelUsage[] {
-  return services.map((s) => ({
-    modelId: s.serviceName,
-    modelName: s.serviceName,
-    inputTokens: 0,
-    outputTokens: 0,
-    totalRequests: 0,
-    cost: s.cost,
-  }))
-}
-
-function AzureBillingNotice({
-  error,
-  stale,
-  source,
-  fetchedAt,
-  hasAzureData,
-}: {
-  error: string
-  stale?: boolean
-  source?: string | null
-  fetchedAt?: string | null
-  hasAzureData?: boolean
-}) {
-  const needsRbac = error.toLowerCase().includes('authorizationfailed')
-  const isRateLimit = error.includes('429') || error.toLowerCase().includes('rate-limit')
-  const isInfo = stale || isRateLimit || hasAzureData
-
-  const borderCls = isInfo
-    ? 'border-sky-200/80 bg-sky-50/90'
-    : 'border-amber-200/80 bg-amber-50/90'
-  const iconCls = isInfo ? 'text-sky-600' : 'text-amber-600'
-  const textCls = isInfo ? 'text-sky-900' : 'text-amber-900'
-  const bodyCls = isInfo ? 'text-sky-800/90' : 'text-amber-800/90'
-
-  const title = stale
-    ? 'Showing cached Azure billing data'
-    : hasAzureData
-      ? 'Azure billing notice'
-      : 'Azure billing data unavailable'
-
-  const fetchedLabel = fetchedAt
-    ? new Date(fetchedAt).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    : null
-
-  return (
-    <div className="mx-auto max-w-7xl px-8 pt-4">
-      <div className={`rounded-2xl border px-4 py-3 ${borderCls}`}>
-        <div className="flex items-start gap-3">
-          <AlertCircle size={16} className={`mt-0.5 shrink-0 ${iconCls}`} />
-          <div className={`min-w-0 text-sm ${textCls}`}>
-            <p className="font-semibold">{title}</p>
-            <p className={`mt-1 text-xs leading-5 ${bodyCls}`}>{error}</p>
-            {(source || fetchedLabel) && (
-              <p className={`mt-1 text-xs ${bodyCls}`}>
-                {source && <>Source: <strong>{source.replace('+cache', ' (cached)')}</strong></>}
-                {source && fetchedLabel && ' · '}
-                {fetchedLabel && <>Fetched {fetchedLabel}</>}
-              </p>
-            )}
-            {needsRbac && !hasAzureData && (
-              <div className="mt-2 space-y-1 text-xs leading-5 text-amber-800/90">
-                <p>
-                  <strong>Local dev:</strong> run <code className="rounded bg-amber-100 px-1">az login</code>{' '}
-                  (backend falls back to your CLI session). Ensure{' '}
-                  <code className="rounded bg-amber-100 px-1">AZURE_SUBSCRIPTION_ID</code> is{' '}
-                  <code className="rounded bg-amber-100 px-1">Lectora_Course_Creation_AI_Project</code>{' '}
-                  and matches <code className="rounded bg-amber-100 px-1">az account show --query id</code>.
-                </p>
-                <p>
-                  <strong>Production:</strong> assign <strong>Cost Management Reader</strong> to service
-                  principal <code className="rounded bg-amber-100 px-1">reged-lectora-ai-dev-app</code> on
-                  subscription <code className="rounded bg-amber-100 px-1">Lectora_Course_Creation_AI_Project</code>, then
-                  restart the backend.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -256,13 +163,7 @@ function LoadingShimmer() {
   )
 }
 
-function EmptyCostingState({
-  onRetry,
-  azureBillingError,
-}: {
-  onRetry: () => void
-  azureBillingError?: string | null
-}) {
+function EmptyCostingState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="mx-auto max-w-5xl px-8 py-12">
       <div className="overflow-hidden rounded-[28px] border border-slate-200/70 bg-white shadow-[0_20px_70px_-42px_rgba(15,23,42,0.35)]">
@@ -317,12 +218,6 @@ function EmptyCostingState({
             </div>
           ))}
         </div>
-
-        {azureBillingError && (
-          <div className="border-b border-slate-200/70 px-8 py-4">
-            <AzureBillingNotice error={azureBillingError} />
-          </div>
-        )}
 
         <div className="px-8 py-5">
           <button
@@ -383,10 +278,7 @@ function CostingHero({ summary }: { summary: CostingSummary }) {
             {
               label: 'Current Total',
               value: fmtCurrency(summary.totalCost, currency),
-              meta:
-                (summary.azureTotalCost ?? 0) > 0 && (summary.traceTotalCost ?? 0) > 0
-                  ? `Azure ${fmtCurrency(summary.azureTotalCost ?? 0, currency)} · Traces ${fmtCurrency(summary.traceTotalCost ?? 0, currency)}`
-                  : monthLabel,
+              meta: monthLabel,
             },
             {
               label: 'Tracked Tokens',
@@ -558,53 +450,37 @@ function OverviewTab({
       </section>
 
       {/* Total Cost Breakdown */}
-      {(summary.serviceBreakdown?.length || summary.stageSummary?.length || summary.modelSummary.length) > 0 && (
+      {(summary.stageSummary?.length || summary.modelSummary.length) > 0 && (
         <section>
           <SectionHeader
             icon={ReceiptText}
             title="Total Cost Breakdown"
-            subtitle="Azure billing by service, pipeline stages, and models from LLM traces"
+            subtitle="Pipeline stages and models from LLM traces"
           />
 
-          {(summary.azureTotalCost ?? 0) > 0 || (summary.traceTotalCost ?? 0) > 0 ? (
-            <div className="mb-5 grid gap-4 sm:grid-cols-2">
-              {(summary.azureTotalCost ?? 0) > 0 && (
-                <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 shadow-[0_1px_8px_0_rgba(0,0,0,0.04)]">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                    <CloudCog size={12} className="text-sky-600" />
-                    Azure Billed (30d)
-                  </div>
-                  <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
-                    {fmtCurrency(summary.azureTotalCost ?? 0, currency)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">From Cost Management API (USD)</p>
+          {(summary.traceTotalCost ?? 0) > 0 && (
+            <div className="mb-5">
+              <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 shadow-[0_1px_8px_0_rgba(0,0,0,0.04)] max-w-sm">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                  <Database size={12} className="text-indigo-600" />
+                  Trace-Estimated (all runs)
                 </div>
-              )}
-              {(summary.traceTotalCost ?? 0) > 0 && (
-                <div className="rounded-2xl border border-slate-200/70 bg-white px-5 py-4 shadow-[0_1px_8px_0_rgba(0,0,0,0.04)]">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                    <Database size={12} className="text-indigo-600" />
-                    Trace-Estimated (all runs)
-                  </div>
-                  <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
-                    {fmtCurrency(summary.traceTotalCost ?? 0, currency)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Per-document attribution from tracer.py JSONL logs
-                  </p>
-                </div>
-              )}
+                <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">
+                  {fmtCurrency(summary.traceTotalCost ?? 0, currency)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Per-document attribution from tracer.py JSONL logs
+                </p>
+              </div>
             </div>
-          ) : null}
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {summary.serviceBreakdown && summary.serviceBreakdown.length > 0 && (
-              <ChartCard title="Azure Service Split" subtitle="Billed USD by Azure service (last 30 days)">
-                <CostDistributionChart data={serviceBreakdownAsModels(summary.serviceBreakdown)} />
-              </ChartCard>
-            )}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {summary.stageSummary && summary.stageSummary.length > 0 && (
-              <ChartCard title="Cost by Pipeline Stage" subtitle="Trace-backed spend per agent stage">
+              <ChartCard
+                title="Cost by Pipeline Stage"
+                subtitle="Horizontal bars — highest spend at top; hover for full stage name"
+              >
                 <StageCostChart data={summary.stageSummary} />
               </ChartCard>
             )}
@@ -673,7 +549,7 @@ function OverviewTab({
         </div>
         {summary.stageSummary && summary.stageSummary.length > 0 && (
           <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <ChartCard title="Token Usage by Stage" subtitle="Input vs output tokens per pipeline stage">
+            <ChartCard title="Token Usage by Stage" subtitle="Stacked input vs output tokens per pipeline stage">
               <StageTokenChart data={summary.stageSummary} />
             </ChartCard>
             <ChartCard title="Cost by Model" subtitle="Platform-wide model spend from traces">
@@ -777,7 +653,7 @@ function DocumentsTab({
         <SectionHeader
           icon={Layers}
           title="Per Document Analysis"
-          subtitle="Search, filter, and sort all processed documents — click any card to view a full cost breakdown"
+            subtitle="Each card is one traced document or pipeline run. Open it to see which agents, models, and stages drove the cost."
         />
         <DocumentsSection
           documents={summary.documents}
@@ -839,27 +715,11 @@ export function CostingDashboardPage() {
   }
 
   if (!isLoading && summary && !hasLiveCostingData(summary)) {
-    return (
-      <EmptyCostingState
-        onRetry={() => void loadSummary()}
-        azureBillingError={summary.azureBillingError}
-      />
-    )
+    return <EmptyCostingState onRetry={() => void loadSummary()} />
   }
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {summary?.azureBillingError && (
-        <AzureBillingNotice
-          error={summary.azureBillingError}
-          stale={summary.azureBillingStale}
-          source={summary.azureBillingSource}
-          fetchedAt={summary.azureFetchedAt}
-          hasAzureData={
-            (summary.azureTotalCost ?? 0) > 0 || (summary.serviceBreakdown?.length ?? 0) > 0
-          }
-        />
-      )}
       <div className="sticky top-0 z-20 border-b border-slate-200/50 bg-white/88 px-8 py-4 backdrop-blur-xl shadow-[0_1px_0_0_rgba(0,0,0,0.03)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div>
@@ -869,25 +729,10 @@ export function CostingDashboardPage() {
             <p className="mt-1 text-sm font-semibold text-slate-800">Model usage, spend, and document-level cost analytics</p>
           </div>
           <div className="flex items-center gap-3">
-            {(summary?.dataSource === 'azure_cost_management' ||
-              (summary?.azureTotalCost ?? 0) > 0) && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-                <CloudCog size={11} className="text-emerald-600" />
-                Azure Billing ({summary?.currency ?? 'USD'})
-                {summary?.azureBillingStale ? ' · cached' : ''}
-              </span>
-            )}
             {(summary?.traceTotalCost ?? 0) > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700">
                 <Database size={11} className="text-indigo-600" />
                 LLM Traces
-              </span>
-            )}
-            {summary?.dataSource === 'llm_traces' &&
-              (summary?.azureTotalCost ?? 0) === 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
-                <Database size={11} className="text-amber-600" />
-                Trace estimates only
               </span>
             )}
             <button

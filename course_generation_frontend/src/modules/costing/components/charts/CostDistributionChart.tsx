@@ -1,6 +1,8 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
 import type { ModelUsage } from '../../types'
 import { getModelColor, useIsDarkMode, tooltipStyle } from './chartTheme'
+import { sortModelsByCost } from './chartHelpers'
+import { ChartEmptyState } from './ChartEmptyState'
 
 interface Props {
   data: ModelUsage[]
@@ -8,12 +10,18 @@ interface Props {
 
 export function CostDistributionChart({ data }: Props) {
   const isDark = useIsDarkMode()
+  const sorted = sortModelsByCost(data).filter((m) => m.cost > 0)
 
-  const chartData = data.map((m) => ({
+  if (sorted.length === 0) {
+    return <ChartEmptyState message="No model cost data yet" height={240} />
+  }
+
+  const total = sorted.reduce((s, m) => s + m.cost, 0)
+  const chartData = sorted.map((m) => ({
     name: m.modelName,
     modelId: m.modelId,
     value: m.cost,
-    pct: ((m.cost / data.reduce((s, x) => s + x.cost, 0)) * 100).toFixed(1),
+    pct: total > 0 ? ((m.cost / total) * 100).toFixed(1) : '0',
   }))
 
   return (
