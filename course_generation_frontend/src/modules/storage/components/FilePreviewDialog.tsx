@@ -11,6 +11,7 @@ import {
   type StorageSource,
 } from '@/api/storage/api'
 import { fileExtension } from '@/utils/fileExtension'
+import { ArtifactRenderer } from './ArtifactRenderer'
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
 
@@ -242,9 +243,7 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
             )}
 
             {!loading && !error && showJson && jsonText !== null && (
-              <pre className="text-xs leading-relaxed bg-slate-900 text-slate-100 rounded-xl p-4 overflow-auto max-h-[70vh] font-mono">
-                {jsonText}
-              </pre>
+              <ArtifactRenderer filename={entry.name} jsonText={jsonText} />
             )}
 
             {!loading && !error && showDocx && officePreviewUrl !== null && (
