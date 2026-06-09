@@ -873,8 +873,8 @@ export function CostingDashboardPage() {
               (summary?.azureTotalCost ?? 0) > 0) && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
                 <CloudCog size={11} className="text-emerald-600" />
-                Azure Billing ({summary.currency ?? 'USD'})
-                {summary.azureBillingStale ? ' · cached' : ''}
+                Azure Billing ({summary?.currency ?? 'USD'})
+                {summary?.azureBillingStale ? ' · cached' : ''}
               </span>
             )}
             {(summary?.traceTotalCost ?? 0) > 0 && (
