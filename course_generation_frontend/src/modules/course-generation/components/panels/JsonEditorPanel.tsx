@@ -18,6 +18,7 @@ interface JsonEditorPanelProps {
   loading?: boolean
   loadError?: string | null
   emptyMessage?: string
+  tooltips?: Record<string, string>
 }
 
 export function JsonEditorPanel({
@@ -34,6 +35,7 @@ export function JsonEditorPanel({
   loading = false,
   loadError = null,
   emptyMessage = 'No data available yet.',
+  tooltips,
 }: JsonEditorPanelProps) {
   const dirtyCount = modifiedPaths.size
 
@@ -94,6 +96,7 @@ export function JsonEditorPanel({
             modifiedPaths={modifiedPaths}
             onUpdate={onUpdate}
             onReset={onReset}
+            tooltips={tooltips}
           />
         )}
       </div>

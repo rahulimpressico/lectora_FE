@@ -18,6 +18,9 @@ import { StageCostChart } from './charts/StageCostChart'
 import { StageTokenChart } from './charts/StageTokenChart'
 import { ModelContributionChart } from './charts/ModelContributionChart'
 import { getDocumentTypeBadgeClass, getStageColor } from '../utils/documentCosting'
+import { getAgentTooltip, getDocumentTypeTooltip } from '../utils/stageTooltips'
+import { InfoTooltip } from './InfoTooltip'
+import { StageTooltipLabel } from './StageTooltipLabel'
 
 interface Props {
   doc: DocumentCost
@@ -87,14 +90,26 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
                   <h1 className="text-lg font-bold tracking-tight text-slate-900 break-words">
                     {doc.documentName}
                   </h1>
-                  <span
-                    className={cn(
-                      'mt-1 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold',
-                      getDocumentTypeBadgeClass(doc.documentType),
-                    )}
-                  >
-                    {doc.documentType}
-                  </span>
+                  {(() => {
+                    const typeTooltip = getDocumentTypeTooltip(doc.documentType)
+                    const badge = (
+                      <span
+                        className={cn(
+                          'mt-1 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold',
+                          getDocumentTypeBadgeClass(doc.documentType),
+                        )}
+                      >
+                        {doc.documentType}
+                      </span>
+                    )
+                    return typeTooltip ? (
+                      <InfoTooltip content={typeTooltip} showIcon={false} className="mt-1">
+                        {badge}
+                      </InfoTooltip>
+                    ) : (
+                      badge
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -155,14 +170,21 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
               </p>
               {doc.agentsUsed && doc.agentsUsed.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                  {doc.agentsUsed.map((agent) => (
-                    <span
-                      key={agent}
-                      className="rounded-md border border-indigo-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700"
-                    >
-                      {agent}
-                    </span>
-                  ))}
+                  {doc.agentsUsed.map((agent) => {
+                    const agentTooltip = getAgentTooltip(agent)
+                    const chip = (
+                      <span className="rounded-md border border-indigo-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                        {agent}
+                      </span>
+                    )
+                    return agentTooltip ? (
+                      <InfoTooltip key={agent} content={agentTooltip} showIcon={false}>
+                        {chip}
+                      </InfoTooltip>
+                    ) : (
+                      <span key={agent}>{chip}</span>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -233,7 +255,11 @@ export function DocumentDrilldown({ doc, onBack }: Props) {
                   <div className="col-span-2 flex items-center gap-2.5">
                     <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-700 truncate">{stage.stageName}</p>
+                      <StageTooltipLabel
+                        stageKey={stage.stageKey}
+                        stageName={stage.stageName}
+                        labelClassName="text-xs font-semibold text-slate-700"
+                      />
                       <div className="mt-1 flex items-center gap-1.5">
                         <div className="h-1 w-16 rounded-full bg-slate-100 overflow-hidden">
                           <div

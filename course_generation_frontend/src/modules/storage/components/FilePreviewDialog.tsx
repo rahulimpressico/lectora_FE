@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { X, FileText, Loader2, Download, ExternalLink } from 'lucide-react'
+import { X, FileText, Loader2, Download, ExternalLink, Calendar, Clock } from 'lucide-react'
+import { formatStorageDate, formatStorageDateShort } from '@/utils/formatDate'
 import mammoth from 'mammoth'
 import { cn } from '@/lib/cn'
 import {
@@ -200,6 +201,22 @@ export function FilePreviewDialog({ entry, source, onClose }: FilePreviewDialogP
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-slate-900 truncate">{entry.name}</p>
               <p className="text-xs text-slate-400 truncate">{entry.path}</p>
+              {(entry.createdAt || entry.lastModified) && (
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  {entry.createdAt && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                      <Calendar size={9} />
+                      Created: {formatStorageDateShort(entry.createdAt)}
+                    </span>
+                  )}
+                  {entry.lastModified && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                      <Clock size={9} />
+                      Modified: {formatStorageDate(entry.lastModified)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <a
               href={fileUrl}

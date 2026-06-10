@@ -34,6 +34,7 @@ import {
   type StorageSource,
 } from '@/api/storage/api'
 import { formatBytes } from '@/utils/formatBytes'
+import { formatStorageDate } from '@/utils/formatDate'
 import { fileExtension } from '@/utils/fileExtension'
 import { FilePreviewDialog } from './FilePreviewDialog'
 import { StorageDeleteConfirmDialog } from './StorageDeleteConfirmDialog'
@@ -147,6 +148,16 @@ function FolderCard({
               <span>{formatBytes(entry.size)}</span>
             )}
           </div>
+          {(entry.createdAt || entry.lastModified) && (
+            <div className="mt-1.5 space-y-0.5">
+              {entry.createdAt && (
+                <p className="text-[10px] text-slate-400">Created: {formatStorageDate(entry.createdAt)}</p>
+              )}
+              {entry.lastModified && (
+                <p className="text-[10px] text-slate-400">Modified: {formatStorageDate(entry.lastModified)}</p>
+              )}
+            </div>
+          )}
         </div>
         <ChevronRight size={12} className="text-slate-400 shrink-0 mt-1" />
       </div>
@@ -313,6 +324,20 @@ function FileCard({
               <span className="text-[11px] text-slate-400">{formatBytes(entry.size)}</span>
             )}
           </div>
+          {(entry.createdAt || entry.lastModified) && (
+            <div className="mt-1.5 space-y-0.5">
+              {entry.createdAt && (
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Created: {formatStorageDate(entry.createdAt)}
+                </p>
+              )}
+              {entry.lastModified && (
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Modified: {formatStorageDate(entry.lastModified)}
+                </p>
+              )}
+            </div>
+          )}
           <p className="text-[10px] text-indigo-500 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             Click to open
           </p>

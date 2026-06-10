@@ -60,7 +60,7 @@ export function useJobPipeline(jobId: string | null) {
 
         if (isAuthError(err)) {
           setFatalError(
-            'Authentication required. For local development run dev_app (uvicorn lectora_backend.dev_app:app --reload) instead of main.py.',
+            'Authentication required. Please check your credentials or contact your administrator.',
           )
           return
         }

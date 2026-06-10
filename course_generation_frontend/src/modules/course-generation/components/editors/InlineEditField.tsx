@@ -4,7 +4,7 @@ import {
   useEffect,
   type KeyboardEvent,
 } from 'react'
-import { Check, X, Pencil } from 'lucide-react'
+import { Check, X, Pencil, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { parseInput } from '../../utils/parseInput'
 import type { JsonPrimitive } from '../../types'
@@ -16,6 +16,7 @@ interface InlineEditFieldProps {
   onCancel: () => void
   isDirty?: boolean
   keyLabel: string
+  tooltip?: string
 }
 
 function formatDisplayValue(v: JsonPrimitive): string {
@@ -62,6 +63,7 @@ export function InlineEditField({
   onCancel,
   isDirty = false,
   keyLabel,
+  tooltip,
 }: InlineEditFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState(formatDisplayValue(value))
@@ -112,7 +114,7 @@ export function InlineEditField({
       )}
 
       {/* Label column */}
-      <div className="flex items-center min-h-[28px] pt-0.5">
+      <div className="flex items-center gap-1.5 min-h-[28px] pt-0.5">
         <span
           className={cn(
             'text-[13px] font-medium leading-snug',
@@ -121,6 +123,15 @@ export function InlineEditField({
         >
           {keyLabel}
         </span>
+        {tooltip && (
+          <span className="group/tip relative flex-shrink-0" tabIndex={0}>
+            <HelpCircle size={12} className="text-slate-300 hover:text-indigo-400 transition-colors cursor-help" />
+            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-64 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed text-slate-100 shadow-xl opacity-0 group-hover/tip:opacity-100 group-focus/tip:opacity-100 transition-opacity z-50">
+              {tooltip}
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+            </span>
+          </span>
+        )}
       </div>
 
       {/* Value column */}

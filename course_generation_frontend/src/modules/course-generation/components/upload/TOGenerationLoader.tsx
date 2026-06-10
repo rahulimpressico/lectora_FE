@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Wand2, FileText, ScanText, BookOpen, Check, Loader2 } from 'lucide-react'
+import { Wand2, FileText, ScanText, BookOpen, Check, Loader2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
 
@@ -48,7 +48,11 @@ function progressPercent(elapsedSec: number): number {
   return Math.min(90, Math.round(12 + elapsedSec * 1.15))
 }
 
-export function TOGenerationLoader() {
+interface TOGenerationLoaderProps {
+  onCancel?: () => void
+}
+
+export function TOGenerationLoader({ onCancel }: TOGenerationLoaderProps) {
   const [elapsedSec, setElapsedSec] = useState(0)
 
   useEffect(() => {
@@ -95,6 +99,20 @@ export function TOGenerationLoader() {
           <div className="absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
 
           <div className="rounded-2xl border border-slate-200/70 bg-white shadow-[0_20px_60px_-8px_rgba(99,102,241,0.2),0_6px_20px_-4px_rgba(0,0,0,0.08)] overflow-hidden">
+
+            {/* Cancel button */}
+            {onCancel && (
+              <div className="absolute top-3 right-3 z-10">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  title="Cancel generation"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
 
             {/* Header section */}
             <div className="relative flex flex-col items-center px-8 pt-10 pb-7 border-b border-slate-100/70 overflow-hidden">

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { Bot, Cpu, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react'
 import type { AgentModelSummary } from '../types'
 import { getStageColor } from './charts/chartTheme'
+import { StageTooltipLabel } from './StageTooltipLabel'
 
 interface Props {
   agents: AgentModelSummary[]
@@ -81,8 +82,14 @@ export function AgentModelPanel({ agents }: Props) {
                     <p className="text-[10px] font-medium text-slate-400">{agent.agentId}</p>
                   </div>
                 </div>
-                <p className="mt-1.5 text-[10px] text-slate-500">
-                  Stage: <span style={{ color: stageColor }}>{agent.stageName}</span>
+                <p className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-500">
+                  <span>Stage:</span>
+                  <StageTooltipLabel
+                    stageKey={agent.stageKey}
+                    stageName={agent.stageName}
+                    labelClassName="font-medium text-[10px]"
+                    labelStyle={{ color: stageColor }}
+                  />
                 </p>
               </div>
 

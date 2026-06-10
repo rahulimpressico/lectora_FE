@@ -1,56 +1,73 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { CostingSummary, DocumentCost } from '../types'
-import { fetchCostingSummary, fetchDocumentCostDetail } from '../api/api'
+import type { DocumentCost } from '../types'
+import { fetchDocumentCostDetail } from '../api/api'
 
 interface CostingStoreState {
-  summary: CostingSummary | null
-  isLoading: boolean
-  error: string | null
   selectedDocument: DocumentCost | null
   isDocumentLoading: boolean
+  documentError: string | null
+  documentFetchId: string | null
 
-  loadSummary: () => Promise<void>
   selectDocument: (documentId: string) => Promise<void>
   clearSelectedDocument: () => void
 }
 
+let documentFetchInFlight: Promise<void> | null = null
+let documentFetchTargetId: string | null = null
+
 export const useCostingStore = create<CostingStoreState>()(
   devtools(
-    (set) => ({
-      summary: null,
-      isLoading: false,
-      error: null,
+    (set, get) => ({
       selectedDocument: null,
       isDocumentLoading: false,
-
-      loadSummary: async () => {
-        set({ isLoading: true, error: null })
-        try {
-          const summary = await fetchCostingSummary()
-          set({ summary, isLoading: false })
-        } catch (err) {
-          set({
-            isLoading: false,
-            error: err instanceof Error ? err.message : 'Failed to load costing data',
-          })
-        }
-      },
+      documentError: null,
+      documentFetchId: null,
 
       selectDocument: async (documentId) => {
-        set({ isDocumentLoading: true })
-        try {
-          const doc = await fetchDocumentCostDetail(documentId)
-          set({ selectedDocument: doc, isDocumentLoading: false })
-        } catch (err) {
-          set({
-            isDocumentLoading: false,
-            error: err instanceof Error ? err.message : 'Failed to load document cost',
-          })
+        if (
+          documentFetchInFlight &&
+          documentFetchTargetId === documentId &&
+          get().isDocumentLoading
+        ) {
+          return documentFetchInFlight
         }
+
+        documentFetchTargetId = documentId
+        set({ isDocumentLoading: true, documentError: null, documentFetchId: documentId })
+
+        documentFetchInFlight = (async () => {
+          try {
+            const doc = await fetchDocumentCostDetail(documentId)
+            if (get().documentFetchId === documentId) {
+              set({ selectedDocument: doc, isDocumentLoading: false })
+            }
+          } catch (err) {
+            if (get().documentFetchId === documentId) {
+              set({
+                isDocumentLoading: false,
+                documentError:
+                  err instanceof Error ? err.message : 'Failed to load document cost',
+              })
+            }
+          } finally {
+            if (documentFetchTargetId === documentId) {
+              documentFetchInFlight = null
+              documentFetchTargetId = null
+            }
+          }
+        })()
+
+        return documentFetchInFlight
       },
 
-      clearSelectedDocument: () => set({ selectedDocument: null }),
+      clearSelectedDocument: () =>
+        set({
+          selectedDocument: null,
+          isDocumentLoading: false,
+          documentError: null,
+          documentFetchId: null,
+        }),
     }),
     { name: 'costing-store' },
   ),

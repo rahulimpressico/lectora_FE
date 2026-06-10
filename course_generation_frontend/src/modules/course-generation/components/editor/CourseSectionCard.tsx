@@ -37,6 +37,7 @@ export function CourseSectionCard({
     expandedSectionIds,
     activeSectionId,
     toggleSection,
+    expandSection,
     setActiveSectionId,
     startEditing,
     updateEditContent,
@@ -65,10 +66,15 @@ export function CourseSectionCard({
   const [showUndoBanner, setShowUndoBanner] = useState(false)
   const [prevWordCount, setPrevWordCount] = useState<number | null>(null)
   const wasProcessingRef = useRef(false)
+  // True while a modal operation is in-flight or showing a result.
+  // Prevents the generic "Content updated" banner from firing before the user
+  // has explicitly chosen to apply or discard the modal result.
+  const isModalOpRef = useRef(false)
 
   // Separate mutation for modal ops — does NOT auto-apply to the editor on success
   const modalMutation = useMutation({
     mutationFn: ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
+      isModalOpRef.current = true
       setAIProcessing(section.id, op)
       return performAIOperation({
         jobId,
@@ -80,9 +86,13 @@ export function CourseSectionCard({
     },
     onSuccess: (result) => {
       clearAIOperation(section.id)
+      // Reset wasProcessingRef so the detection effect doesn't fire the undo
+      // banner — the modal still has the result and the user hasn't applied yet.
+      wasProcessingRef.current = false
       setModalResult(result.content)
     },
     onError: () => {
+      isModalOpRef.current = false
       clearAIOperation(section.id)
     },
   })
@@ -148,14 +158,18 @@ export function CourseSectionCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editState?.isEditing])
 
-  // Detect AI processing completion and show undo banner
+  // Auto-hide the undo banner after 8 s whenever it becomes visible.
   useEffect(() => {
-    if (wasProcessingRef.current && !editState?.isAIProcessing && !aiOperationError) {
+    if (!showUndoBanner) return
+    const timer = setTimeout(() => setShowUndoBanner(false), 8000)
+    return () => clearTimeout(timer)
+  }, [showUndoBanner])
+
+  // Detect direct-AI processing completion and show undo banner.
+  // Skipped for modal ops — the modal controls its own apply/discard flow.
+  useEffect(() => {
+    if (wasProcessingRef.current && !editState?.isAIProcessing && !aiOperationError && !isModalOpRef.current) {
       setShowUndoBanner(true)
-      const timer = setTimeout(() => {
-        setShowUndoBanner(false)
-      }, 8000)
-      return () => clearTimeout(timer)
     }
     wasProcessingRef.current = editState?.isAIProcessing ?? false
   }, [editState?.isAIProcessing, aiOperationError])
@@ -353,15 +367,25 @@ export function CourseSectionCard({
           }}
           onApply={() => {
             if (modalResult) {
+              // Stage AI content in the edit buffer and open edit mode so the
+              // user can review the AI output, then explicitly Save (accept) or
+              // Cancel (revert to originalContent) — no time-limited undo needed.
               updateEditContent(section.id, modalResult)
+              startEditing(section.id)
+              // Expand the section so the textarea and Save/Cancel buttons are visible.
+              expandSection(section.id)
             }
+            isModalOpRef.current = false
             setModalOp(null)
             setModalResult(null)
           }}
           onDiscard={() => {
+            // "Try Again" — clear result so user can re-prompt; modal stays open.
             setModalResult(null)
           }}
           onClose={() => {
+            // "Discard" or Escape — close without applying anything.
+            isModalOpRef.current = false
             setModalOp(null)
             setModalResult(null)
           }}

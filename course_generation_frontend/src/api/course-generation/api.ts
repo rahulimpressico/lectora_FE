@@ -17,6 +17,8 @@ import type {
 const POLL_INTERVAL_MS = 1_000
 const POLL_MAX_MS = 15 * 60 * 1_000
 const GENERATE_TO_START_TIMEOUT_MS = 10 * 60 * 1_000
+// When the server is busy (503), retry the initial POST with backoff before giving up.
+const BUSY_RETRY_DELAYS_MS = [3_000, 6_000, 12_000, 20_000]
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -69,11 +71,38 @@ export async function uploadDocument(
   return data
 }
 
+/** Cancel an in-flight A0 generate-to job on the backend (best-effort, fire-and-forget). */
+export async function cancelGenerateTO(jobId: string): Promise<void> {
+  await apiClient.post(`/documents/generate-to/jobs/${jobId}/cancel`, null, { timeout: 10_000 })
+}
+
+export interface TOTaskSummary {
+  jobId: string
+  status: 'processing' | 'completed' | 'failed' | 'cancelled'
+  message: string
+  createdAt: number   // Unix timestamp
+  finishedAt: number | null
+  error: string | null
+  blobPaths: string[]
+}
+
+/** List all recent TO-generation jobs from the server (newest first). */
+export async function listGenerateTOJobs(): Promise<TOTaskSummary[]> {
+  const { data } = await apiClient.get<TOTaskSummary[]>('/documents/generate-to/jobs', { timeout: 10_000 })
+  return data
+}
+
 /**
  * Generate a Training Outline from one or more uploaded documents.
  *
  * The backend may return the result immediately (200) or accept the job
  * asynchronously (202). When async, this function polls until completion.
+ *
+ * @param onJobIdKnown - Called as soon as the backend's 202-accepted job ID is
+ *   known (before polling begins). The caller should store this ID so it can
+ *   call `cancelGenerateTO(jobId)` to terminate the A0 run on the server if
+ *   the user cancels mid-flight — aborting the signal alone only stops polling,
+ *   it does not stop the backend job.
  */
 export async function generateTO(
   blobPaths: string | string[],
@@ -86,6 +115,7 @@ export async function generateTO(
   difficultyLevel?: string | null,
   calculatedWordCount?: number | null,
   audience?: string,
+  onJobIdKnown?: (jobId: string) => void,
 ): Promise<GenerateTOResponse> {
   const paths = Array.isArray(blobPaths) ? blobPaths : [blobPaths]
   const body: Record<string, unknown> = { blobPaths: paths, difficulty }
@@ -98,15 +128,36 @@ export async function generateTO(
   if (calculatedWordCount != null) body.calculatedWordCount = calculatedWordCount
   if (audience?.trim()) body.audience = audience.trim()
 
-  const { data: start } = await apiClient.post<GenerateTOResponse | GenerateTOJobAccepted>(
-    '/documents/generate-to',
-    body,
-    { signal, timeout: GENERATE_TO_START_TIMEOUT_MS },
-  )
+  // POST with 503 retry-with-backoff: if the server is temporarily at capacity,
+  // wait and retry rather than surfacing an error the user cannot act on.
+  // The loop has no termination condition in its head — it exits via:
+  //   • break     on a successful response (2xx)
+  //   • throw err on any non-503 error, or after all BUSY_RETRY_DELAYS_MS are exhausted
+  let start: GenerateTOResponse | GenerateTOJobAccepted
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const { data } = await apiClient.post<GenerateTOResponse | GenerateTOJobAccepted>(
+        '/documents/generate-to',
+        body,
+        { signal, timeout: GENERATE_TO_START_TIMEOUT_MS },
+      )
+      start = data
+      break
+    } catch (err) {
+      const isBusy = err instanceof ApiClientError && err.status === 503
+      const delay = BUSY_RETRY_DELAYS_MS[attempt]
+      if (isBusy && delay !== undefined) {
+        await sleep(delay, signal)
+        continue
+      }
+      throw err
+    }
+  }
 
   if (isCompletedResponse(start)) return start
 
   const jobId = start.jobId
+  onJobIdKnown?.(jobId)
   const deadline = Date.now() + POLL_MAX_MS
 
   while (Date.now() < deadline) {

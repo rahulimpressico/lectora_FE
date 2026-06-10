@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, createContext, useContext, type KeyboardEvent } from 'react'
 import { ChevronDown, Check, X, Pencil, Plus, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
@@ -11,6 +11,11 @@ import {
   formatKeyLabel,
 } from '../../utils/deepUpdate'
 import type { JsonObject, JsonValue, JsonPrimitive } from '../../types'
+
+// Context that carries the tooltips map so any PrimitiveNode can read it
+// without prop-drilling through every intermediate node type.
+const TooltipsContext = createContext<Record<string, string>>({})
+function useTooltips() { return useContext(TooltipsContext) }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -558,6 +563,7 @@ function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onRes
 function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onUpdate, onReset }: NodeProps) {
   const pk = pathKey(path)
   const isDirty = modifiedPaths.has(pk)
+  const tooltips = useTooltips()
 
   return (
     <InlineEditField
@@ -567,6 +573,7 @@ function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onU
       isDirty={isDirty}
       onSave={(newVal) => onUpdate(path, newVal)}
       onCancel={() => onReset(path)}
+      tooltip={tooltips[keyName]}
     />
   )
 }
@@ -589,6 +596,8 @@ interface RecursiveJsonEditorProps {
   modifiedPaths: Set<string>
   onUpdate: (path: string[], value: JsonValue) => void
   onReset: (path: string[]) => void
+  /** Optional map of field-name → tooltip text. Applied to any matching PrimitiveNode. */
+  tooltips?: Record<string, string>
 }
 
 export function RecursiveJsonEditor({
@@ -597,12 +606,14 @@ export function RecursiveJsonEditor({
   modifiedPaths,
   onUpdate,
   onReset,
+  tooltips = {},
 }: RecursiveJsonEditorProps) {
   const entries = Object.entries(data)
   const primitiveEntries = entries.filter(([, v]) => isPrimitive(v))
   const complexEntries   = entries.filter(([, v]) => !isPrimitive(v))
 
   return (
+    <TooltipsContext.Provider value={tooltips}>
     <div className="space-y-3">
 
       {/* ── Overview card: all root-level primitive fields ─────────── */}
@@ -647,5 +658,6 @@ export function RecursiveJsonEditor({
         />
       ))}
     </div>
+    </TooltipsContext.Provider>
   )
 }

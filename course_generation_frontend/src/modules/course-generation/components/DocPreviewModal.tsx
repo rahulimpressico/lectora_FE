@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { X, FileText, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCourseStore } from '../store/courseStore'
-import { formatBytes } from '../utils/inferRulePackMeta'
+import { formatBytes } from '@/utils/formatBytes'
 
 export function DocPreviewModal() {
   const { rawDocuments, previewOpen, previewFileId, closePreview } = useCourseStore()

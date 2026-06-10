@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { generateTO } from '@/api/course-generation/api'
+import { cancelGenerateTO, generateTO } from '@/api/course-generation/api'
 import { useCourseStore } from '../store/courseStore'
 
 /**
@@ -34,13 +34,17 @@ function buildCourseMetadataContext({
 export function useGenerateTO() {
   const { setTOData, setRulesData, setPhase, setGeneratedToBlobPath, setCourseTitle, setDetectedRuleFamily } = useCourseStore()
   const abortRef = useRef<AbortController | null>(null)
+  // Tracks the backend job ID from the moment the 202 is received so cancel()
+  // can terminate the actual A0 run, not just close the UI.
+  const activeJobIdRef = useRef<string | null>(null)
 
-  return useMutation({
+  const mutation = useMutation({
     retry: false,
     mutationFn: async () => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
+      activeJobIdRef.current = null
 
       const {
         rawDocuments,
@@ -83,6 +87,12 @@ export function useGenerateTO() {
       // Duration, difficulty, and audience are passed as dedicated API parameters and
       // handled by the backend's build_dynamic_to_prompt() — do NOT override that prompt.
       const metadataContext = buildCourseMetadataContext({ courseId, courseTitle })
+      // Merge metadata context and user custom prompt into a single string that
+      // is forwarded as `customToPrompt` (supplemental hints appended to the
+      // user message). This is NOT a system prompt override — the backend's
+      // build_dynamic_to_prompt() owns the system prompt and must not be
+      // bypassed. Previously this was wired incorrectly as a system prompt
+      // replacement, which caused structured TO output to be ignored.
       const effectiveCustomPrompt = [
         metadataContext,
         customToPrompt.trim() || null,
@@ -101,13 +111,18 @@ export function useGenerateTO() {
         difficulty,
         calculatedWordCount,
         audience.trim() || undefined,
+        (jobId) => { activeJobIdRef.current = jobId },
       )
     },
     onSuccess: ({ to, rules, toBlobPath }) => {
       setTOData(to, to)
       setRulesData(rules, rules)
       setGeneratedToBlobPath(toBlobPath ?? null)
-      if (to.course_name && typeof to.course_name === 'string') {
+      // Only auto-fill the course title when the user has not already typed one.
+      // Preserving a user-provided title prevents the LLM-generated name from
+      // silently overwriting whatever the user entered before TO generation.
+      const existingTitle = useCourseStore.getState().courseTitle
+      if (!existingTitle.trim() && to.course_name && typeof to.course_name === 'string') {
         setCourseTitle(to.course_name)
       }
       if (to.rule_family && typeof to.rule_family === 'string') {
@@ -116,4 +131,21 @@ export function useGenerateTO() {
       setPhase('three-panel')
     },
   })
+
+  function cancel() {
+    // Tell the backend to stop the A0 job before aborting the polling loop.
+    // Fire-and-forget: we don't wait for the response — the UI should clear
+    // immediately regardless of whether the network call succeeds.
+    const jobId = activeJobIdRef.current
+    if (jobId) {
+      activeJobIdRef.current = null
+      cancelGenerateTO(jobId).catch(() => {
+        // Swallow — job may have already finished or server restarted.
+      })
+    }
+    abortRef.current?.abort()
+    mutation.reset()
+  }
+
+  return { ...mutation, cancel }
 }

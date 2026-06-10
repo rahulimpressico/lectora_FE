@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   DollarSign,
@@ -19,6 +20,7 @@ import {
   Database,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { fetchCostingSummary } from '../api/api'
 import { useCostingStore } from '../store/costingStore'
 import type { CostingSummary } from '../types'
 import { KPICard } from '../components/KPICard'
@@ -36,6 +38,7 @@ import { StageCostChart } from '../components/charts/StageCostChart'
 import { StageTokenChart } from '../components/charts/StageTokenChart'
 import { ModelContributionChart } from '../components/charts/ModelContributionChart'
 import { getStageColor } from '../components/charts/chartTheme'
+import { StageTooltipLabel } from '../components/StageTooltipLabel'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -479,7 +482,7 @@ function OverviewTab({
             {summary.stageSummary && summary.stageSummary.length > 0 && (
               <ChartCard
                 title="Cost by Pipeline Stage"
-                subtitle="Horizontal bars — highest spend at top; hover for full stage name"
+                subtitle="Highest spend at top — hover a bar or stage name for a plain-language explanation"
               >
                 <StageCostChart data={summary.stageSummary} />
               </ChartCard>
@@ -511,7 +514,11 @@ function OverviewTab({
                     <div className="col-span-2 flex items-center gap-2.5">
                       <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 truncate">{stage.stageName}</p>
+                        <StageTooltipLabel
+                          stageKey={stage.stageKey}
+                          stageName={stage.stageName}
+                          labelClassName="text-xs font-semibold text-slate-700"
+                        />
                         <span className="text-[10px] text-slate-400 tabular-nums">{share.toFixed(1)}%</span>
                       </div>
                     </div>
@@ -668,23 +675,26 @@ function DocumentsTab({
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function CostingDashboardPage() {
+  const { selectedDocument, selectDocument, clearSelectedDocument } = useCostingStore()
+
   const {
-    summary,
+    data: summary,
     isLoading,
+    isFetching,
+    isError,
     error,
-    selectedDocument,
-    loadSummary,
-    selectDocument,
-    clearSelectedDocument,
-  } = useCostingStore()
+    refetch,
+  } = useQuery({
+    queryKey: ['costing-summary'],
+    queryFn: fetchCostingSummary,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
 
   const [activeTab, setActiveTab] = useState<CostingTab>('overview')
-
-  useEffect(() => {
-    if (!summary) {
-      void loadSummary()
-    }
-  }, [summary, loadSummary])
+  const errorMessage =
+    error instanceof Error ? error.message : isError ? 'Failed to load costing data' : null
 
   // Document drilldown view — full-page takeover
   if (selectedDocument) {
@@ -692,7 +702,7 @@ export function CostingDashboardPage() {
   }
 
   // Error state
-  if (error) {
+  if (isError && !summary) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center max-w-sm">
@@ -700,10 +710,10 @@ export function CostingDashboardPage() {
             <AlertCircle size={20} className="text-red-500" />
           </div>
           <p className="text-sm font-semibold text-slate-800 mb-1">Failed to load costing data</p>
-          <p className="text-xs text-slate-500 mb-4">{error}</p>
+          <p className="text-xs text-slate-500 mb-4">{errorMessage}</p>
           <button
             type="button"
-            onClick={() => void loadSummary()}
+            onClick={() => void refetch()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors"
           >
             <RefreshCw size={12} />
@@ -715,7 +725,7 @@ export function CostingDashboardPage() {
   }
 
   if (!isLoading && summary && !hasLiveCostingData(summary)) {
-    return <EmptyCostingState onRetry={() => void loadSummary()} />
+    return <EmptyCostingState onRetry={() => void refetch()} />
   }
 
   return (
@@ -737,12 +747,12 @@ export function CostingDashboardPage() {
             )}
             <button
               type="button"
-              onClick={() => void loadSummary()}
-              disabled={isLoading}
+              onClick={() => void refetch()}
+              disabled={isFetching}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 transition-all hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40"
               title="Refresh"
             >
-              <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
               Refresh
             </button>
           </div>
@@ -772,7 +782,7 @@ export function CostingDashboardPage() {
                 <DocumentsTab
                   key="documents"
                   summary={summary}
-                  isLoading={isLoading}
+                  isLoading={isFetching}
                   onSelectDocument={(id) => void selectDocument(id)}
                 />
               )}

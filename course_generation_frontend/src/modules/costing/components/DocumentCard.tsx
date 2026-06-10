@@ -8,6 +8,10 @@ import {
   getStageColor,
   getTopStages,
 } from '../utils/documentCosting'
+import { getDocumentTypeTooltip } from '../utils/stageTooltips'
+import { InfoTooltip } from './InfoTooltip'
+import { StageTooltipLabel } from './StageTooltipLabel'
+import { formatStorageDateShort } from '@/utils/formatDate'
 
 interface Props {
   doc: DocumentCost
@@ -21,13 +25,6 @@ function fmtTokens(n: number): string {
   return n.toLocaleString()
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
 
 function StatusBadge({ status }: { status: DocumentCost['status'] }) {
   if (status === 'completed') {
@@ -56,7 +53,7 @@ function StatusBadge({ status }: { status: DocumentCost['status'] }) {
 
 export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
   const totalTokens = doc.inputTokens + doc.outputTokens
-  const topStages = getTopStages(doc, 2)
+  const topStages = getTopStages(doc, 3)
 
   return (
     <motion.button
@@ -83,14 +80,26 @@ export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
             <p className="mt-1 text-sm font-bold text-slate-800 truncate leading-none">
               {doc.documentName}
             </p>
-            <span
-              className={cn(
-                'mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-                getDocumentTypeBadgeClass(doc.documentType),
-              )}
-            >
-              {doc.documentType}
-            </span>
+            {(() => {
+              const typeTooltip = getDocumentTypeTooltip(doc.documentType)
+              const badge = (
+                <span
+                  className={cn(
+                    'mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                    getDocumentTypeBadgeClass(doc.documentType),
+                  )}
+                >
+                  {doc.documentType}
+                </span>
+              )
+              return typeTooltip ? (
+                <InfoTooltip content={typeTooltip} showIcon={false} className="mt-1">
+                  {badge}
+                </InfoTooltip>
+              ) : (
+                badge
+              )
+            })()}
           </div>
         </div>
         <StatusBadge status={doc.status} />
@@ -159,9 +168,11 @@ export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
                   className="h-2 w-2 shrink-0 rounded-full"
                   style={{ backgroundColor: getStageColor(stage.stageKey) }}
                 />
-                <span className="truncate text-[11px] font-medium text-slate-600">
-                  {stage.stageName}
-                </span>
+                <StageTooltipLabel
+                  stageKey={stage.stageKey}
+                  stageName={stage.stageName}
+                  labelClassName="text-[11px] font-medium text-slate-600"
+                />
               </div>
               <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-700">
                 ${stage.cost.toFixed(4)}
@@ -189,7 +200,7 @@ export function DocumentCard({ doc, onClick, delay = 0 }: Props) {
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-slate-100 pt-3">
         <p className="text-[10px] text-slate-400 font-medium">
-          Updated {fmtDate(doc.lastUpdated)}
+          Updated {formatStorageDateShort(doc.lastUpdated) ?? doc.lastUpdated}
         </p>
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-500 opacity-70 transition-all duration-150 group-hover:translate-x-0.5 group-hover:opacity-100">
           View details

@@ -1,6 +1,6 @@
 import { FileText, FileType2, X, Eye, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { formatBytes } from '../utils/inferRulePackMeta'
+import { formatBytes } from '@/utils/formatBytes'
 import type { UploadedFile } from '../types'
 
 interface FileCardProps {

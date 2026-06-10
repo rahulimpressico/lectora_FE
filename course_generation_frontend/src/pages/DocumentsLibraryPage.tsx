@@ -5,10 +5,10 @@ export function DocumentsLibraryPage() {
   return (
     <StorageExplorer
       title="Uploaded Documents"
-      subtitle="DOCX/PDF in uploaded-documents, or regedlectoraaistorage when the upload container is empty"
+      subtitle="DOCX/PDF files from the uploaded-documents container. Falls back to pipeline storage when empty."
       headerIcon={FileUp}
       source="uploads"
-      emptyHint="Open a course folder to select files. If uploaded-documents is empty, files from regedlectoraaistorage are listed automatically."
+      emptyHint="Open a course folder to select files. If uploaded-documents is empty, files from pipeline storage are listed automatically."
     />
   )
 }

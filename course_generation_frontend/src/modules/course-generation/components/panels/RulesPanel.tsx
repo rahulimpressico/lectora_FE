@@ -1,6 +1,7 @@
 import { Shield } from 'lucide-react'
 import { JsonEditorPanel } from './JsonEditorPanel'
 import { useCourseStore } from '../../store/courseStore'
+import { RULE_PACK_TOOLTIPS } from '../../utils/rulePackTooltips'
 import type { JsonValue } from '../../types'
 
 interface RulesPanelProps {
@@ -37,6 +38,7 @@ export function RulesPanel({ loading = false, loadError = null }: RulesPanelProp
       loading={loading}
       loadError={loadError}
       emptyMessage="Rule pack loads with the Training Outline."
+      tooltips={RULE_PACK_TOOLTIPS}
     />
   )
 }

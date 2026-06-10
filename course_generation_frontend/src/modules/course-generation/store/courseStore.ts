@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { deepSet, deepGet } from '../utils/deepUpdate'
+import { calcWordCount } from '../utils/courseConfig'
 import type {
   UploadedFile,
   WorkflowPhase,
@@ -108,12 +109,30 @@ const pathKey = (path: string[]) => path.join('.')
 // ── TO bidirectional sync ──────────────────────────────────────────────────────
 
 /**
- * Fields that must stay in sync between `totals` and each `sections[i]`.
- * When either side changes the other is automatically updated.
+ * Fields that must stay in sync between `totals` (or root-level equivalents)
+ * and each `sections[i]`.  When either side changes the other is updated.
+ *
+ * Two layouts coexist depending on which backend path produced the TO:
+ *   Layout A — nested:  to.totals.word_count  ↔  to.sections[i].word_count
+ *   Layout B — flat:    to.total_word_count    ↔  to.sections[i].word_count
+ *
+ * _applySyncCascade handles both transparently.
  */
 const TO_SYNC_FIELDS = new Set(['word_count', 'credit_hours'])
 const TO_TOTALS_KEY   = 'totals'
 const TO_SECTIONS_KEY = 'sections'
+
+// Map root-level total field → section field (Layout B)
+const ROOT_TOTAL_TO_SECTION: Record<string, string> = {
+  total_word_count:    'word_count',
+  total_credit_hours:  'credit_hours',
+}
+// Map section field → root-level total field (Layout B)
+const SECTION_TO_ROOT_TOTAL: Record<string, string> = {
+  word_count:    'total_word_count',
+  credit_hours:  'total_credit_hours',
+  credit_hour:   'total_credit_hours', // backend section field is singular
+}
 
 /**
  * Distributes `newTotal` proportionally across `sectionValues`.
@@ -158,11 +177,11 @@ function _distributeProportionally(
 /**
  * Applies the bidirectional sync cascade after a field is written.
  *
- * - `totals.<field>` changed → redistribute proportionally across `sections[*].<field>`.
- * - `sections.<i>.<field>` changed → recalculate `totals.<field>` as the sum.
+ * Handles two TO layouts:
+ *   Layout A (nested):  totals.word_count     ↔ sections[i].word_count
+ *   Layout B (flat):    total_word_count       ↔ sections[i].word_count
  *
- * Returns the already-updated `data` with the cascade applied, or the same
- * object when the changed path is not a sync-controlled field.
+ * In both cases the opposite side is recalculated to stay consistent.
  */
 function _applySyncCascade(
   data: JsonObject,
@@ -170,15 +189,45 @@ function _applySyncCascade(
   value: JsonValue,
 ): JsonObject {
   const field = path[path.length - 1]
-  if (!TO_SYNC_FIELDS.has(field)) return data
-
   const numValue = Number(value)
   if (isNaN(numValue) || numValue < 0) return data
 
-  const isFloat = field === 'credit_hours'
+  // ── Layout B: root-level total changed → redistribute to sections ─────────
+  if (path.length === 1 && ROOT_TOTAL_TO_SECTION[field] !== undefined) {
+    const sectionField = ROOT_TOTAL_TO_SECTION[field]
+    const isFloat = sectionField === 'credit_hours'
+    const sections = deepGet(data, [TO_SECTIONS_KEY])
+    if (!Array.isArray(sections) || sections.length === 0) return data
 
-  // ── Totals → sections ────────────────────────────────────────────────────────
-  if (path.length === 2 && path[0] === TO_TOTALS_KEY) {
+    // Read section values; try both "credit_hours" and "credit_hour"
+    const sectionValues = sections.map((_, i) => {
+      const v = Number(deepGet(data, [TO_SECTIONS_KEY, String(i), sectionField]))
+      if (!isNaN(v)) return v
+      // Fallback for singular form used by some backend routes
+      if (sectionField === 'credit_hours') {
+        return Number(deepGet(data, [TO_SECTIONS_KEY, String(i), 'credit_hour'])) || 0
+      }
+      return 0
+    })
+
+    const distributed = _distributeProportionally(numValue, sectionValues, isFloat)
+    let newData = data
+    for (let i = 0; i < sections.length; i++) {
+      newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), sectionField], distributed[i])
+      // Also keep singular variant in sync if it exists in the section
+      if (sectionField === 'credit_hours') {
+        const hasSingular = deepGet(data, [TO_SECTIONS_KEY, String(i), 'credit_hour']) !== undefined
+        if (hasSingular) {
+          newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), 'credit_hour'], distributed[i])
+        }
+      }
+    }
+    return newData
+  }
+
+  // ── Layout A: nested totals changed → redistribute to sections ────────────
+  if (path.length === 2 && path[0] === TO_TOTALS_KEY && TO_SYNC_FIELDS.has(field)) {
+    const isFloat = field === 'credit_hours'
     const sections = deepGet(data, [TO_SECTIONS_KEY])
     if (!Array.isArray(sections) || sections.length === 0) return data
 
@@ -187,7 +236,6 @@ function _applySyncCascade(
     )
 
     const distributed = _distributeProportionally(numValue, sectionValues, isFloat)
-
     let newData = data
     for (let i = 0; i < sections.length; i++) {
       newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), field], distributed[i])
@@ -195,38 +243,44 @@ function _applySyncCascade(
     return newData
   }
 
-  // ── Section → totals ─────────────────────────────────────────────────────────
-  if (path.length === 3 && path[0] === TO_SECTIONS_KEY) {
+  // ── Section changed → update totals on BOTH layouts ───────────────────────
+  if (path.length === 3 && path[0] === TO_SECTIONS_KEY &&
+      (TO_SYNC_FIELDS.has(field) || SECTION_TO_ROOT_TOTAL[field] !== undefined)) {
     const sections = deepGet(data, [TO_SECTIONS_KEY])
     if (!Array.isArray(sections)) return data
 
+    // Canonical field name used for summing (normalise credit_hour → credit_hours)
+    const canonicalField = field === 'credit_hour' ? 'credit_hours' : field
+    const isFloat = canonicalField === 'credit_hours'
+
     const total = sections.reduce<number>((sum, _, i) => {
-      return sum + (Number(deepGet(data, [TO_SECTIONS_KEY, String(i), field])) || 0)
+      // Accept both "credit_hours" and "credit_hour" variants
+      let v = Number(deepGet(data, [TO_SECTIONS_KEY, String(i), field]))
+      if (isNaN(v) && field === 'credit_hour') {
+        v = Number(deepGet(data, [TO_SECTIONS_KEY, String(i), 'credit_hours'])) || 0
+      }
+      return sum + (isNaN(v) ? 0 : v)
     }, 0)
 
     const rounded = isFloat ? Math.round(total * 100) / 100 : total
-    return deepSet(data, [TO_TOTALS_KEY, field], rounded)
+
+    let newData = data
+    // Layout A: nested totals object
+    if (TO_SYNC_FIELDS.has(canonicalField)) {
+      newData = deepSet(newData, [TO_TOTALS_KEY, canonicalField], rounded)
+    }
+    // Layout B: root-level total field
+    const rootField = SECTION_TO_ROOT_TOTAL[field]
+    if (rootField && deepGet(data, [rootField]) !== undefined) {
+      newData = deepSet(newData, [rootField], rounded)
+    }
+    return newData
   }
 
   return data
 }
 
-/** Difficulty multipliers matching the backend NAIC CE formula. */
-const DIFFICULTY_MULTIPLIERS: Record<string, number> = {
-  basic:        1.0,
-  intermediate: 1.25,
-  advanced:     1.5,
-}
-
-/**
- * Calculate target word count from duration + difficulty.
- * Formula: (duration_hours × 9000) / multiplier
- */
-function _calcWordCount(hours: number | null, level: string | null): number | null {
-  if (hours == null || !level) return null
-  const multiplier = DIFFICULTY_MULTIPLIERS[level.toLowerCase()] ?? 1.25
-  return Math.round((hours * 9000) / multiplier)
-}
+// calcWordCount is imported from courseConfig — no local duplicate needed.
 
 const initialState = {
   phase:              'upload' as WorkflowPhase,
@@ -278,13 +332,13 @@ export const useCourseStore = create<CourseState>()(
 
         setDurationHours: (hours) =>
           set((s) => {
-            const wordCount = _calcWordCount(hours, s.difficultyLevel)
+            const wordCount = calcWordCount(hours, s.difficultyLevel)
             return { durationHours: hours, calculatedWordCount: wordCount }
           }),
 
         setDifficultyLevel: (level) =>
           set((s) => {
-            const wordCount = _calcWordCount(s.durationHours, level)
+            const wordCount = calcWordCount(s.durationHours, level)
             return { difficultyLevel: level, calculatedWordCount: wordCount }
           }),
 
@@ -347,21 +401,36 @@ export const useCourseStore = create<CourseState>()(
             let newData = deepSet(s.toData, path, original as JsonValue)
             const field = path[path.length - 1]
 
-            if (TO_SYNC_FIELDS.has(field) && original !== null) {
-              if (path.length === 2 && path[0] === TO_TOTALS_KEY) {
-                // Resetting a total: restore all section values from original too.
+            if (original !== null) {
+              // Classify the reset target so we can keep both sides of the
+              // bidirectional sync consistent with the original snapshot.
+
+              // Layout A total: path = ['totals', <syncField>]
+              const isNestedTotal = path.length === 2 && path[0] === TO_TOTALS_KEY && TO_SYNC_FIELDS.has(field)
+              // Layout B total: path = ['total_word_count'] or ['total_credit_hours']
+              const isRootTotal   = path.length === 1 && ROOT_TOTAL_TO_SECTION[field] !== undefined
+              // Section value (either layout): path = ['sections', '<i>', <syncField>]
+              const isSection     = path.length === 3 && path[0] === TO_SECTIONS_KEY &&
+                                    (TO_SYNC_FIELDS.has(field) || SECTION_TO_ROOT_TOTAL[field] !== undefined)
+
+              if (isNestedTotal || isRootTotal) {
+                // Resetting a total: restore all section values from original too,
+                // so the total and its sections are consistent without recalculating.
+                const sectionField = isRootTotal ? ROOT_TOTAL_TO_SECTION[field] : field
                 const sections = deepGet(s.toOriginal, [TO_SECTIONS_KEY])
                 if (Array.isArray(sections)) {
                   for (let i = 0; i < sections.length; i++) {
-                    const origVal =
-                      deepGet(s.toOriginal, [TO_SECTIONS_KEY, String(i), field]) ?? 0
-                    newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), field], origVal)
+                    const origVal = deepGet(s.toOriginal, [TO_SECTIONS_KEY, String(i), sectionField]) ?? 0
+                    newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), sectionField], origVal)
                   }
                 }
-              } else if (path.length === 3 && path[0] === TO_SECTIONS_KEY) {
-                // Resetting a section value: recalculate the total from current data.
+              } else if (isSection) {
+                // Resetting a single section value: let _applySyncCascade recompute
+                // the totals from the now-restored section value so they stay accurate.
                 newData = _applySyncCascade(newData, path, original as JsonValue)
               }
+              // For any other field (not a sync-tracked total or section), the
+              // deepSet above already restored the value — no cascade needed.
             }
 
             return {

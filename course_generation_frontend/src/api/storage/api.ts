@@ -29,6 +29,7 @@ export interface StorageEntry {
   entryType: 'folder' | 'file'
   size?: number
   lastModified?: string
+  createdAt?: string
   contentType?: string
   fileCount?: number
   extension?: string

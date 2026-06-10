@@ -50,7 +50,7 @@ const CATEGORIES: CategoryConfig[] = [
   {
     key: 'pipeline-artifacts',
     label: 'Pipeline Artifacts',
-    subtitle: 'Live pipeline run logs and intermediate JSON (regedlectoraaistorage).',
+    subtitle: 'Live pipeline run logs and intermediate JSON from Azure pipeline storage.',
     icon: Wrench,
     source: 'artifacts',
     emptyHint: 'No pipeline JSON logs found yet. Start a course generation to see live logs.',

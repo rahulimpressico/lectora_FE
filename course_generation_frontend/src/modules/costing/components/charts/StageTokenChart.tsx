@@ -9,18 +9,21 @@ import {
   Legend,
 } from 'recharts'
 import type { StageBreakdown } from '../../types'
-import { useIsDarkMode, chartAxisStyle, chartGridColor, tooltipStyle } from './chartTheme'
+import { getStageTooltip } from '../../utils/stageTooltips'
+import { useIsDarkMode, chartAxisStyle, chartGridColor } from './chartTheme'
 import { getStageChartLabel, sortStagesByCost, stageChartHeight } from './chartHelpers'
 import { ChartEmptyState } from './ChartEmptyState'
-
-interface Props {
-  data: StageBreakdown[]
-}
+import { createStageAxisTick } from './StageAxisTick'
+import { StageTokenChartTooltip } from './StageChartTooltip'
 
 function fmtTokens(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`
   return String(v)
+}
+
+interface Props {
+  data: StageBreakdown[]
 }
 
 export function StageTokenChart({ data }: Props) {
@@ -37,11 +40,14 @@ export function StageTokenChart({ data }: Props) {
   const chartData = sorted.map((s) => ({
     shortLabel: getStageChartLabel(s.stageKey, s.stageName),
     fullLabel: s.stageName,
+    stageKey: s.stageKey,
+    description: getStageTooltip(s.stageKey, s.stageName),
     'Input Tokens': s.inputTokens,
     'Output Tokens': s.outputTokens,
   }))
 
   const height = stageChartHeight(chartData.length)
+  const stageAxisTick = createStageAxisTick(chartData, axisStyle)
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -61,17 +67,13 @@ export function StageTokenChart({ data }: Props) {
         <YAxis
           type="category"
           dataKey="shortLabel"
-          tick={{ ...axisStyle, fontSize: 11 }}
+          tick={stageAxisTick}
           axisLine={false}
           tickLine={false}
           width={92}
         />
         <Tooltip
-          contentStyle={tooltipStyle(isDark)}
-          labelFormatter={(_label, payload) =>
-            (payload?.[0]?.payload as { fullLabel?: string } | undefined)?.fullLabel ?? _label
-          }
-          formatter={(value: unknown, name: unknown) => [fmtTokens(value as number), name as string]}
+          content={<StageTokenChartTooltip />}
           cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }}
         />
         <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'Inter, system-ui, sans-serif' }} />
