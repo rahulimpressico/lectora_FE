@@ -8,8 +8,11 @@ import {
   HelpCircle,
   X,
   CircleDollarSign,
+  ListTodo,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useToTasks } from "@/modules/course-generation/hooks/useToTasks";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -25,8 +28,10 @@ interface SidebarProps {
   translucent?: boolean;
   onSettingsClick?: () => void;
   onHelpClick?: () => void;
+  onTasksClick?: () => void;
   isSettingsOpen?: boolean;
   isHelpOpen?: boolean;
+  isTasksOpen?: boolean;
 }
 
 function SidebarContent({
@@ -34,30 +39,44 @@ function SidebarContent({
   translucent = false,
   onSettingsClick,
   onHelpClick,
+  onTasksClick,
   isSettingsOpen,
   isHelpOpen,
+  isTasksOpen,
 }: {
   onClose?: () => void;
   translucent?: boolean;
   onSettingsClick?: () => void;
   onHelpClick?: () => void;
+  onTasksClick?: () => void;
   isSettingsOpen?: boolean;
   isHelpOpen?: boolean;
+  isTasksOpen?: boolean;
 }) {
   const navigate = useNavigate();
+  const { runningCount } = useToTasks();
 
   const bottomButtons = [
+    {
+      label: "Tasks",
+      icon: ListTodo,
+      onClick: onTasksClick,
+      isActive: isTasksOpen,
+      badge: runningCount > 0 ? runningCount : null,
+    },
     {
       label: "Settings",
       icon: Settings,
       onClick: onSettingsClick,
       isActive: isSettingsOpen,
+      badge: null,
     },
     {
       label: "Help",
       icon: HelpCircle,
       onClick: onHelpClick,
       isActive: isHelpOpen,
+      badge: null,
     },
   ];
 
@@ -148,7 +167,7 @@ function SidebarContent({
           translucent ? "border-white/40" : "border-slate-100",
         )}
       >
-        {bottomButtons.map(({ label, icon: Icon, onClick, isActive }) => (
+        {bottomButtons.map(({ label, icon: Icon, onClick, isActive, badge }) => (
           <button
             key={label}
             type="button"
@@ -167,7 +186,13 @@ function SidebarContent({
               size={15}
               className={isActive ? "text-indigo-600" : "text-slate-400"}
             />
-            {label}
+            <span className="flex-1 text-left">{label}</span>
+            {badge != null && (
+              <span className="inline-flex items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                <Loader2 size={7} className="animate-spin" />
+                {badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -207,8 +232,10 @@ export function Sidebar({
   translucent = false,
   onSettingsClick,
   onHelpClick,
+  onTasksClick,
   isSettingsOpen,
   isHelpOpen,
+  isTasksOpen,
 }: SidebarProps) {
   return (
     <>
@@ -218,8 +245,10 @@ export function Sidebar({
           translucent={translucent}
           onSettingsClick={onSettingsClick}
           onHelpClick={onHelpClick}
+          onTasksClick={onTasksClick}
           isSettingsOpen={isSettingsOpen}
           isHelpOpen={isHelpOpen}
+          isTasksOpen={isTasksOpen}
         />
       </div>
 
@@ -239,8 +268,10 @@ export function Sidebar({
               translucent={translucent}
               onSettingsClick={onSettingsClick}
               onHelpClick={onHelpClick}
+              onTasksClick={onTasksClick}
               isSettingsOpen={isSettingsOpen}
               isHelpOpen={isHelpOpen}
+              isTasksOpen={isTasksOpen}
             />
           </div>
         </div>

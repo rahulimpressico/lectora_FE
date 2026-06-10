@@ -14,7 +14,6 @@ import {
   BarChart2,
   BookOpen,
   Users,
-  ListTodo,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { cn } from "@/lib/cn";
@@ -25,9 +24,7 @@ import { useCourseStore } from "../../store/courseStore";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useGenerateTO } from "../../hooks/useGenerateTO";
 import { uploadDocument } from "@/api/course-generation/api";
-import { useToTasks } from "../../hooks/useToTasks";
 import { TOGenerationLoader } from "./TOGenerationLoader";
-import { TOTasksPanel } from "./TOTasksPanel";
 import { InlineAzureBrowser } from "./InlineAzureBrowser";
 import { DIFFICULTY_MULTIPLIERS, calcWordCount } from "../../utils/courseConfig";
 
@@ -82,10 +79,6 @@ export function UploadPhase() {
   const [showAudienceModal, setShowAudienceModal] = useState(false);
   const [modalAudienceInput, setModalAudienceInput] = useState("");
   const [modalAudienceError, setModalAudienceError] = useState<string | null>(null);
-  const [showTasksPanel, setShowTasksPanel] = useState(false);
-
-  const { runningCount: runningTaskCount } = useToTasks()
-
   // Computed word count shown to the user
   const previewWordCount =
     durationHours && difficultyLevel
@@ -160,7 +153,12 @@ export function UploadPhase() {
 
   return (
     <div className="flex flex-col h-full bg-[#eceff8]">
-      {generateTO.isPending && <TOGenerationLoader onCancel={generateTO.cancel} />}
+      {generateTO.isPending && (
+        <TOGenerationLoader
+          onCancel={generateTO.cancel}
+          statusMessage={generateTO.statusMessage}
+        />
+      )}
 
       {/* ── Page header ──────────────────────────────────────────── */}
       <header className="shrink-0 bg-white border-b border-slate-200/60 shadow-[0_1px_0_0_rgb(226,232,240)]">
@@ -182,25 +180,6 @@ export function UploadPhase() {
 
           {/* Tasks button */}
           <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setShowTasksPanel(!showTasksPanel)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-                runningTaskCount > 0
-                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              )}
-            >
-              <ListTodo size={12} />
-              Tasks
-              {runningTaskCount > 0 && (
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white">
-                  {runningTaskCount}
-                </span>
-              )}
-            </button>
-            {showTasksPanel && <TOTasksPanel onClose={() => setShowTasksPanel(false)} />}
           </div>
 
           {/* Step indicator */}

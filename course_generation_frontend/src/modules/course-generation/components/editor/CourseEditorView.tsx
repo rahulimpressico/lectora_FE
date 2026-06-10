@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
+import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
 import { useEditorStore } from '../../store/editorStore'
 import { useCourseStore } from '../../store/courseStore'
@@ -96,12 +97,22 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
         <button
           type="button"
-          onClick={() => setPhase('three-panel')}
+          onClick={() => dirtySectionCount > 0 ? setConfirmPendingEdits(true) : setPhase('three-panel')}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors shrink-0"
         >
           <ArrowLeft size={15} />
           <span className="hidden sm:block">Back</span>
         </button>
+
+        <ConfirmLeaveModal
+          open={confirmPendingEdits}
+          title="Discard unsaved edits?"
+          message={`You have unsaved edits in ${dirtySectionCount} section${dirtySectionCount !== 1 ? 's' : ''}. Going back will discard all changes. Save your work first or they will be lost.`}
+          confirmLabel="Discard & go back"
+          cancelLabel="Keep editing"
+          onConfirm={() => { setConfirmPendingEdits(false); setPhase('three-panel') }}
+          onCancel={() => setConfirmPendingEdits(false)}
+        />
 
         <div className="w-px h-5 bg-slate-200 shrink-0" />
 

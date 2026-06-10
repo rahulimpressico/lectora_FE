@@ -76,6 +76,50 @@ export async function cancelGenerateTO(jobId: string): Promise<void> {
   await apiClient.post(`/documents/generate-to/jobs/${jobId}/cancel`, null, { timeout: 10_000 })
 }
 
+/**
+ * Fire the POST to start a TO-generation job.
+ *
+ * Returns either a synchronous result (200) or an accepted response (202) with
+ * a `jobId` to poll.  Applies 503 back-off retries before giving up.
+ *
+ * Does NOT poll — use `pollGenerateTOJob` + TanStack Query for that.
+ */
+export async function startGenerateTO(
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<GenerateTOResponse | GenerateTOJobAccepted> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const { data } = await apiClient.post<GenerateTOResponse | GenerateTOJobAccepted>(
+        '/documents/generate-to',
+        body,
+        { signal, timeout: GENERATE_TO_START_TIMEOUT_MS },
+      )
+      return data
+    } catch (err) {
+      const isBusy = err instanceof ApiClientError && err.status === 503
+      const delay = BUSY_RETRY_DELAYS_MS[attempt]
+      if (isBusy && delay !== undefined) {
+        await sleep(delay, signal)
+        continue
+      }
+      throw err
+    }
+  }
+}
+
+/**
+ * Fetch the current status of a single async TO-generation job.
+ * Throws ApiClientError(404) if the server restarted and lost the job.
+ */
+export async function pollGenerateTOJob(jobId: string): Promise<GenerateTOJobPollResponse> {
+  const { data } = await apiClient.get<GenerateTOJobPollResponse>(
+    `/documents/generate-to/jobs/${jobId}`,
+    { timeout: 30_000 },
+  )
+  return data
+}
+
 export interface TOTaskSummary {
   jobId: string
   status: 'processing' | 'completed' | 'failed' | 'cancelled'

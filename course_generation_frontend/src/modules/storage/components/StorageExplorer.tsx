@@ -34,10 +34,10 @@ import {
   type StorageSource,
 } from '@/api/storage/api'
 import { formatBytes } from '@/utils/formatBytes'
-import { formatStorageDate } from '@/utils/formatDate'
 import { fileExtension } from '@/utils/fileExtension'
 import { FilePreviewDialog } from './FilePreviewDialog'
 import { StorageDeleteConfirmDialog } from './StorageDeleteConfirmDialog'
+import { StorageEntryDates } from './StorageEntryDates'
 
 type FileTypeDef = {
   Icon: ElementType
@@ -148,16 +148,7 @@ function FolderCard({
               <span>{formatBytes(entry.size)}</span>
             )}
           </div>
-          {(entry.createdAt || entry.lastModified) && (
-            <div className="mt-1.5 space-y-0.5">
-              {entry.createdAt && (
-                <p className="text-[10px] text-slate-400">Created: {formatStorageDate(entry.createdAt)}</p>
-              )}
-              {entry.lastModified && (
-                <p className="text-[10px] text-slate-400">Modified: {formatStorageDate(entry.lastModified)}</p>
-              )}
-            </div>
-          )}
+          <StorageEntryDates entry={entry} className="mt-1.5" />
         </div>
         <ChevronRight size={12} className="text-slate-400 shrink-0 mt-1" />
       </div>
@@ -257,13 +248,16 @@ function ImageFileCard({
           />
         )}
       </div>
-      <figcaption className="flex items-center justify-between gap-2 px-3 py-2.5 border-t border-slate-100 bg-white">
-        <p className="text-xs font-semibold text-slate-800 truncate flex-1" title={entry.name}>
-          {entry.name}
-        </p>
-        <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase shrink-0', badge)}>
-          {label}
-        </span>
+      <figcaption className="px-3 py-2.5 border-t border-slate-100 bg-white space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-800 truncate flex-1" title={entry.name}>
+            {entry.name}
+          </p>
+          <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase shrink-0', badge)}>
+            {label}
+          </span>
+        </div>
+        <StorageEntryDates entry={entry} compact />
       </figcaption>
     </figure>
   )
@@ -324,20 +318,7 @@ function FileCard({
               <span className="text-[11px] text-slate-400">{formatBytes(entry.size)}</span>
             )}
           </div>
-          {(entry.createdAt || entry.lastModified) && (
-            <div className="mt-1.5 space-y-0.5">
-              {entry.createdAt && (
-                <p className="text-[10px] text-slate-400 leading-tight">
-                  Created: {formatStorageDate(entry.createdAt)}
-                </p>
-              )}
-              {entry.lastModified && (
-                <p className="text-[10px] text-slate-400 leading-tight">
-                  Modified: {formatStorageDate(entry.lastModified)}
-                </p>
-              )}
-            </div>
-          )}
+          <StorageEntryDates entry={entry} className="mt-1.5" />
           <p className="text-[10px] text-indigo-500 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
             Click to open
           </p>

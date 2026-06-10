@@ -34,6 +34,13 @@ interface CourseState {
   activeJob: JobResponse | null
   /** Stable job ID used by pipeline + editor views after job creation. */
   activeJobId: string | null
+  /**
+   * Job ID of an in-progress TO-generation (A0) run.
+   * Persisted to localStorage so the user can navigate away and return to the
+   * upload screen without losing the loader / polling state.
+   * Cleared when the job completes, fails, or is cancelled.
+   */
+  activeTOJobId: string | null
   /** Blob path of the LLM-generated TO from the generate-to preview step.
    *  Passed as timedOutline.blobPath in POST /jobs so the pipeline reuses it. */
   generatedToBlobPath: string | null
@@ -100,88 +107,186 @@ interface CourseState {
   setToDocument: (file: UploadedFile | null) => void
   setActiveJob: (job: JobResponse | null) => void
   setActiveJobId: (id: string | null) => void
+  setActiveTOJobId: (id: string | null) => void
   setGeneratedToBlobPath: (path: string | null) => void
   reset: () => void
 }
 
 const pathKey = (path: string[]) => path.join('.')
 
-// ── TO bidirectional sync ──────────────────────────────────────────────────────
+// ── TO sync — NAIC CE formula constants ───────────────────────────────────────
+/** 180 words = 1 reading minute (NAIC standard) */
+const WORDS_PER_MINUTE        = 180
+/** 50 minutes = 1 CE credit hour (NAIC standard) */
+const MINUTES_PER_CREDIT_HOUR = 50
+/** 9 000 words = 1 CE credit hour */
+const WORDS_PER_CREDIT_HOUR   = WORDS_PER_MINUTE * MINUTES_PER_CREDIT_HOUR
 
-/**
- * Fields that must stay in sync between `totals` (or root-level equivalents)
- * and each `sections[i]`.  When either side changes the other is updated.
- *
- * Two layouts coexist depending on which backend path produced the TO:
- *   Layout A — nested:  to.totals.word_count  ↔  to.sections[i].word_count
- *   Layout B — flat:    to.total_word_count    ↔  to.sections[i].word_count
- *
- * _applySyncCascade handles both transparently.
- */
-const TO_SYNC_FIELDS = new Set(['word_count', 'credit_hours'])
 const TO_TOTALS_KEY   = 'totals'
 const TO_SECTIONS_KEY = 'sections'
 
-// Map root-level total field → section field (Layout B)
-const ROOT_TOTAL_TO_SECTION: Record<string, string> = {
-  total_word_count:    'word_count',
-  total_credit_hours:  'credit_hours',
+/**
+ * The three fields linked by NAIC CE formulas.
+ * Changing any one triggers derivation of the other two at the same level,
+ * plus vertical redistribution/summation across totals ↔ sections.
+ */
+const TO_TRIO = new Set(['word_count', 'minutes', 'credit_hours'])
+
+/** Decimal precision per canonical field name. */
+const FIELD_PRECISION: Record<string, number> = {
+  word_count:         0,   // integer words
+  minutes:            2,   // e.g. 12.22 min
+  duration_minutes:   2,   // alias used by backend _clean_sections
+  credit_hours:       3,   // e.g. 0.244 CE hours
+  credit_hour:        3,   // singular alias used by some backend routes
+  total_word_count:   0,
+  total_minutes:      2,
+  total_credit_hours: 3,
 }
-// Map section field → root-level total field (Layout B)
-const SECTION_TO_ROOT_TOTAL: Record<string, string> = {
-  word_count:    'total_word_count',
-  credit_hours:  'total_credit_hours',
-  credit_hour:   'total_credit_hours', // backend section field is singular
+
+function _prec(field: string): number { return FIELD_PRECISION[field] ?? 2 }
+
+function _round(v: number, decimals: number): number {
+  const f = Math.pow(10, decimals)
+  return Math.round(v * f) / f
+}
+
+/** Normalise any TO field name to the canonical trio key used internally. */
+function _toBaseField(field: string): string {
+  if (field === 'credit_hour') return 'credit_hours'
+  // Backend _clean_sections renames "minutes" → "duration_minutes" in section objects.
+  if (field === 'duration_minutes') return 'minutes'
+  if (field.startsWith('total_')) return field.slice(6) // strip 'total_'
+  return field
+}
+
+/** True when `field` is a root-level flat total (Layout B). */
+function _isRootTotalField(field: string): boolean {
+  return field === 'total_word_count' || field === 'total_minutes' || field === 'total_credit_hours'
 }
 
 /**
- * Distributes `newTotal` proportionally across `sectionValues`.
+ * Given one canonical trio member and its value, derive the other two
+ * using NAIC CE formulas.
+ */
+function _deriveCompanions(baseField: string, value: number): Record<string, number> {
+  switch (baseField) {
+    case 'word_count':
+      return {
+        minutes:      _round(value / WORDS_PER_MINUTE,        _prec('minutes')),
+        credit_hours: _round(value / WORDS_PER_CREDIT_HOUR,   _prec('credit_hours')),
+      }
+    case 'minutes':
+      return {
+        word_count:   _round(value * WORDS_PER_MINUTE,         _prec('word_count')),
+        credit_hours: _round(value / MINUTES_PER_CREDIT_HOUR,  _prec('credit_hours')),
+      }
+    case 'credit_hours':
+      return {
+        word_count:   _round(value * WORDS_PER_CREDIT_HOUR,    _prec('word_count')),
+        minutes:      _round(value * MINUTES_PER_CREDIT_HOUR,  _prec('minutes')),
+      }
+    default:
+      return {}
+  }
+}
+
+/** Read a section's trio field value, accepting all known aliases. */
+function _readSectionField(data: JsonObject, idx: number, baseField: string): number {
+  const v = Number(deepGet(data, [TO_SECTIONS_KEY, String(idx), baseField]))
+  if (!isNaN(v)) return v
+  // credit_hours / credit_hour alias
+  if (baseField === 'credit_hours') {
+    const v2 = Number(deepGet(data, [TO_SECTIONS_KEY, String(idx), 'credit_hour']))
+    if (!isNaN(v2)) return v2
+  }
+  // minutes / duration_minutes alias (backend _clean_sections uses duration_minutes)
+  if (baseField === 'minutes') {
+    const v2 = Number(deepGet(data, [TO_SECTIONS_KEY, String(idx), 'duration_minutes']))
+    if (!isNaN(v2)) return v2
+  }
+  return 0
+}
+
+/**
+ * Write a section trio field, keeping all known aliases in sync.
  *
- * - Uses existing ratios when currentTotal > 0; falls back to even split.
- * - The last section absorbs the rounding remainder so the sum is always
- *   exactly `newTotal` (no off-by-one drift).
- * - `isFloat` keeps two decimal places (credit_hours); otherwise integers.
+ * `credit_hours` — also writes `credit_hour` (singular) when present.
+ * `minutes`      — also writes `duration_minutes` when present (backend alias).
+ *                  If the section only has `duration_minutes` (no `minutes`),
+ *                  writes there instead of creating a new `minutes` key.
+ */
+function _writeSectionField(
+  newData: JsonObject,
+  origData: JsonObject,
+  idx: number,
+  baseField: string,
+  value: number,
+): JsonObject {
+  let d = newData
+
+  if (baseField === 'minutes') {
+    const hasMinutes  = deepGet(origData, [TO_SECTIONS_KEY, String(idx), 'minutes']) !== undefined
+    const hasDuration = deepGet(origData, [TO_SECTIONS_KEY, String(idx), 'duration_minutes']) !== undefined
+    // Write to whichever variant(s) the section already uses;
+    // default to 'minutes' when neither exists yet.
+    if (hasMinutes || (!hasMinutes && !hasDuration)) {
+      d = deepSet(d, [TO_SECTIONS_KEY, String(idx), 'minutes'], value)
+    }
+    if (hasDuration) {
+      d = deepSet(d, [TO_SECTIONS_KEY, String(idx), 'duration_minutes'], value)
+    }
+  } else {
+    d = deepSet(d, [TO_SECTIONS_KEY, String(idx), baseField], value)
+    if (baseField === 'credit_hours') {
+      const hasSingular =
+        deepGet(origData, [TO_SECTIONS_KEY, String(idx), 'credit_hour']) !== undefined
+      if (hasSingular) {
+        d = deepSet(d, [TO_SECTIONS_KEY, String(idx), 'credit_hour'], value)
+      }
+    }
+  }
+
+  return d
+}
+
+/**
+ * Distributes `newTotal` proportionally across `existingValues`, rounding to
+ * `precision` decimal places.  The last element absorbs rounding drift so the
+ * sum is always exactly `newTotal`.
  */
 function _distributeProportionally(
   newTotal: number,
-  sectionValues: number[],
-  isFloat: boolean,
+  existingValues: number[],
+  precision: number,
 ): number[] {
-  const n = sectionValues.length
+  const n = existingValues.length
   if (n === 0) return []
+  const round = (v: number) => _round(v, precision)
+  const currentSum = existingValues.reduce((a, b) => a + b, 0)
 
-  const round = (v: number) =>
-    isFloat ? Math.round(v * 100) / 100 : Math.round(v)
+  const distributed = currentSum === 0
+    ? Array.from({ length: n }, () => round(newTotal / n))
+    : existingValues.map(v => round((newTotal * v) / currentSum))
 
-  const currentTotal = sectionValues.reduce((a, b) => a + b, 0)
-
-  let distributed: number[]
-
-  if (currentTotal === 0) {
-    // Even distribution — all sections were 0
-    const even = newTotal / n
-    distributed = Array.from({ length: n }, () => round(even))
-  } else {
-    distributed = sectionValues.map((v) => round((newTotal * v) / currentTotal))
-  }
-
-  // Correct rounding remainder in last section so the sum is exact
+  // Last section absorbs remainder so the sum equals newTotal exactly
   const headSum = distributed.slice(0, -1).reduce((a, b) => a + b, 0)
-  distributed[n - 1] = isFloat
-    ? Math.round((newTotal - headSum) * 100) / 100
-    : newTotal - headSum
-
+  distributed[n - 1] = round(newTotal - headSum)
   return distributed
 }
 
 /**
- * Applies the bidirectional sync cascade after a field is written.
+ * Full bidirectional cascade for the TO editor.
  *
- * Handles two TO layouts:
- *   Layout A (nested):  totals.word_count     ↔ sections[i].word_count
- *   Layout B (flat):    total_word_count       ↔ sections[i].word_count
+ * Any change to {word_count, minutes, credit_hours} — whether at the total or
+ * section level, and in either the nested (totals.*) or flat (total_*) layout —
+ * triggers:
+ *   1. Cross-field derivation: the other two fields are recalculated via NAIC
+ *      CE formulas (180 wpm → 50 min/hr).
+ *   2. Vertical sync: totals are distributed to sections (total → section) or
+ *      summed from sections (section → total).
  *
- * In both cases the opposite side is recalculated to stay consistent.
+ * Both Layout A (nested `totals.*`) and Layout B (root `total_*`) are updated.
  */
 function _applySyncCascade(
   data: JsonObject,
@@ -192,88 +297,87 @@ function _applySyncCascade(
   const numValue = Number(value)
   if (isNaN(numValue) || numValue < 0) return data
 
-  // ── Layout B: root-level total changed → redistribute to sections ─────────
-  if (path.length === 1 && ROOT_TOTAL_TO_SECTION[field] !== undefined) {
-    const sectionField = ROOT_TOTAL_TO_SECTION[field]
-    const isFloat = sectionField === 'credit_hours'
-    const sections = deepGet(data, [TO_SECTIONS_KEY])
-    if (!Array.isArray(sections) || sections.length === 0) return data
+  const baseField = _toBaseField(field)
+  if (!TO_TRIO.has(baseField)) return data
 
-    // Read section values; try both "credit_hours" and "credit_hour"
-    const sectionValues = sections.map((_, i) => {
-      const v = Number(deepGet(data, [TO_SECTIONS_KEY, String(i), sectionField]))
-      if (!isNaN(v)) return v
-      // Fallback for singular form used by some backend routes
-      if (sectionField === 'credit_hours') {
-        return Number(deepGet(data, [TO_SECTIONS_KEY, String(i), 'credit_hour'])) || 0
-      }
-      return 0
-    })
+  const isRootTotal   = path.length === 1 && _isRootTotalField(field)
+  const isNestedTotal = path.length === 2 && path[0] === TO_TOTALS_KEY
+  const isSection     = path.length === 3 && path[0] === TO_SECTIONS_KEY
+  if (!isRootTotal && !isNestedTotal && !isSection) return data
 
-    const distributed = _distributeProportionally(numValue, sectionValues, isFloat)
-    let newData = data
-    for (let i = 0; i < sections.length; i++) {
-      newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), sectionField], distributed[i])
-      // Also keep singular variant in sync if it exists in the section
-      if (sectionField === 'credit_hours') {
-        const hasSingular = deepGet(data, [TO_SECTIONS_KEY, String(i), 'credit_hour']) !== undefined
-        if (hasSingular) {
-          newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), 'credit_hour'], distributed[i])
-        }
-      }
-    }
-    return newData
-  }
+  const sections = deepGet(data, [TO_SECTIONS_KEY])
+  const n = Array.isArray(sections) ? sections.length : 0
 
-  // ── Layout A: nested totals changed → redistribute to sections ────────────
-  if (path.length === 2 && path[0] === TO_TOTALS_KEY && TO_SYNC_FIELDS.has(field)) {
-    const isFloat = field === 'credit_hours'
-    const sections = deepGet(data, [TO_SECTIONS_KEY])
-    if (!Array.isArray(sections) || sections.length === 0) return data
+  // ── Total changed → derive companion totals + distribute to sections ────────
+  if (isRootTotal || isNestedTotal) {
+    if (n === 0) return data
 
-    const sectionValues = sections.map((_, i) =>
-      Number(deepGet(data, [TO_SECTIONS_KEY, String(i), field])) || 0,
+    const companions   = _deriveCompanions(baseField, numValue)
+    const allTotals    = { [baseField]: numValue, ...companions }
+
+    // Existing section values for proportional distribution
+    const existingBase = Array.from({ length: n }, (_, i) =>
+      _readSectionField(data, i, baseField),
+    )
+    const distributed = _distributeProportionally(
+      numValue, existingBase, _prec(baseField),
     )
 
-    const distributed = _distributeProportionally(numValue, sectionValues, isFloat)
     let newData = data
-    for (let i = 0; i < sections.length; i++) {
-      newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), field], distributed[i])
+
+    // Write all three totals for both layouts
+    for (const [tf, tv] of Object.entries(allTotals)) {
+      const rounded = _round(tv, _prec(tf))
+      // Layout A: totals.X (write if key already exists OR this IS the nested path)
+      if (isNestedTotal || deepGet(data, [TO_TOTALS_KEY, tf]) !== undefined) {
+        newData = deepSet(newData, [TO_TOTALS_KEY, tf], rounded)
+      }
+      // Layout B: total_X (write if key already exists OR this IS the root path)
+      if (isRootTotal || deepGet(data, [`total_${tf}`]) !== undefined) {
+        newData = deepSet(newData, [`total_${tf}`], rounded)
+      }
     }
+
+    // Write sections: changed field distributed, companions derived per section
+    for (let i = 0; i < n; i++) {
+      const sectionBaseVal = distributed[i]
+      newData = _writeSectionField(newData, data, i, baseField, sectionBaseVal)
+      for (const [cf, cv] of Object.entries(_deriveCompanions(baseField, sectionBaseVal))) {
+        newData = _writeSectionField(newData, data, i, cf, _round(cv, _prec(cf)))
+      }
+    }
+
     return newData
   }
 
-  // ── Section changed → update totals on BOTH layouts ───────────────────────
-  if (path.length === 3 && path[0] === TO_SECTIONS_KEY &&
-      (TO_SYNC_FIELDS.has(field) || SECTION_TO_ROOT_TOTAL[field] !== undefined)) {
-    const sections = deepGet(data, [TO_SECTIONS_KEY])
-    if (!Array.isArray(sections)) return data
-
-    // Canonical field name used for summing (normalise credit_hour → credit_hours)
-    const canonicalField = field === 'credit_hour' ? 'credit_hours' : field
-    const isFloat = canonicalField === 'credit_hours'
-
-    const total = sections.reduce<number>((sum, _, i) => {
-      // Accept both "credit_hours" and "credit_hour" variants
-      let v = Number(deepGet(data, [TO_SECTIONS_KEY, String(i), field]))
-      if (isNaN(v) && field === 'credit_hour') {
-        v = Number(deepGet(data, [TO_SECTIONS_KEY, String(i), 'credit_hours'])) || 0
-      }
-      return sum + (isNaN(v) ? 0 : v)
-    }, 0)
-
-    const rounded = isFloat ? Math.round(total * 100) / 100 : total
+  // ── Section changed → derive section companions + recalculate all totals ────
+  if (isSection) {
+    const idx = Number(path[1])
+    if (isNaN(idx)) return data
 
     let newData = data
-    // Layout A: nested totals object
-    if (TO_SYNC_FIELDS.has(canonicalField)) {
-      newData = deepSet(newData, [TO_TOTALS_KEY, canonicalField], rounded)
+
+    // Derive companion fields for this section
+    for (const [cf, cv] of Object.entries(_deriveCompanions(baseField, numValue))) {
+      newData = _writeSectionField(newData, data, idx, cf, _round(cv, _prec(cf)))
     }
-    // Layout B: root-level total field
-    const rootField = SECTION_TO_ROOT_TOTAL[field]
-    if (rootField && deepGet(data, [rootField]) !== undefined) {
-      newData = deepSet(newData, [rootField], rounded)
+
+    // Sum all sections for each trio field and update totals on both layouts
+    for (const tf of ['word_count', 'minutes', 'credit_hours'] as const) {
+      const total = Array.from({ length: n }, (_, i) =>
+        _readSectionField(newData, i, tf),
+      ).reduce((sum, v) => sum + v, 0)
+
+      const rounded = _round(total, _prec(tf))
+
+      if (deepGet(data, [TO_TOTALS_KEY, tf]) !== undefined) {
+        newData = deepSet(newData, [TO_TOTALS_KEY, tf], rounded)
+      }
+      if (deepGet(data, [`total_${tf}`]) !== undefined) {
+        newData = deepSet(newData, [`total_${tf}`], rounded)
+      }
     }
+
     return newData
   }
 
@@ -296,6 +400,7 @@ const initialState = {
   modifiedRulesPaths: new Set<string>(),
   activeJob:            null as JobResponse | null,
   activeJobId:          null as string | null,
+  activeTOJobId:        null as string | null,
   generatedToBlobPath:  null as string | null,
   courseTopic:          '',
   uploadFolder:         null as string | null,
@@ -400,43 +505,53 @@ export const useCourseStore = create<CourseState>()(
 
             let newData = deepSet(s.toData, path, original as JsonValue)
             const field = path[path.length - 1]
+            const baseField = _toBaseField(field)
 
-            if (original !== null) {
-              // Classify the reset target so we can keep both sides of the
-              // bidirectional sync consistent with the original snapshot.
-
-              // Layout A total: path = ['totals', <syncField>]
-              const isNestedTotal = path.length === 2 && path[0] === TO_TOTALS_KEY && TO_SYNC_FIELDS.has(field)
-              // Layout B total: path = ['total_word_count'] or ['total_credit_hours']
-              const isRootTotal   = path.length === 1 && ROOT_TOTAL_TO_SECTION[field] !== undefined
-              // Section value (either layout): path = ['sections', '<i>', <syncField>]
-              const isSection     = path.length === 3 && path[0] === TO_SECTIONS_KEY &&
-                                    (TO_SYNC_FIELDS.has(field) || SECTION_TO_ROOT_TOTAL[field] !== undefined)
+            if (original !== null && TO_TRIO.has(baseField)) {
+              const isNestedTotal = path.length === 2 && path[0] === TO_TOTALS_KEY
+              const isRootTotal   = path.length === 1 && _isRootTotalField(field)
+              const isSection     = path.length === 3 && path[0] === TO_SECTIONS_KEY
 
               if (isNestedTotal || isRootTotal) {
-                // Resetting a total: restore all section values from original too,
-                // so the total and its sections are consistent without recalculating.
-                const sectionField = isRootTotal ? ROOT_TOTAL_TO_SECTION[field] : field
+                // Resetting a total: restore ALL trio fields for all sections from
+                // the original snapshot so the total and sections are consistent.
                 const sections = deepGet(s.toOriginal, [TO_SECTIONS_KEY])
                 if (Array.isArray(sections)) {
                   for (let i = 0; i < sections.length; i++) {
-                    const origVal = deepGet(s.toOriginal, [TO_SECTIONS_KEY, String(i), sectionField]) ?? 0
-                    newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), sectionField], origVal)
+                    for (const tf of TO_TRIO) {
+                      const origVal = deepGet(s.toOriginal, [TO_SECTIONS_KEY, String(i), tf])
+                      if (origVal !== undefined) {
+                        newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), tf], origVal)
+                      }
+                      // Restore credit_hour singular too
+                      if (tf === 'credit_hours') {
+                        const singularOrig = deepGet(s.toOriginal, [TO_SECTIONS_KEY, String(i), 'credit_hour'])
+                        if (singularOrig !== undefined) {
+                          newData = deepSet(newData, [TO_SECTIONS_KEY, String(i), 'credit_hour'], singularOrig)
+                        }
+                      }
+                    }
+                  }
+                }
+                // Also restore the other two total fields from original
+                for (const tf of TO_TRIO) {
+                  if (tf === baseField) continue
+                  const origNestedVal = deepGet(s.toOriginal, [TO_TOTALS_KEY, tf])
+                  if (origNestedVal !== undefined) {
+                    newData = deepSet(newData, [TO_TOTALS_KEY, tf], origNestedVal)
+                  }
+                  const origRootVal = deepGet(s.toOriginal, [`total_${tf}`])
+                  if (origRootVal !== undefined) {
+                    newData = deepSet(newData, [`total_${tf}`], origRootVal)
                   }
                 }
               } else if (isSection) {
-                // Resetting a single section value: let _applySyncCascade recompute
-                // the totals from the now-restored section value so they stay accurate.
+                // Resetting a section value: recompute totals from the restored section
                 newData = _applySyncCascade(newData, path, original as JsonValue)
               }
-              // For any other field (not a sync-tracked total or section), the
-              // deepSet above already restored the value — no cascade needed.
             }
 
-            return {
-              toData:          newData,
-              modifiedTOPaths: modified,
-            }
+            return { toData: newData, modifiedTOPaths: modified }
           }),
 
         // ── Rules ─────────────────────────────────────────────────────────────
@@ -476,6 +591,8 @@ export const useCourseStore = create<CourseState>()(
 
         setActiveJobId: (id) => set({ activeJobId: id }),
 
+        setActiveTOJobId: (id) => set({ activeTOJobId: id }),
+
         setGeneratedToBlobPath: (path) => set({ generatedToBlobPath: path }),
 
         reset: () =>
@@ -495,14 +612,22 @@ export const useCourseStore = create<CourseState>()(
         // If the user refreshes during pipeline/course-editor, we reattach to
         // the same job via SSE using the persisted jobId and phase.
         partialize: (s) => {
-          if (s.activeJobId) {
+          // Pipeline / editor: only persist the job ID when the user is
+          // actually on one of those phases so a stale activeJobId from a
+          // completed run cannot be restored alongside an unrelated phase.
+          if (
+            s.activeJobId &&
+            (s.phase === 'pipeline' || s.phase === 'course-editor')
+          ) {
             return { activeJobId: s.activeJobId, phase: s.phase }
           }
+          // TO-generation in progress: restore loader + polling on return
+          if (s.activeTOJobId) {
+            return { activeTOJobId: s.activeTOJobId }
+          }
+          // Three-panel: reload TO from blob on refresh
           if (s.phase === 'three-panel' && s.generatedToBlobPath) {
-            return {
-              phase: s.phase,
-              generatedToBlobPath: s.generatedToBlobPath,
-            }
+            return { phase: s.phase, generatedToBlobPath: s.generatedToBlobPath }
           }
           return {}
         },

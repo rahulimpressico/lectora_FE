@@ -50,9 +50,11 @@ function progressPercent(elapsedSec: number): number {
 
 interface TOGenerationLoaderProps {
   onCancel?: () => void
+  /** Real-time status message from the backend — shown below the active step. */
+  statusMessage?: string | null
 }
 
-export function TOGenerationLoader({ onCancel }: TOGenerationLoaderProps) {
+export function TOGenerationLoader({ onCancel, statusMessage }: TOGenerationLoaderProps) {
   const [elapsedSec, setElapsedSec] = useState(0)
 
   useEffect(() => {
@@ -213,14 +215,21 @@ export function TOGenerationLoader({ onCancel }: TOGenerationLoaderProps) {
                       </p>
                       <AnimatePresence>
                         {status === 'active' && (
-                          <motion.p
+                          <motion.div
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="text-[11px] text-indigo-400/90 mt-0.5 leading-snug overflow-hidden"
+                            className="overflow-hidden"
                           >
-                            {step.desc}
-                          </motion.p>
+                            <p className="text-[11px] text-indigo-400/90 mt-0.5 leading-snug">
+                              {step.desc}
+                            </p>
+                            {statusMessage && (
+                              <p className="text-[10px] text-indigo-300 mt-0.5 leading-snug truncate" title={statusMessage}>
+                                {statusMessage}
+                              </p>
+                            )}
+                          </motion.div>
                         )}
                       </AnimatePresence>
                     </div>

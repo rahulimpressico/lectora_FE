@@ -6,6 +6,7 @@ import {
 import { cn } from '@/lib/cn'
 import { browseStorage } from '@/api/storage/api'
 import type { StorageEntry } from '@/api/storage/api'
+import { StorageEntryDates } from '@/modules/storage/components/StorageEntryDates'
 
 interface InlineAzureBrowserProps {
   accept?: string[]
@@ -222,14 +223,17 @@ export function InlineAzureBrowser({
                     onClick={() =>
                       navigate(entry.path.endsWith('/') ? entry.path : `${entry.path}/`)
                     }
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left hover:bg-slate-50 transition-colors group"
+                    className="flex w-full items-start gap-2.5 px-3.5 py-2 text-left hover:bg-slate-50 transition-colors group"
                   >
-                    <Folder size={13} className="shrink-0 text-amber-500" />
-                    <span className="flex-1 truncate text-[13px] font-medium text-slate-700">
-                      {entry.name}
-                    </span>
+                    <Folder size={13} className="shrink-0 text-amber-500 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <span className="block truncate text-[13px] font-medium text-slate-700">
+                        {entry.name}
+                      </span>
+                      <StorageEntryDates entry={entry} compact className="mt-0.5" />
+                    </div>
                     {entry.fileCount !== undefined && (
-                      <span className="text-[11px] text-slate-400 shrink-0">
+                      <span className="text-[11px] text-slate-400 shrink-0 mt-0.5">
                         {entry.fileCount} file{entry.fileCount !== 1 ? 's' : ''}
                       </span>
                     )}
@@ -249,7 +253,7 @@ export function InlineAzureBrowser({
                 <label
                   key={entry.path}
                   className={cn(
-                    'flex items-center gap-2.5 px-3.5 py-2 transition-colors select-none',
+                    'flex items-start gap-2.5 px-3.5 py-2 transition-colors select-none',
                     accepted && !alreadyAdded
                       ? 'cursor-pointer'
                       : 'cursor-not-allowed',
@@ -263,19 +267,22 @@ export function InlineAzureBrowser({
                     checked={isChecked || alreadyAdded}
                     disabled={!accepted || alreadyAdded}
                     onChange={() => toggle(entry)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                   <FileText
                     size={13}
                     className={cn(
-                      'shrink-0',
+                      'shrink-0 mt-0.5',
                       alreadyAdded ? 'text-emerald-500' : isChecked ? 'text-indigo-500' : 'text-slate-400',
                     )}
                   />
-                  <span className="flex-1 truncate text-[13px] text-slate-700">
-                    {entry.name}
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex-1 min-w-0">
+                    <span className="block truncate text-[13px] text-slate-700">
+                      {entry.name}
+                    </span>
+                    <StorageEntryDates entry={entry} compact className="mt-0.5" />
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 mt-0.5">
                     {alreadyAdded ? (
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                         Added

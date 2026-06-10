@@ -19,6 +19,7 @@ import { retryJob, cancelJob } from "@/api/jobs/api";
 import { useJobPipeline } from "../../hooks/useJobPipeline";
 import { CourseGifLoader } from "./CourseGifLoader";
 import { PipelinePageBackground } from "./PipelinePageBackground";
+import { ConfirmLeaveModal } from "@/shared/components/ConfirmLeaveModal";
 import type { PipelineStageState } from "../../types/pipeline";
 import type { LogEntry } from "../../store/pipelineStore";
 
@@ -500,11 +501,19 @@ function StageTimeline({ stages }: { stages: PipelineStageState[] }) {
 // ─── Main view ──────────────────────────────────────────────────────
 export function PipelineView({ jobId }: PipelineViewProps) {
   const [feedCollapsed, setFeedCollapsed] = useState(false);
+  const [showBackConfirm, setShowBackConfirm] = useState(false);
   const { pipeline, logs, fatalError } = usePipelineStore();
-  const { setPhase, reset } = useCourseStore();
+  const { reset, setActiveJobId, setPhase } = useCourseStore();
   const { clearPipeline } = usePipelineStore();
 
   useJobPipeline(jobId);
+
+  /** Shared helper for every "go back to three-panel" path in this view. */
+  function backToThreePanel() {
+    clearPipeline()
+    setActiveJobId(null)
+    setPhase("three-panel")
+  }
 
   const retryMutation = useMutation({
     mutationFn: () => retryJob(jobId, pipeline?.error?.stage ?? "A1"),
@@ -513,8 +522,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
   const cancelMutation = useMutation({
     mutationFn: () => cancelJob(jobId),
     onSettled: () => {
-      clearPipeline();
-      setPhase("three-panel");
+      backToThreePanel()
     },
   });
 
@@ -527,7 +535,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
         <div className="relative z-20 shrink-0 flex items-center gap-3 bg-white/85 backdrop-blur-md border-b border-slate-200/60 px-5 py-2">
           <button
             type="button"
-            onClick={() => setPhase("three-panel")}
+            onClick={() => backToThreePanel()}
             className="flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors duration-150 shrink-0 group"
           >
             <ArrowLeft
@@ -614,7 +622,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
       <div className="relative z-20 shrink-0 flex items-center gap-3 bg-white/85 backdrop-blur-md border-b border-slate-200/60 px-5 py-2">
         <button
           type="button"
-          onClick={() => setPhase("three-panel")}
+          onClick={() => isProcessing ? setShowBackConfirm(true) : backToThreePanel()}
           className="flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-800 transition-colors duration-150 shrink-0 group"
         >
           <ArrowLeft
@@ -623,6 +631,16 @@ export function PipelineView({ jobId }: PipelineViewProps) {
           />
           <span className="hidden sm:inline">Back</span>
         </button>
+
+        <ConfirmLeaveModal
+          open={showBackConfirm}
+          title="Leave while generating?"
+          message="Your course is still being generated. Going back will stop monitoring but the job will continue running in the background. You can check its status later."
+          confirmLabel="Go back"
+          cancelLabel="Keep watching"
+          onConfirm={() => { setShowBackConfirm(false); backToThreePanel() }}
+          onCancel={() => setShowBackConfirm(false)}
+        />
         <div className="w-px h-3.5 bg-slate-200 shrink-0" />
         <span className="text-[12px] font-medium text-slate-400 truncate flex-1">
           Course Generation Pipeline
@@ -762,7 +780,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
               >
                 <button
                   type="button"
-                  onClick={() => setPhase("three-panel")}
+                  onClick={() => backToThreePanel()}
                   className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm active:scale-[0.97] max-lg:min-w-0 max-lg:flex-1 max-lg:justify-center"
                 >
                   <ArrowLeft size={14} />

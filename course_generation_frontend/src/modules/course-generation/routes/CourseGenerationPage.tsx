@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useBlocker } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import type { AxiosError } from 'axios'
 import {
@@ -12,6 +13,7 @@ import {
   X,
   Pencil,
 } from 'lucide-react'
+import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import { Button } from '@/shared/components/Button'
 import { UploadPhase } from '../components/upload/UploadPhase'
 import { ThreePanelLayout } from '../components/layout/ThreePanelLayout'
@@ -348,10 +350,21 @@ const RULE_FAMILY_OPTIONS = [
 ]
 
 function ThreePanelHeader() {
-  const { setPhase, rawDocuments, audience, courseTitle, setCourseTitle, detectedRuleFamily, setDetectedRuleFamily } = useCourseStore()
+  const { setPhase, rawDocuments, audience, courseTitle, setCourseTitle, detectedRuleFamily, setDetectedRuleFamily, modifiedTOPaths, modifiedRulesPaths } = useCourseStore()
   const [editingTitle, setEditingTitle] = useState(false)
   const [localTitle, setLocalTitle] = useState('')
   const [showFamilyDropdown, setShowFamilyDropdown] = useState(false)
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
+  const hasUnsavedEdits = modifiedTOPaths.size > 0 || modifiedRulesPaths.size > 0
+
+  function handleBack() {
+    if (hasUnsavedEdits) {
+      setShowLeaveConfirm(true)
+    } else {
+      setPhase('upload')
+    }
+  }
 
   const fileCount = rawDocuments.filter((f) => f.status === 'success').length
   const displayTitle = courseTitle || 'Review & Generate'
@@ -377,12 +390,22 @@ function ThreePanelHeader() {
     <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3 z-10">
       <button
         type="button"
-        onClick={() => setPhase('upload')}
+        onClick={handleBack}
         className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors duration-150 shrink-0"
       >
         <ArrowLeft size={15} />
         <span className="hidden sm:inline">Back</span>
       </button>
+
+      <ConfirmLeaveModal
+        open={showLeaveConfirm}
+        title="Discard changes?"
+        message="You have unsaved edits to the Training Outline or Rules. Going back will discard these changes and they cannot be recovered."
+        confirmLabel="Discard & go back"
+        cancelLabel="Keep editing"
+        onConfirm={() => { setShowLeaveConfirm(false); setPhase('upload') }}
+        onCancel={() => setShowLeaveConfirm(false)}
+      />
 
       <div className="w-px h-5 bg-slate-200 shrink-0" />
 
@@ -485,17 +508,41 @@ function ThreePanelPhase() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export function CourseGenerationPage() {
-  const { phase, activeJobId } = useCourseStore()
+  const { phase, activeJobId, activeTOJobId } = useCourseStore()
   const { clearPipeline } = usePipelineStore()
   const { resetEditor } = useEditorStore()
 
+  // Block sidebar / external navigation when there is meaningful in-progress work,
+  // including an active TO-generation job (even though phase is still 'upload').
+  const hasProgress = phase !== 'upload' || !!activeTOJobId
+  const blocker = useBlocker(hasProgress)
+
+  // Protect against accidental browser close / refresh / tab navigation when
+  // the user has meaningful in-progress work (including active TO generation).
+  useEffect(() => {
+    if (!hasProgress) return
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+      // Modern browsers show their own generic "Leave site?" message.
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [hasProgress])
+
   function handleBackFromPipeline() {
     clearPipeline()
+    // Clear the pipeline job ID so it cannot accidentally be restored when the
+    // user navigates away — without this, partialize would carry the job ID into
+    // localStorage alongside the 'three-panel' phase.
+    useCourseStore.getState().setActiveJobId(null)
     useCourseStore.getState().setPhase('three-panel')
   }
 
   function handleBackFromEditor() {
     resetEditor()
+    // Same reason as handleBackFromPipeline: evict the stale job ID on exit.
+    useCourseStore.getState().setActiveJobId(null)
     useCourseStore.getState().setPhase('three-panel')
   }
 
@@ -526,6 +573,18 @@ export function CourseGenerationPage() {
       {phase === 'upload' ? <UploadPhase /> : <ThreePanelPhase />}
       {/* Document preview modal — available in both pre-generation phases */}
       <DocPreviewModal />
+
+      {/* Router-level guard: blocks sidebar / external navigation when the user
+          has in-progress work and hasn't explicitly chosen to leave. */}
+      <ConfirmLeaveModal
+        open={blocker.state === 'blocked'}
+        title="Leave course generation?"
+        message="You have unsaved progress. Leaving this page will discard your uploaded files, Training Outline, and any edits. This cannot be undone."
+        confirmLabel="Leave page"
+        cancelLabel="Stay"
+        onConfirm={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
     </>
   )
 }
