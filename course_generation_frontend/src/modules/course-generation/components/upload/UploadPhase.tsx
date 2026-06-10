@@ -542,7 +542,7 @@ export function UploadPhase() {
                           Training Outline
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Upload a pre-built TO document (DOCX or PDF) to bypass AI generation
+                          Upload a pre-built TO document (DOCX, PDF, or JSON) to bypass AI generation
                         </p>
                       </div>
                     </div>

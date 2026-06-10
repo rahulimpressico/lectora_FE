@@ -20,10 +20,3 @@ export function isExpiredJobError(error: unknown): boolean {
     message.includes('job not found')
   )
 }
-
-export function isAuthError(error: unknown): boolean {
-  if (error instanceof ApiClientError) {
-    return error.status === 401 || error.status === 403
-  }
-  return false
-}

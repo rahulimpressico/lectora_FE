@@ -14,7 +14,7 @@ import { usePipelineStore } from '../store/pipelineStore'
 import { useCourseStore } from '../store/courseStore'
 import { PipelineSSEClient } from '@/api/pipeline/sse'
 import { getJobDetail } from '@/api/jobs/api'
-import { isAuthError, isExpiredJobError } from '@/api/errors'
+import { isExpiredJobError } from '@/api/errors'
 
 export function useJobPipeline(jobId: string | null) {
   const {
@@ -55,13 +55,6 @@ export function useJobPipeline(jobId: string | null) {
           // Job no longer exists (server restart, TTL expiry, or stale browser session).
           clearPipeline()
           reset()
-          return
-        }
-
-        if (isAuthError(err)) {
-          setFatalError(
-            'Authentication required. Please check your credentials or contact your administrator.',
-          )
           return
         }
 
