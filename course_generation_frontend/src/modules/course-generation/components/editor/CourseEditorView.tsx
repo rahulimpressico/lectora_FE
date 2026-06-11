@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
@@ -49,6 +50,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   const {
     courseContent,
     setCourseContent,
+    updateCourseTitle,
     activeSectionId,
     expandedSectionIds,
     sectionEditStates,
@@ -63,8 +65,10 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   const dirtySectionCount = [...sections.values()].filter(s => s.isDirty).length
 
   const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState('')
 
-  const { setPhase, reset } = useCourseStore()
+  const { setPhase, reset, setCourseTitle } = useCourseStore()
   
 
   const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
@@ -73,7 +77,9 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     queryKey: ['course-content', jobId],
     queryFn: () => getCourseContent(jobId),
     enabled: !!jobId,
-    staleTime: Infinity, // content doesn't change during this session
+    staleTime: 5 * 60_000,
+    refetchOnMount: 'always',
+    retry: 2,
   })
 
   useEffect(() => {
@@ -119,9 +125,36 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         <div className="flex-1 min-w-0">
           {courseContent ? (
             <>
-              <h1 className="text-sm font-bold text-slate-900 truncate leading-tight">
-                {courseContent.courseTitle}
-              </h1>
+              {isEditingTitle ? (
+                <input
+                  autoFocus
+                  value={editTitleValue}
+                  onChange={(e) => setEditTitleValue(e.target.value)}
+                  onBlur={() => {
+                    const t = editTitleValue.trim() || courseContent.courseTitle
+                    updateCourseTitle(t)
+                    setCourseTitle(t)
+                    setIsEditingTitle(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.currentTarget.blur() }
+                    if (e.key === 'Escape') { setIsEditingTitle(false) }
+                  }}
+                  className="text-sm font-bold text-slate-900 leading-tight w-full bg-transparent border-b border-indigo-400 outline-none"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setEditTitleValue(courseContent.courseTitle); setIsEditingTitle(true) }}
+                  className="group flex items-center gap-1.5 text-left w-full"
+                  title="Click to edit course title"
+                >
+                  <h1 className="text-sm font-bold text-slate-900 truncate leading-tight">
+                    {courseContent.courseTitle}
+                  </h1>
+                  <Pencil size={11} className="shrink-0 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              )}
               <div className="flex items-center gap-3 mt-0.5">
                 <span className="flex items-center gap-1 text-[11px] text-slate-400">
                   <BookOpen size={10} />
@@ -165,7 +198,10 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                 }
                 setConfirmPendingEdits(false)
                 resetSaveToAzure()
-                saveToAzure(jobId)
+                saveToAzure({
+                  jobId,
+                  courseTitle: courseContent?.courseTitle,
+                })
               }}
               disabled={!courseContent}
               loading={saveStatus === 'loading'}
@@ -206,6 +242,11 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       </div>
 
       {/* ── Save to Azure status banner ───────────────────────────────── */}
+      {saveStatus === 'loading' && (
+        <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-700">
+          Uploading to Azure… large courses can take several minutes. Please keep this tab open.
+        </div>
+      )}
       {saveStatus === 'success' && saveResult && (
         <div className="mx-4 mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100">

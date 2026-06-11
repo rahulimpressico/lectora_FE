@@ -7,12 +7,22 @@
 import apiClient from '@/api/client'
 import type { CourseContent, AIOperationRequest, AIOperationResponse, SaveToAzureResponse } from '@/modules/course-generation/types/editor'
 
+/** DOCX rebuild + multi-file Azure sync for large courses can exceed 2 minutes. */
+const LONG_JOB_TIMEOUT_MS = 10 * 60 * 1_000
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
-export async function getCourseContent(jobId: string): Promise<CourseContent> {
+export async function getCourseContent(
+  jobId: string,
+  courseSlug?: string,
+): Promise<CourseContent> {
   const { data } = await apiClient.get<CourseContent>(
     `/jobs/${jobId}/course`,
-    { timeout: 15_000 },
+    {
+      params: courseSlug ? { courseSlug } : undefined,
+      // Large courses resolved from Azure can take 30s+ on a cold open.
+      timeout: 120_000,
+    },
   )
   return data
 }
@@ -54,7 +64,7 @@ export async function saveSectionContent(
 export async function downloadCourseArtifact(jobId: string): Promise<void> {
   const { data, headers } = await apiClient.get(
     `/jobs/${jobId}/artifacts/download`,
-    { responseType: 'blob' },
+    { responseType: 'blob', timeout: LONG_JOB_TIMEOUT_MS },
   )
   const contentType = String(headers['content-type'] ?? '')
 
@@ -74,11 +84,23 @@ export async function downloadCourseArtifact(jobId: string): Promise<void> {
   }
 }
 
-export async function saveToAzure(jobId: string): Promise<SaveToAzureResponse> {
+export interface SaveToAzureOptions {
+  courseTitle?: string
+  courseSlug?: string
+}
+
+export async function saveToAzure(
+  jobId: string,
+  options?: SaveToAzureOptions,
+): Promise<SaveToAzureResponse> {
+  const body: SaveToAzureOptions = {}
+  if (options?.courseTitle?.trim()) body.courseTitle = options.courseTitle.trim()
+  if (options?.courseSlug?.trim()) body.courseSlug = options.courseSlug.trim()
+
   const { data } = await apiClient.post<SaveToAzureResponse>(
     `/jobs/${jobId}/artifacts/save-to-azure`,
-    {},
-    { timeout: 120_000 },
+    body,
+    { timeout: LONG_JOB_TIMEOUT_MS },
   )
   return data
 }

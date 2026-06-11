@@ -68,6 +68,7 @@ const CATEGORIES: CategoryConfig[] = [
 export function AssetLibraryPage() {
   const [params, setParams] = useSearchParams()
   const [modalJobId, setModalJobId] = useState<string | null>(null)
+  const [modalCourseSlug, setModalCourseSlug] = useState<string | undefined>(undefined)
 
   const selected =
     (params.get('category') as StorageCategory | null) ?? 'generated-courses'
@@ -84,6 +85,7 @@ export function AssetLibraryPage() {
       !!potentialJobId &&
       (/^j-[a-z0-9]+$/i.test(potentialJobId) || /^[a-f0-9]{32}$/i.test(potentialJobId))
     if (looksLikeJobId) {
+      setModalCourseSlug(slug)
       setModalJobId(potentialJobId)
       return
     }
@@ -94,6 +96,7 @@ export function AssetLibraryPage() {
       alert(`No completed job found for course "${slug}". The course may still be generating.`)
       return
     }
+    setModalCourseSlug(slug)
     setModalJobId(result.jobId)
   }, [])
 
@@ -231,7 +234,11 @@ export function AssetLibraryPage() {
       {modalJobId && (
         <CourseEditorModal
           jobId={modalJobId}
-          onClose={() => setModalJobId(null)}
+          courseSlug={modalCourseSlug}
+          onClose={() => {
+            setModalJobId(null)
+            setModalCourseSlug(undefined)
+          }}
         />
       )}
     </div>

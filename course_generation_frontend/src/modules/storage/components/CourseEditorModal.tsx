@@ -33,6 +33,7 @@ import {
   CheckSquare2,
   Layers,
   ImageOff,
+  Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
@@ -47,6 +48,8 @@ import type { CourseContent, CourseSection, SectionImage } from '@/modules/cours
 
 interface CourseEditorModalProps {
   jobId: string
+  /** Course storage slug from the blob path — speeds up Azure artifact lookup. */
+  courseSlug?: string
   onClose: () => void
 }
 
@@ -307,13 +310,16 @@ function SkeletonLoader() {
 
 // ─── Main modal component ─────────────────────────────────────────────────────
 
-export function CourseEditorModal({ jobId, onClose }: CourseEditorModalProps) {
+export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorModalProps) {
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor')
   const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState('')
 
   const {
     courseContent,
     setCourseContent,
+    updateCourseTitle,
     activeSectionId,
     sectionEditStates,
     expandedSectionIds,
@@ -327,10 +333,12 @@ export function CourseEditorModal({ jobId, onClose }: CourseEditorModalProps) {
   const dirtySectionCount = [...sectionEditStates.values()].filter((s) => s.isDirty).length
 
   const { data: content, isLoading, error } = useQuery({
-    queryKey: ['course-content', jobId],
-    queryFn: () => getCourseContent(jobId),
+    queryKey: ['course-content', jobId, courseSlug ?? ''],
+    queryFn: () => getCourseContent(jobId, courseSlug),
     enabled: !!jobId,
-    staleTime: Infinity,
+    staleTime: 5 * 60_000,
+    refetchOnMount: 'always',
+    retry: 2,
   })
 
   useEffect(() => {
@@ -368,9 +376,35 @@ export function CourseEditorModal({ jobId, onClose }: CourseEditorModalProps) {
         <div className="flex-1 min-w-0">
           {courseContent ? (
             <>
-              <h1 className="text-sm font-bold text-slate-900 truncate leading-tight">
-                {courseContent.courseTitle}
-              </h1>
+              {isEditingTitle ? (
+                <input
+                  autoFocus
+                  value={editTitleValue}
+                  onChange={(e) => setEditTitleValue(e.target.value)}
+                  onBlur={() => {
+                    const t = editTitleValue.trim() || courseContent.courseTitle
+                    updateCourseTitle(t)
+                    setIsEditingTitle(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.currentTarget.blur() }
+                    if (e.key === 'Escape') { setIsEditingTitle(false) }
+                  }}
+                  className="text-sm font-bold text-slate-900 leading-tight w-full bg-transparent border-b border-indigo-400 outline-none"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setEditTitleValue(courseContent.courseTitle); setIsEditingTitle(true) }}
+                  className="group flex items-center gap-1.5 text-left w-full"
+                  title="Click to edit course title"
+                >
+                  <h1 className="text-sm font-bold text-slate-900 truncate leading-tight">
+                    {courseContent.courseTitle}
+                  </h1>
+                  <Pencil size={11} className="shrink-0 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              )}
               <div className="flex items-center gap-3 mt-0.5">
                 <span className="flex items-center gap-1 text-[11px] text-slate-400">
                   <BookOpen size={10} />
@@ -434,7 +468,11 @@ export function CourseEditorModal({ jobId, onClose }: CourseEditorModalProps) {
                   }
                   setConfirmPendingEdits(false)
                   resetSaveToAzure()
-                  saveToAzure(jobId)
+                  saveToAzure({
+                    jobId,
+                    courseTitle: courseContent?.courseTitle,
+                    courseSlug,
+                  })
                 }}
                 disabled={!courseContent}
                 loading={saveStatus === 'loading'}
@@ -495,6 +533,11 @@ export function CourseEditorModal({ jobId, onClose }: CourseEditorModalProps) {
       </div>
 
       {/* ── Save to Azure status banners ────────────────────────────────── */}
+      {saveStatus === 'loading' && (
+        <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-700 shrink-0">
+          Uploading to Azure… large courses can take several minutes. Please keep this tab open.
+        </div>
+      )}
       {saveStatus === 'success' && saveResult && (
         <div className="mx-4 mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3 shrink-0">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100">

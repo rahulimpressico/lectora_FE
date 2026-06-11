@@ -16,6 +16,7 @@ interface EditorStoreState {
   expandedSectionIds: Set<string>
 
   setCourseContent: (content: CourseContent) => void
+  updateCourseTitle: (title: string) => void
   setActiveSectionId: (id: string | null) => void
 
   expandSection: (id: string) => void
@@ -115,6 +116,13 @@ export const useEditorStore = create<EditorStoreState>()(
           activeSectionId: content.sections[0]?.id ?? null,
         })
       },
+
+      updateCourseTitle: (title) =>
+        set((s) =>
+          s.courseContent
+            ? { courseContent: { ...s.courseContent, courseTitle: title } }
+            : {},
+        ),
 
       setActiveSectionId: (id) => set({ activeSectionId: id }),
 
