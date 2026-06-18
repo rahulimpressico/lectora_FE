@@ -624,12 +624,13 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
                   </div>
                 </div>
                 <div className="space-y-4 fade-in">
-                  {courseContent.sections.map((section) => (
+                  {courseContent.sections.map((section, idx) => (
                     <CourseSectionCard
                       key={section.id}
                       section={section}
                       jobId={jobId}
                       depth={0}
+                      index={idx}
                     />
                   ))}
                 </div>

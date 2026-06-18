@@ -1,3 +1,3 @@
-export { CourseGenerationPage } from './routes/CourseGenerationPage'
+export { CourseGenerationPage } from './pages/CourseGenerationPage'
 export { useCourseStore } from './store/courseStore'
 export type * from './types'

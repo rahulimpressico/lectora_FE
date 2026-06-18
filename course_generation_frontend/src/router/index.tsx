@@ -1,11 +1,11 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
+import { HomePage } from "@/modules/home";
+import { DashboardPage } from "@/modules/dashboard";
 import { CourseGenerationPage } from "@/modules/course-generation";
+import { AssetLibraryPage } from "@/modules/assert-library";
+import { DocumentsLibraryPage } from "@/modules/documents";
 import { CostingDashboardPage } from "@/modules/costing";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { AssetLibraryPage } from "@/pages/AssetLibraryPage";
-import { DocumentsLibraryPage } from "@/pages/DocumentsLibraryPage";
-import { HomePage } from "@/pages/HomePage";
 
 export const router = createBrowserRouter([
   {
@@ -15,11 +15,11 @@ export const router = createBrowserRouter([
   {
     element: <AppLayout />,
     children: [
-      { path: "/dashboard", element: <DashboardPage /> },
-      { path: "/generate", element: <CourseGenerationPage /> },
-      { path: "/assert_library", element: <AssetLibraryPage /> },
-      { path: "/documents_library", element: <DocumentsLibraryPage /> },
-      { path: "/costing", element: <CostingDashboardPage /> },
+      { path: "/dashboard",          element: <DashboardPage /> },
+      { path: "/generate",           element: <CourseGenerationPage /> },
+      { path: "/assert_library",     element: <AssetLibraryPage /> },
+      { path: "/documents_library",  element: <DocumentsLibraryPage /> },
+      { path: "/costing",            element: <CostingDashboardPage /> },
     ],
   },
 ]);

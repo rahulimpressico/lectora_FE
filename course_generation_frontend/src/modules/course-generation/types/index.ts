@@ -6,13 +6,23 @@ export type JsonArray = JsonValue[]
 
 // ─── Workflow ──────────────────────────────────────────────────────────────────
 export type WorkflowPhase =
-  | 'upload'       // file drop + A0 TO generation
-  | 'three-panel'  // review TO / rules, trigger generation
-  | 'pipeline'     // A1→S1→A2→S2 processing view
-  | 'course-editor'// post-generation rich editor
+  | 'welcome'              // wizard welcome screen
+  | 'wizard-basics'        // wizard step 1: course basics
+  | 'wizard-audience'      // wizard step 2: audience
+  | 'wizard-materials'     // wizard step 3: source materials
+  | 'wizard-objectives'    // wizard step 4: learning objectives
+  | 'wizard-direction'     // wizard step 5: course direction
+  | 'wizard-outline-pref'  // wizard step 6: outline preference
+  | 'wizard-outline-review'// wizard step 7: outline review
+  | 'upload'               // file drop + A0 TO generation
+  | 'to-summary'           // post-generation two-card review screen
+  | 'three-panel'          // review TO / rules, trigger generation
+  | 'pipeline'             // A1→S1→A2→S2 processing view
+  | 'course-editor'        // post-generation rich editor
 
 export type * from './pipeline'
 export type * from './editor'
+export type * from './wizard'
 
 // ─── File upload ───────────────────────────────────────────────────────────────
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'

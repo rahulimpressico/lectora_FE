@@ -1,1 +1,1 @@
-export { CostingDashboardPage } from './routes/CostingDashboardPage'
+export { CostingDashboardPage } from './pages/CostingDashboardPage'

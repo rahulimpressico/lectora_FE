@@ -1,0 +1,1 @@
+export { useModalEscape } from './useModalEscape'

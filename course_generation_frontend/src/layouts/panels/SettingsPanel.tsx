@@ -29,8 +29,8 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { useSettingsStore } from '@/store/settingsStore'
-import type { Theme } from '@/store/settingsStore'
+import { useSettingsStore } from '@/shared/store/settingsStore'
+import type { Theme } from '@/shared/store/settingsStore'
 import { settingsApi } from '@/api/settings/api'
 import type { AgentModelConfig, AvailableModel } from '@/api/settings/api'
 

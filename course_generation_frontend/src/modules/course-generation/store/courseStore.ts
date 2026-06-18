@@ -8,7 +8,9 @@ import type {
   JsonObject,
   JsonValue,
   JobResponse,
+  WizardData,
 } from '../types'
+import { DEFAULT_WIZARD_DATA } from '../types/wizard'
 
 interface CourseState {
   // ── Workflow ────────────────────────────────────────────────────────────────
@@ -74,6 +76,10 @@ interface CourseState {
   /** Rule family key detected by A0 (e.g. "insurance_ce"). Editable by user. */
   detectedRuleFamily: string
 
+  // ── Wizard ───────────────────────────────────────────────────────────────────
+  /** Structured data collected by the Course Setup Wizard steps. */
+  wizardData: WizardData
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
@@ -103,6 +109,8 @@ interface CourseState {
   setRulesData: (data: JsonObject, original?: JsonObject) => void
   updateRulesField: (path: string[], value: JsonValue) => void
   resetRulesField: (path: string[]) => void
+
+  setWizardData: (patch: Partial<WizardData>) => void
 
   setToDocument: (file: UploadedFile | null) => void
   setActiveJob: (job: JobResponse | null) => void
@@ -387,7 +395,7 @@ function _applySyncCascade(
 // calcWordCount is imported from courseConfig — no local duplicate needed.
 
 const initialState = {
-  phase:              'upload' as WorkflowPhase,
+  phase:              'welcome' as WorkflowPhase,
   rawDocuments:       [] as UploadedFile[],
   activeFileId:       null as string | null,
   previewOpen:        false,
@@ -412,6 +420,7 @@ const initialState = {
   specialInstructions:  '',
   detectedRuleFamily:   '',
   toDocument:           null as UploadedFile | null,
+  wizardData:           { ...DEFAULT_WIZARD_DATA } as WizardData,
   durationHours:        null as number | null,
   difficultyLevel:      null as string | null,
   calculatedWordCount:  null as number | null,
@@ -434,6 +443,9 @@ export const useCourseStore = create<CourseState>()(
         setDetectedRuleFamily: (family) => set({ detectedRuleFamily: family }),
         setCourseId: (courseId) => set({ courseId }),
         setCourseTitle: (courseTitle) => set({ courseTitle }),
+
+        setWizardData: (patch) =>
+          set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
 
         setDurationHours: (hours) =>
           set((s) => {
@@ -607,7 +619,7 @@ export const useCourseStore = create<CourseState>()(
           }),
       }),
       {
-        name: 'course-workflow-v2',
+        name: 'course-workflow-v3',
         // Persist only the fields needed to reconnect after a page refresh.
         // If the user refreshes during pipeline/course-editor, we reattach to
         // the same job via SSE using the persisted jobId and phase.
@@ -625,9 +637,46 @@ export const useCourseStore = create<CourseState>()(
           if (s.activeTOJobId) {
             return { activeTOJobId: s.activeTOJobId }
           }
-          // Three-panel: reload TO from blob on refresh
-          if (s.phase === 'three-panel' && s.generatedToBlobPath) {
-            return { phase: s.phase, generatedToBlobPath: s.generatedToBlobPath }
+          // TO-summary and three-panel: persist the full TO/Rules JSON so that
+          // (a) the two-card screen and modal survive refresh without re-generating,
+          // (b) every edit made in the three-panel JSON editor is written to
+          //     localStorage immediately (Zustand persist fires on every set()),
+          //     so the data is never lost on refresh or navigation.
+          // useLoadTrainingOutline's `if (toData) return` guard then skips the
+          // blob fetch when data is already hydrated from localStorage.
+          // Outline review + TO-summary + three-panel: persist full TO/Rules JSON
+          if (s.phase === 'wizard-outline-review' || s.phase === 'to-summary' || s.phase === 'three-panel') {
+            return {
+              phase: s.phase,
+              toData: s.toData,
+              toOriginal: s.toOriginal,
+              rulesData: s.rulesData,
+              rulesOriginal: s.rulesOriginal,
+              courseTitle: s.courseTitle,
+              detectedRuleFamily: s.detectedRuleFamily,
+              generatedToBlobPath: s.generatedToBlobPath,
+              courseTopic: s.courseTopic,
+              difficultyLevel: s.difficultyLevel,
+              wizardData: s.wizardData,
+              audience: s.audience,
+              courseId: s.courseId,
+              courseTypeHint: s.courseTypeHint,
+              durationHours: s.durationHours,
+            }
+          }
+          // Active wizard steps: persist form data so drafts survive refresh
+          if (s.phase.startsWith('wizard-') || s.phase === 'welcome') {
+            return {
+              phase: s.phase,
+              wizardData: s.wizardData,
+              courseTitle: s.courseTitle,
+              courseId: s.courseId,
+              audience: s.audience,
+              courseTypeHint: s.courseTypeHint,
+              durationHours: s.durationHours,
+              difficultyLevel: s.difficultyLevel,
+              courseTopic: s.courseTopic,
+            }
           }
           return {}
         },

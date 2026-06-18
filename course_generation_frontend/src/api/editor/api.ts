@@ -87,15 +87,20 @@ export async function downloadCourseArtifact(jobId: string): Promise<void> {
 export interface SaveToAzureOptions {
   courseTitle?: string
   courseSlug?: string
+  /** Flat ordered list of content section IDs (L1 then their L2 children). Backend reorders DOCX accordingly. */
+  sectionOrder?: string[]
 }
 
 export async function saveToAzure(
   jobId: string,
   options?: SaveToAzureOptions,
 ): Promise<SaveToAzureResponse> {
-  const body: SaveToAzureOptions = {}
+  const body: Record<string, unknown> = {}
   if (options?.courseTitle?.trim()) body.courseTitle = options.courseTitle.trim()
   if (options?.courseSlug?.trim()) body.courseSlug = options.courseSlug.trim()
+  if (options?.sectionOrder && options.sectionOrder.length > 0) {
+    body.sectionOrder = options.sectionOrder
+  }
 
   const { data } = await apiClient.post<SaveToAzureResponse>(
     `/jobs/${jobId}/artifacts/save-to-azure`,
