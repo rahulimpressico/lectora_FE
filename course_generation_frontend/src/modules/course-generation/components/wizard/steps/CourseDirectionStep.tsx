@@ -99,7 +99,7 @@ export const CourseDirectionStep = () => {
       <div className="mb-8 sm:mb-10">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Course Style</p>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">How should this course feel?</h2>
-        <p className="text-slate-500 text-base leading-relaxed max-w-md">Set tone, depth, and emphasis. This is how the AI writes — regulatory, conversational, or technical.</p>
+        <p className="text-slate-500 text-base leading-relaxed max-w-md">Set the tone, depth, and emphasis. This helps the assistant prepare a draft that matches your writing expectations.</p>
       </div>
 
       {/* Course Tone */}

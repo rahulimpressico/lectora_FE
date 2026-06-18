@@ -52,7 +52,7 @@ export const CourseBasicsStep = () => {
       <div className="mb-8 sm:mb-10">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Course Foundation</p>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">Let's build the foundation</h2>
-        <p className="text-slate-500 text-base leading-relaxed max-w-md">Define the essentials. This is what the AI uses to calibrate structure, tone, and scope.</p>
+        <p className="text-slate-500 text-base leading-relaxed max-w-md">Define the essentials. The assistant uses this information to understand the course structure, tone, and scope.</p>
       </div>
 
       {/* Course Title */}

@@ -27,20 +27,21 @@ export const WelcomeScreen = () => {
           {/* Headline */}
           <div className="text-center space-y-3">
             <h1 className="text-4xl sm:text-5xl font-black text-slate-900 leading-tight">
-              Build a complete course<br />
-              <span className="text-indigo-600">in minutes, not days</span>
+              Build your course draft faster<br />
+              <span className="text-indigo-600">with guided AI assistance</span>
             </h1>
-            <p className="text-slate-500 text-base max-w-sm text-center leading-relaxed mx-auto">
-              Walk through 7 guided steps. The AI builds structure, objectives, and a timed outline from your materials.
+
+            <p className="text-slate-500 text-base max-w-md text-center leading-relaxed mx-auto">
+            Walk through a few guided steps. The assistant uses your materials and direction to prepare a course structure, learning objectives, and timed outline for your review.
             </p>
           </div>
 
           {/* Three mini-cards */}
           <div className="grid grid-cols-3 gap-3 max-w-sm w-full">
             {[
-              { icon: BookOpen, step: '01', label: 'Describe' },
-              { icon: Users, step: '02', label: 'Audience' },
-              { icon: Zap, step: '03', label: 'AI Outline' },
+              { icon: BookOpen, step: '01', label: 'Course Detail' },
+              { icon: Users, step: '02', label: 'Learners' },
+              { icon: Zap, step: '03', label: 'Course Plan' },
             ].map(({ icon: Icon, step, label }) => (
               <div
                 key={step}
@@ -56,7 +57,7 @@ export const WelcomeScreen = () => {
           {/* Time estimate */}
           <div className="flex items-center gap-1.5 text-sm text-slate-400">
             <Clock className="w-4 h-4" />
-            ~5 min setup
+            A few minutes to set up
           </div>
 
           {/* CTA button */}

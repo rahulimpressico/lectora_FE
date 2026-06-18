@@ -71,7 +71,7 @@ export const SourceMaterialStep = () => {
       <div className="mb-8 sm:mb-10">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Knowledge Source</p>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">What knowledge powers this course?</h2>
-        <p className="text-slate-500 text-base leading-relaxed max-w-md">Upload your reference materials. The richer the input, the sharper the AI-generated output.</p>
+        <p className="text-slate-500 text-base leading-relaxed max-w-md">Upload your reference materials. The better the materials, the stronger the course draft will be.</p>
       </div>
 
       {/* Drop zone */}
@@ -173,7 +173,7 @@ export const SourceMaterialStep = () => {
           rows={3}
           value={sourceNotes}
           onChange={(e) => setWizardData({ sourceNotes: e.target.value })}
-          placeholder="Describe key references, regulations, or special instructions..."
+          placeholder="Tell the assistant which materials are most important, what to focus on, or what to avoid."
           className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
         />
       </div>
