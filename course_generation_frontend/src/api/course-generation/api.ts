@@ -146,6 +146,8 @@ export interface GenerateLearningObjectivesBody {
   sourceMaterials?: string[]
   courseTitle?: string
   courseDescription?: string
+  courseType?: string
+  courseDuration?: string
   targetAudience?: string
   skillLevel?: string
   desiredOutcomes?: string

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, X } from 'lucide-react'
+import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useWizardNav } from '../WizardNavContext'
 import { generateLearningObjectives } from '@/api/course-generation/api'
@@ -38,249 +37,6 @@ const objectiveRowVariant = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 400, damping: 30 } },
   exit: { opacity: 0, x: -16, height: 0, transition: { type: 'spring' as const, stiffness: 400, damping: 30 } },
-}
-
-const backdropVariant = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { duration: 0.2 } },
-  exit: { opacity: 0, transition: { duration: 0.18 } },
-}
-
-const modalPanelVariant = {
-  hidden: { opacity: 0, scale: 0.95, y: 12 },
-  show: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] as const } },
-  exit: { opacity: 0, scale: 0.95, y: 8, transition: { duration: 0.2, ease: [0.55, 0, 1, 0.45] as const } },
-}
-
-// ─── AI Generation Modal ──────────────────────────────────────────────────────
-
-interface GenerateModalProps {
-  onClose: () => void
-  onGenerated: (objectives: string[]) => void
-  courseTitle: string
-  courseDescription: string
-  audience: string
-  experienceLevel: string
-  sourceMaterials: string[]
-}
-
-function GenerateObjectivesModal({
-  onClose,
-  onGenerated,
-  courseTitle,
-  courseDescription,
-  audience,
-  experienceLevel,
-  sourceMaterials,
-}: GenerateModalProps) {
-  const [coursePurpose, setCoursePurpose] = useState('')
-  const [targetAudience, setTargetAudience] = useState(audience)
-  const [skillLevel, setSkillLevel] = useState(experienceLevel)
-  const [desiredOutcomes, setDesiredOutcomes] = useState('')
-  const [certificationFocus, setCertificationFocus] = useState('')
-  const [additionalInstructions, setAdditionalInstructions] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = () => {
-    setIsLoading(true)
-    setError(null)
-    generateLearningObjectives({
-      sourceMaterials,
-      courseTitle: courseTitle || undefined,
-      courseDescription: (courseDescription || coursePurpose) || undefined,
-      targetAudience: targetAudience || undefined,
-      skillLevel: skillLevel || undefined,
-      desiredOutcomes: desiredOutcomes || undefined,
-      certificationFocus: certificationFocus || undefined,
-      additionalInstructions: additionalInstructions || undefined,
-    })
-      .then((result) => {
-        onGenerated(result.learningObjectives)
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Generation failed. Please try again.')
-      })
-      .finally(() => {
-        setIsLoading(false)
-      })
-  }
-
-  return createPortal(
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        {/* Backdrop */}
-        <motion.div
-          className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-          variants={backdropVariant}
-          initial="hidden"
-          animate="show"
-          exit="exit"
-          onClick={onClose}
-          style={{ willChange: 'opacity' }}
-        />
-
-        {/* Modal */}
-        <motion.div
-          className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
-          variants={modalPanelVariant}
-          initial="hidden"
-          animate="show"
-          exit="exit"
-          style={{ willChange: 'transform' }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Generate Learning Objectives</h3>
-                <p className="text-xs text-slate-500">Fill in details to get AI-crafted objectives</p>
-              </div>
-            </div>
-            <motion.button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <X className="w-4 h-4" />
-            </motion.button>
-          </div>
-
-          {/* Body */}
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Course Purpose</label>
-              <textarea
-                rows={2}
-                value={coursePurpose}
-                onChange={(e) => setCoursePurpose(e.target.value)}
-                placeholder="What problem does this course solve or skill does it build?"
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Target Audience</label>
-              <input
-                type="text"
-                value={targetAudience}
-                onChange={(e) => setTargetAudience(e.target.value)}
-                placeholder="e.g. New insurance agents, compliance officers"
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Skill Level</label>
-              <div className="flex gap-2">
-                {(['Beginner', 'Intermediate', 'Advanced'] as const).map((level) => (
-                  <motion.button
-                    key={level}
-                    type="button"
-                    onClick={() => setSkillLevel(level)}
-                    className={cn(
-                      'flex-1 py-2 text-xs font-semibold rounded-lg border transition-all',
-                      skillLevel === level
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300',
-                    )}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    {level}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Desired Outcomes</label>
-              <textarea
-                rows={2}
-                value={desiredOutcomes}
-                onChange={(e) => setDesiredOutcomes(e.target.value)}
-                placeholder="What should learners be able to do after completing this course?"
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Certification / Compliance Focus <span className="text-slate-400 font-normal normal-case">(optional)</span></label>
-              <input
-                type="text"
-                value={certificationFocus}
-                onChange={(e) => setCertificationFocus(e.target.value)}
-                placeholder="e.g. NAIC CE compliance, Series 7 prep, GDPR readiness"
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Additional Instructions <span className="text-slate-400 font-normal normal-case">(optional)</span></label>
-              <textarea
-                rows={2}
-                value={additionalInstructions}
-                onChange={(e) => setAdditionalInstructions(e.target.value)}
-                placeholder="Any specific focus, tone, or depth you need..."
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
-              />
-            </div>
-
-            {error && (
-              <motion.div
-                className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"
-                variants={fadeIn}
-                initial="hidden"
-                animate="show"
-              >
-                {error}
-              </motion.div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="shrink-0 px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
-            <motion.button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 rounded-xl hover:bg-slate-100 transition-all"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-            >
-              Cancel
-            </motion.button>
-            <motion.button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              whileHover={isLoading ? {} : { scale: 1.03 }}
-              whileTap={isLoading ? {} : { scale: 0.97 }}
-              style={{ willChange: 'transform' }}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  Generate Objectives
-                </>
-              )}
-            </motion.button>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>,
-    document.body,
-  )
 }
 
 // ─── Editable Objectives List ─────────────────────────────────────────────────
@@ -406,7 +162,7 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate }: Editable
         style={{ willChange: 'transform' }}
       >
         <RefreshCw className="w-3.5 h-3.5" />
-        Regenerate with different instructions
+        Regenerate Objectives
       </motion.button>
     </div>
   )
@@ -426,13 +182,17 @@ export const LearningObjectivesStep = () => {
   const setWizardData = useCourseStore((s) => s.setWizardData)
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const audience = useCourseStore((s) => s.audience)
+  const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
+  const durationHours = useCourseStore((s) => s.durationHours)
+  const difficultyLevel = useCourseStore((s) => s.difficultyLevel)
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
 
   const objectivesMode = wizardData.objectivesMode ?? 'ai-generated'
   const objectives = wizardData.objectives ?? []
 
   const [rawText, setRawText] = useState<string>(objectives.join('\n'))
-  const [showModal, setShowModal] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
 
   const sourceMaterials = rawDocuments
     .filter((d) => d.status === 'success' && d.blobPath)
@@ -457,19 +217,36 @@ export const LearningObjectivesStep = () => {
     setWizardData({ objectives: parsed })
   }
 
-  const handleGenerated = (newObjectives: string[]) => {
-    setWizardData({ objectives: newObjectives })
-    setShowModal(false)
+  const handleGenerate = () => {
+    setIsGenerating(true)
+    setGenerateError(null)
+    generateLearningObjectives({
+      sourceMaterials,
+      courseTitle: courseTitle || undefined,
+      courseDescription: wizardData.description || undefined,
+      courseType: courseTypeHint || undefined,
+      courseDuration: durationHours != null ? `${durationHours} hour${durationHours !== 1 ? 's' : ''}` : undefined,
+      skillLevel: difficultyLevel || wizardData.experienceLevel || undefined,
+      targetAudience: audience || undefined,
+    })
+      .then((result) => {
+        setWizardData({ objectives: result.learningObjectives })
+      })
+      .catch((err: unknown) => {
+        setGenerateError(err instanceof Error ? err.message : 'Generation failed. Please try again.')
+      })
+      .finally(() => {
+        setIsGenerating(false)
+      })
   }
 
   return (
-    <>
-      <motion.div
-        className="space-y-5 sm:space-y-6"
-        variants={staggerContainer}
-        initial="hidden"
-        animate="show"
-      >
+    <motion.div
+      className="space-y-5 sm:space-y-6"
+      variants={staggerContainer}
+      initial="hidden"
+      animate="show"
+    >
         {/* Header */}
         <motion.div className="mb-8 sm:mb-10" variants={fadeUp} style={{ willChange: 'transform' }}>
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Learning Goals</p>
@@ -614,15 +391,28 @@ export const LearningObjectivesStep = () => {
                     </ul>
                     <motion.button
                       type="button"
-                      onClick={() => setShowModal(true)}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 transition-all"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      whileHover={isGenerating ? {} : { scale: 1.03 }}
+                      whileTap={isGenerating ? {} : { scale: 0.97 }}
                       style={{ willChange: 'transform' }}
                     >
-                      <Sparkles className="w-4 h-4" />
-                      Generate Objectives
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Generate Objectives
+                        </>
+                      )}
                     </motion.button>
+                    {generateError && (
+                      <p className="text-xs text-red-600 mt-1">{generateError}</p>
+                    )}
                   </motion.div>
                 ) : (
                   /* Objectives exist — show editable list */
@@ -644,7 +434,7 @@ export const LearningObjectivesStep = () => {
                     <EditableObjectivesList
                       objectives={objectives}
                       onChange={(next) => setWizardData({ objectives: next })}
-                      onRegenerate={() => setShowModal(true)}
+                      onRegenerate={handleGenerate}
                     />
                   </motion.div>
                 )}
@@ -652,22 +442,6 @@ export const LearningObjectivesStep = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
-
-      {/* Modal portal */}
-      <AnimatePresence>
-        {showModal && (
-          <GenerateObjectivesModal
-            onClose={() => setShowModal(false)}
-            onGenerated={handleGenerated}
-            courseTitle={courseTitle}
-            courseDescription={wizardData.description}
-            audience={audience}
-            experienceLevel={wizardData.experienceLevel}
-            sourceMaterials={sourceMaterials}
-          />
-        )}
-      </AnimatePresence>
-    </>
+    </motion.div>
   )
 }
