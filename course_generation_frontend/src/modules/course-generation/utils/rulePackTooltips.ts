@@ -1,4 +1,14 @@
 /**
+ * Display labels for rule family identifiers returned by the backend.
+ * Keys are the snake_case family IDs used in rule pack JSON.
+ */
+export const RULE_FAMILY_LABELS: Record<string, string> = {
+  insurance_ce: 'Insurance Continuing Education',
+  iarce: 'IARCE',
+  firm_element: 'Firm Element',
+}
+
+/**
  * Human-readable tooltips for rule pack fields shown in the Rules panel.
  * Keys match the snake_case field names used in the JSON returned by the backend.
  */

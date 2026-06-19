@@ -38,9 +38,9 @@ import {
 import { cn } from '@/lib/cn'
 import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
 import { useEditorStore } from '@/modules/course-generation/store/editorStore'
-import { useSaveToAzure } from '@/modules/course-generation/hooks/useSaveToAzure'
-import { SectionNavigation } from '@/modules/course-generation/components/editor/SectionNavigation'
-import { CourseSectionCard } from '@/modules/course-generation/components/editor/CourseSectionCard'
+import { useSaveToAzure } from '@/modules/course-generation/features/pipeline/hooks/useSaveToAzure'
+import { SectionNavigation } from '@/modules/course-generation/features/pipeline/components/SectionNavigation'
+import { CourseSectionCard } from '@/modules/course-generation/features/pipeline/components/CourseSectionCard'
 import { Button } from '@/shared/components/Button'
 import type { CourseContent, CourseSection, SectionImage } from '@/modules/course-generation/types/editor'
 

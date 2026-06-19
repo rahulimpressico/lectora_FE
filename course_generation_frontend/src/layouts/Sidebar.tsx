@@ -12,7 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useToTasks } from "@/modules/course-generation/hooks/useToTasks";
+import { useToTasks } from "@/modules/course-generation/features/upload/hooks/useToTasks";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },

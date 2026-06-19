@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { cancelGenerateTO, type TOTaskSummary } from '@/api/course-generation/api'
-import { useToTasks, TO_TASKS_QUERY_KEY } from '@/modules/course-generation/hooks/useToTasks'
+import { useToTasks, TO_TASKS_QUERY_KEY } from '@/modules/course-generation/features/upload/hooks/useToTasks'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

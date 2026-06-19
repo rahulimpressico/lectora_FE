@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { deepSet, deepGet } from '../utils/deepUpdate'
-import { calcWordCount } from '../utils/courseConfig'
+import { calcWordCount, WORDS_PER_CREDIT_HOUR } from '../utils/courseConfig'
 import type {
   UploadedFile,
   WorkflowPhase,
@@ -127,8 +127,7 @@ const pathKey = (path: string[]) => path.join('.')
 const WORDS_PER_MINUTE        = 180
 /** 50 minutes = 1 CE credit hour (NAIC standard) */
 const MINUTES_PER_CREDIT_HOUR = 50
-/** 9 000 words = 1 CE credit hour */
-const WORDS_PER_CREDIT_HOUR   = WORDS_PER_MINUTE * MINUTES_PER_CREDIT_HOUR
+// WORDS_PER_CREDIT_HOUR (9 000) is imported from courseConfig — single source of truth
 
 const TO_TOTALS_KEY   = 'totals'
 const TO_SECTIONS_KEY = 'sections'
