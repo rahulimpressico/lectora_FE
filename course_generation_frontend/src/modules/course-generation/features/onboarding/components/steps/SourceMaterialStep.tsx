@@ -56,6 +56,7 @@ export const SourceMaterialStep = () => {
   const setCourseTopic = useCourseStore((s) => s.setCourseTopic)
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
+  const updateRawDocument = useCourseStore((s) => s.updateRawDocument)
   const wizardData = useCourseStore((s) => s.wizardData)
   const setWizardData = useCourseStore((s) => s.setWizardData)
 
@@ -116,7 +117,7 @@ export const SourceMaterialStep = () => {
       {/* Header */}
       <motion.div className="mb-8 sm:mb-10" variants={fadeUp}>
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">
-          Knowledge Source
+          Knowledge Source <span className="text-red-400 normal-case text-[10px]">*</span>
         </p>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">
           What knowledge powers this course?
@@ -270,7 +271,7 @@ export const SourceMaterialStep = () => {
             initial="hidden"
             animate="show"
             exit={{ opacity: 0, transition: { duration: 0.2 } }}
-            className="space-y-2"
+            className="space-y-3"
           >
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Selected files
@@ -284,58 +285,98 @@ export const SourceMaterialStep = () => {
                   animate="show"
                   exit="exit"
                   style={{ willChange: "transform" }}
-                  className="flex items-center gap-3 p-3 bg-white border border-border rounded-xl"
+                  className="bg-white border border-border rounded-xl overflow-hidden"
                 >
-                  <div className="shrink-0">
-                    {(file.status === "uploading" ||
-                      file.status === "parsing") && (
-                      <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
-                    )}
-                    {file.status === "success" && (
-                      <motion.span
-                        variants={checkmarkSpring}
-                        initial="hidden"
-                        animate="show"
-                        style={{
-                          willChange: "transform",
-                          display: "inline-flex",
-                        }}
-                      >
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      </motion.span>
-                    )}
-                    {file.status === "error" && (
-                      <XCircle className="w-4 h-4 text-red-400" />
-                    )}
-                    {file.status === "idle" && (
-                      <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
-                    )}
+                  {/* File header row */}
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="shrink-0">
+                      {(file.status === "uploading" || file.status === "parsing") && (
+                        <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
+                      )}
+                      {file.status === "success" && (
+                        <motion.span
+                          variants={checkmarkSpring}
+                          initial="hidden"
+                          animate="show"
+                          style={{ willChange: "transform", display: "inline-flex" }}
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        </motion.span>
+                      )}
+                      {file.status === "error" && <XCircle className="w-4 h-4 text-red-400" />}
+                      {file.status === "idle" && (
+                        <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {formatBytes(file.sizeBytes)}
+                        {file.source === "azure" && " · Azure Storage"}
+                        {file.status === "uploading" && " · Uploading..."}
+                        {file.status === "parsing" && " · Parsing..."}
+                        {file.status === "error" && file.errorMessage && ` · ${file.errorMessage}`}
+                      </p>
+                    </div>
+                    <motion.button
+                      type="button"
+                      onClick={() => removeRawDocument(file.id)}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      style={{ willChange: "transform" }}
+                      className="shrink-0 p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
+                      aria-label="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </motion.button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {file.name}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {formatBytes(file.sizeBytes)}
-                      {file.source === "azure" && " · Azure Storage"}
-                      {file.status === "uploading" && " · Uploading..."}
-                      {file.status === "parsing" && " · Parsing..."}
-                      {file.status === "error" &&
-                        file.errorMessage &&
-                        ` · ${file.errorMessage}`}
-                    </p>
-                  </div>
-                  <motion.button
-                    type="button"
-                    onClick={() => removeRawDocument(file.id)}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    style={{ willChange: "transform" }}
-                    className="shrink-0 p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
-                    aria-label="Remove file"
-                  >
-                    <X className="w-4 h-4" />
-                  </motion.button>
+
+                  {/* Per-file metadata — only shown once uploaded */}
+                  {file.status === "success" && (
+                    <div className="border-t border-slate-100 px-4 py-3 bg-slate-50 space-y-3">
+                      {/* Extract hint */}
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-600">
+                          What should we extract from this source?
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={file.extractHint ?? ''}
+                          onChange={(e) => updateRawDocument(file.id, { extractHint: e.target.value })}
+                          placeholder="e.g. Focus on regulatory definitions and compliance obligations"
+                          className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400/20 transition-all resize-none"
+                        />
+                      </div>
+
+                      {/* Importance */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-600">
+                          How important is this source?
+                        </label>
+                        <div className="flex gap-2">
+                          {(['high', 'medium', 'low'] as const).map((level) => (
+                            <button
+                              key={level}
+                              type="button"
+                              onClick={() => updateRawDocument(file.id, { importance: file.importance === level ? undefined : level })}
+                              className={cn(
+                                'px-3 py-1 text-xs rounded-full border font-medium transition-colors capitalize',
+                                file.importance === level
+                                  ? level === 'high'
+                                    ? 'bg-red-500 text-white border-red-500'
+                                    : level === 'medium'
+                                    ? 'bg-amber-500 text-white border-amber-500'
+                                    : 'bg-slate-400 text-white border-slate-400'
+                                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300',
+                              )}
+                            >
+                              {level}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -350,7 +391,7 @@ export const SourceMaterialStep = () => {
           <span className="text-slate-400 font-normal ml-1">(optional)</span>
         </label>
         <textarea
-          rows={3}
+          rows={4}
           value={sourceNotes}
           onChange={(e) => setWizardData({ sourceNotes: e.target.value })}
           placeholder="Tell the assistant which materials are most important, what to focus on, or what to avoid."

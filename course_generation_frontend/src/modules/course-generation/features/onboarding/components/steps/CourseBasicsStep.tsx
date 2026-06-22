@@ -5,7 +5,7 @@ import { useCourseStore } from '../../../../store/courseStore'
 import { useWizardNav } from '../WizardNavContext'
 import { cn } from '@/lib/cn'
 
-const COURSE_TYPE_PILLS = ['Insurance CE', 'Firm Element', 'Product Training', 'Compliance Training']
+const COURSE_TYPE_PILLS = ['Insurance CE', 'IARCE', 'Firm Elements']
 const DURATION_OPTIONS = [1, 2, 3, 4, 5]
 const DIFFICULTY_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'basic', label: 'Basic' },
@@ -52,14 +52,14 @@ export const CourseBasicsStep = () => {
       backPhase: 'welcome',
       backLabel: 'Welcome',
       nextLabel: 'Next: Audience',
-      isNextDisabled: !description.trim(),
+      isNextDisabled: !description.trim() || !courseTitle.trim() || !durationHours || !difficultyLevel || !courseTypeHint,
       onNext: () => {
         setCourseTopic(courseTitle.trim() || 'course')
         setPhase('wizard-audience')
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [description, courseTitle])
+  }, [description, courseTitle, durationHours, difficultyLevel, courseTypeHint])
 
   return (
     <motion.div
@@ -94,7 +94,7 @@ export const CourseBasicsStep = () => {
         style={{ willChange: "transform" }}
       >
         <label className="block text-sm font-medium text-slate-700">
-          Course Title
+          Course Title <span className="text-red-400">*</span>
         </label>
         <input
           type="text"
@@ -133,7 +133,7 @@ export const CourseBasicsStep = () => {
           Course Description <span className="text-red-400">*</span>
         </label>
         <textarea
-          rows={4}
+          rows={8}
           value={description}
           onChange={(e) => setWizardData({ description: e.target.value })}
           placeholder="What should this course cover?"
@@ -148,30 +148,23 @@ export const CourseBasicsStep = () => {
         style={{ willChange: "transform" }}
       >
         <label className="block text-sm font-medium text-slate-700">
-          Course Type
+          Course Type <span className="text-red-500">*</span>
         </label>
-        <input
-          type="text"
-          value={courseTypeHint}
-          onChange={(e) => setCourseTypeHint(e.target.value)}
-          placeholder="e.g. Insurance CE"
-          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all mb-2"
-        />
         <div className="flex flex-wrap gap-2">
           {COURSE_TYPE_PILLS.map((pill) => (
             <motion.button
               key={pill}
               type="button"
-              onClick={() => setCourseTypeHint(pill)}
+              onClick={() => setCourseTypeHint(courseTypeHint === pill ? '' : pill)}
               whileHover={{ y: -2, boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               style={{ willChange: "transform" }}
               className={cn(
-                "px-3 py-1 text-xs rounded-full border transition-colors",
+                "px-4 py-2 text-sm rounded-full border transition-colors font-medium",
                 courseTypeHint === pill
-                  ? "bg-brand-500 text-white border-brand-500"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600",
+                  ? "bg-brand-500 text-white border-brand-500 shadow-sm"
+                  : "bg-white text-slate-700 border-slate-200 hover:border-brand-300 shadow-xs",
               )}
             >
               {pill}
@@ -187,7 +180,7 @@ export const CourseBasicsStep = () => {
         style={{ willChange: "transform" }}
       >
         <label className="block text-sm font-medium text-slate-700">
-          Course Duration
+          Course Duration <span className="text-red-400">*</span>
         </label>
         <div className="flex flex-wrap gap-2">
           {DURATION_OPTIONS.map((hrs) => (
@@ -221,7 +214,7 @@ export const CourseBasicsStep = () => {
         style={{ willChange: "transform" }}
       >
         <label className="block text-sm font-medium text-slate-700">
-          Difficulty Level
+          Difficulty Level <span className="text-red-400">*</span>
         </label>
         <div className="flex flex-wrap gap-2">
           {DIFFICULTY_OPTIONS.map((opt) => (

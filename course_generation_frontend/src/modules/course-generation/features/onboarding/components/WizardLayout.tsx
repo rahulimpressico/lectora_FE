@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react'
 import { useCourseStore } from '../../../store/courseStore'
 import { cn } from '@/lib/cn'
 import type { WorkflowPhase } from '../../../types'
@@ -53,6 +53,8 @@ export const WizardLayout = ({ children }: { children: ReactNode }) => {
 
   const setConfig = useCallback((cfg: WizardNavConfig) => setNavConfig(cfg), [])
   const ctxValue = useMemo(() => ({ config: navConfig, setConfig }), [navConfig, setConfig])
+
+  const [confirmRestart, setConfirmRestart] = useState(false)
 
   const currentIndex = WIZARD_STEPS.findIndex((s) => s.id === phase)
   const safeIndex = currentIndex === -1 ? 0 : currentIndex
@@ -113,7 +115,40 @@ export const WizardLayout = ({ children }: { children: ReactNode }) => {
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden bg-white">
 
         {/* ── Premium stepper header ── */}
-        <div className="flex-none bg-white border-b border-slate-100 z-10">
+        <div className="relative flex-none bg-white border-b border-slate-100 z-10">
+
+          {/* Start Over — absolute top-right corner */}
+          <div className="absolute top-3 right-4 z-20 flex items-center gap-1.5">
+            {confirmRestart ? (
+              <>
+                <span className="text-xs text-slate-500 font-medium">Reset all?</span>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmRestart(false); reset() }}
+                  className="px-2.5 py-1 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors"
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRestart(false)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-semibold hover:bg-slate-200 transition-colors"
+                >
+                  No
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmRestart(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-colors"
+                title="Start over"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Start Over
+              </button>
+            )}
+          </div>
 
           {/* Desktop: horizontal step circles */}
           <div className="hidden sm:block">
@@ -200,7 +235,7 @@ export const WizardLayout = ({ children }: { children: ReactNode }) => {
               <span className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest">
                 Step {safeIndex + 1} of {WIZARD_STEPS.length}
               </span>
-              <span className="text-[11px] font-semibold text-slate-700">{currentStep?.label}</span>
+              <span className="text-[11px] font-semibold text-slate-700 pr-24">{currentStep?.label}</span>
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
               <div

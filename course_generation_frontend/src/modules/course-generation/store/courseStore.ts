@@ -663,7 +663,9 @@ export const useCourseStore = create<CourseState>()(
               durationHours: s.durationHours,
             }
           }
-          // Active wizard steps: persist form data so drafts survive refresh
+          // Active wizard steps: persist form data so drafts survive refresh.
+          // Also persist toData/rulesData when present so a generated outline
+          // is not lost if the user navigates back to an earlier step then refreshes.
           if (s.phase.startsWith('wizard-') || s.phase === 'welcome') {
             return {
               phase: s.phase,
@@ -675,6 +677,9 @@ export const useCourseStore = create<CourseState>()(
               durationHours: s.durationHours,
               difficultyLevel: s.difficultyLevel,
               courseTopic: s.courseTopic,
+              ...(s.toData ? { toData: s.toData, toOriginal: s.toOriginal } : {}),
+              ...(s.rulesData ? { rulesData: s.rulesData, rulesOriginal: s.rulesOriginal } : {}),
+              ...(s.generatedToBlobPath ? { generatedToBlobPath: s.generatedToBlobPath } : {}),
             }
           }
           return {}

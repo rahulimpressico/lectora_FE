@@ -44,34 +44,56 @@ There is no test suite yet.
 
 ### Feature: course-generation
 
-All active UI lives under `src/modules/course-generation/`. The module is self-contained — it exports only from `index.ts`.
+All active UI lives under `src/modules/course-generation/`. The module is self-contained — it exports only from `index.ts`. The entry point is `pages/CourseGenerationPage.tsx`.
 
-**Five-phase workflow** driven by `WorkflowPhase` in Zustand (`courseStore.ts`):
+**Workflow phases** driven by `WorkflowPhase` in Zustand (`courseStore.ts`). There are two entry paths:
 
-1. **`upload`** — `UploadPhase` component; user drops `.docx` files, each is parsed client-side with `mammoth` into preview HTML, then uploaded to `/api/documents/upload`. User also selects course topic, duration (1–5 hrs), difficulty level, and optional custom TO prompt. "Generate TO" calls `/api/documents/generate-to` with these parameters. `InlineAzureBrowser` (within upload) lets users pick existing blobs from Azure storage instead of uploading fresh files.
+**Path A — Wizard (new users):**
 
-2. **`to-summary`** — `TOSummaryPhase` component (`components/to-summary/`); a two-card review screen shown after TO generation. Displays a summary of the generated TO (course metadata, section structure, rule family) and rules alongside a preview via `TrainingOutlineModal`. Users can edit the course title here, then proceed to the three-panel editor. The `partialize` function in `courseStore` persists the full TO/rules JSON for `to-summary` and `three-panel` phases so data survives page refresh without re-fetching from blob storage; `useLoadTrainingOutline` skips the blob fetch if data is already hydrated.
+1. **`welcome`** — `WelcomeScreen`; full-viewport landing, user chooses wizard or direct upload.
+2. **`wizard-basics` → `wizard-outline-review`** — 7 sequential steps in `WizardLayout` with an animated step progress bar. Steps: `CourseBasicsStep`, `AudienceStep`, `SourceMaterialStep`, `LearningObjectivesStep`, `CourseDirectionStep`, `OutlinePreferenceStep`, `OutlineReviewStep`. All step data accumulates in `courseStore.wizardData` (`WizardData` type from `types/wizard.ts`). `OutlineReviewStep` triggers TO generation and on success advances to `to-summary`. `WizardNavContext` (`WizardNavContext.tsx`) lets each step override the Next/Back button behavior and label by calling `setConfig()`.
 
-3. **`three-panel`** — `ThreePanelLayout` with three resizable panels:
+**Path B — Direct upload:**
+
+3. **`upload`** — `UploadPhase` (`to_rules_generation_view/components/`); user drops `.docx` files parsed client-side with `mammoth`, uploaded to `/api/documents/upload`. `InlineAzureBrowser` lets users pick existing blobs instead. "Generate TO" calls `/api/documents/generate-to`.
+
+**Shared post-generation phases:**
+
+4. **`to-summary`** — `TOSummaryPhase` (`to_rules_edit_card_view/components/`); two-card review screen displaying the generated TO and rules. Modals: `TrainingOutlineModal` (step-by-step TO viewer with sub-topics editor) and `RulesModal`. Users can edit the course title here before proceeding. `courseStore.partialize` persists the full TO/rules JSON at this phase so data survives page refresh — `useLoadTrainingOutline` skips the blob fetch if already hydrated.
+
+5. **`three-panel`** — `ThreePanelPhase` (`to_rules_edit_card_view/components/`); `ThreePanelLayout` with three resizable panels:
    - **Left** `DocViewerPanel` — rendered HTML preview of the uploaded `.docx`
-   - **Middle** `TOPanel` — editable tree of the TO JSON via `RecursiveJsonEditor`
-   - **Right** `RulesPanel` / `RulesEditorPanel` — `RulesPanel` wraps `RecursiveJsonEditor` (legacy tree view); `RulesEditorPanel` is a richer structured editor with field-type-aware widgets (string, number, bool, string-array, number-pair), add/remove controls, and tooltips from `utils/rulePackTooltips.ts`
-   - **Bottom banner** `GenerateCourseBanner` — triggers `POST /api/jobs` then advances to `pipeline` phase.
+   - **Middle** `TOPanel` — editable TO JSON via `RecursiveJsonEditor`
+   - **Right** `RulesEditorPanel` — card-based structured rules editor with field-type-aware widgets (string, number, bool, string-array, number-pair), overview card, per-rule cards, and tooltips from `utils/rulePackTooltips.ts`. The real implementation lives in `to_rules_edit_card_view/components/RulesEditorPanel.tsx`; `components/panels/RulesEditorPanel.tsx` is a re-export shim. A `RulesWizard` step-flow also lives in `to_rules_edit_card_view/components/rules-wizard/`.
+   - **Bottom banner** `GenerateCourseBanner` — triggers `POST /api/jobs` then advances to `pipeline`.
 
-4. **`pipeline`** — `PipelineView` component; live monitoring via SSE (`GET /api/jobs/{jobId}/events`) using `PipelineSSEClient` (`src/api/pipeline/sse.ts`). SSE events are merged into `pipelineStore`. Advances to `course-editor` when the job reaches `COMPLETED`.
+6. **`pipeline`** — `PipelineView` (`course_generation/components/`); live monitoring via SSE (`GET /api/jobs/{jobId}/events`) using `PipelineSSEClient`. Advances to `course-editor` on `COMPLETED`.
 
-5. **`course-editor`** — `CourseEditorView` component; section-based editing UI with sidebar navigation, expandable section panels, and an AI operations toolbar. AI operations call `POST /api/jobs/{jobId}/ai`. Artifact download uses `exportCourseToDocx` to produce a `.docx` client-side via the `docx` package.
+7. **`course-editor`** — `CourseEditorView` (`course_generation/components/`); section-based editing UI with sidebar navigation, expandable section panels, and AI operations toolbar. AI operations call `POST /api/jobs/{jobId}/ai`. Artifact download uses `exportCourseToDocx` (client-side `.docx` via the `docx` package).
+
+#### Module subdirectory layout
+
+The module has been refactored into view-specific subdirectories:
+
+| Directory | Contents |
+|---|---|
+| `to_rules_generation_view/` | Upload-phase components and hooks (`UploadPhase`, `InlineAzureBrowser`, `useGenerateTO`, `useFileUpload`, etc.) |
+| `to_rules_edit_card_view/` | TO-summary and three-panel components, `RulesEditorPanel`, `TrainingOutlineModal`, `RulesModal`, `rules-wizard/`, `training-outline/`, `useLoadTrainingOutline` |
+| `course_generation/` | Pipeline and course-editor components and hooks (`PipelineView`, `CourseEditorView`, `useJobPipeline`, `useSaveToAzure`, `useAIOperation`) |
+| `components/wizard/` | Wizard onboarding components: `WelcomeScreen`, `WizardLayout`, `WizardNavContext`, `CoursePreviewPanel`, and all step components under `steps/` |
+| `components/panels/` | Thin re-export shims pointing into the view subdirectories above |
+| `hooks/` | Top-level hook re-exports (some hooks have been moved into the view subdirectories) |
 
 ### State: Zustand stores
 
-- **`courseStore.ts`** (`src/modules/course-generation/store/`) — workflow phase, uploaded files, TO/rules JSON, job ID, blob paths, course configuration (topic, duration, difficulty, word count, custom prompt, `audience`, `specialInstructions`, `courseTitle`, `detectedRuleFamily`). Uses `devtools` + `persist`; `partialize` has three save modes: (a) `to-summary`/`three-panel` phases — persists full TO/rules JSON + metadata so edits survive page refresh; (b) active job — persists `{ activeJobId, phase }` to reconnect to an in-flight pipeline; (c) otherwise — nothing. `audience` is mandatory — `useGenerateTO` throws if it is empty.
-- **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. Uses `devtools` only (no persist). Log entries are capped at 400. Backend log IDs are deduplicated via a module-level `_maxSeenBackendLogId` counter — on SSE reconnect, re-delivered log entries are skipped.
-- **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state, preview open flag. Uses `devtools` only (no persist). Section tree mutations use recursive `updateSectionTree`.
-- **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`. DOM side-effects from theme changes are applied in `AppLayout`, not in the store.
+- **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job IDs, blob paths, course configuration (`audience`, `courseTitle`, `detectedRuleFamily`, `specialInstructions`, `courseTopic`, `difficultyLevel`, `durationHours`), and `wizardData` (`WizardData`). Uses `devtools` + `persist`; `partialize` has three save modes: (a) `to-summary`/`three-panel` phases — persists full TO/rules JSON + metadata; (b) active job — persists `{ activeJobId, phase }`; (c) otherwise — persists wizard/welcome phases with `wizardData` so the wizard survives refresh. `audience` is mandatory — `useGenerateTO` throws if empty.
+- **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. No persist. Log entries capped at 400; backend log IDs deduplicated via `_maxSeenBackendLogId`.
+- **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state. No persist. Section tree mutations use recursive `updateSectionTree`.
+- **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`.
 
-Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are `Set<string>` of dot-joined paths. `updateTOField` / `updateRulesField` add paths; `resetTOField` / `resetRulesField` remove them and restore the original value via `deepGet`/`deepSet` from `utils/deepUpdate.ts`.
+Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are `Set<string>` of dot-joined paths. `updateTOField`/`updateRulesField` add paths; `resetTOField`/`resetRulesField` remove them and restore original values via `deepGet`/`deepSet` from `utils/deepUpdate.ts`.
 
-**Bidirectional TO sync** (`courseStore.ts`): editing `totals.word_count` or `totals.credit_hours` proportionally redistributes values across all `sections[*]`; editing a section value recalculates the `totals` sum. `FINALIZATION` and `EXPORT` stages are auto-completed by the pipeline store when `overallStatus` reaches `completed`.
+**Bidirectional TO sync** (`courseStore.ts`): editing `totals.word_count` or `totals.credit_hours` proportionally redistributes values across all `sections[*]`; editing a section value recalculates the `totals` sum. `FINALIZATION` and `EXPORT` stages are auto-completed when `overallStatus` reaches `completed`.
 
 ### Course config constants (`utils/courseConfig.ts`)
 
@@ -96,61 +118,60 @@ Defined in `config/pipelineConfig.ts`. The six visible stages are:
 
 ### SSE client (`src/api/pipeline/sse.ts`)
 
-`PipelineSSEClient` is a class-based SSE client. It connects to `GET /api/jobs/{jobId}/events` using the browser's native `EventSource` (which automatically sends `Last-Event-ID` on reconnect). It handles three server-sent event types: `message` (stage updates), `done` (pipeline complete), and `timeout` (30-minute hard limit). On connection error it retries with exponential backoff — base 1.5 s, up to 30 s, max 8 retries.
+`PipelineSSEClient` connects to `GET /api/jobs/{jobId}/events` via the browser's native `EventSource` (sends `Last-Event-ID` on reconnect). Handles three event types: `message` (stage updates), `done` (pipeline complete), `timeout` (30-minute hard limit). Retries with exponential backoff — base 1.5 s, up to 30 s, max 8 retries.
 
 ### API layer
 
 All API modules live under `src/api/`, each focused on a domain:
 
 - `src/api/client.ts` — shared Axios instance (120 s timeout, error-normalisation interceptor). Import this instead of creating ad-hoc instances.
-- `src/api/errors.ts` — `ApiClientError` class (preserves HTTP status) and `isExpiredJobError()` helper (returns true for 404 or expired-session responses). Use these for error classification throughout the app.
+- `src/api/errors.ts` — `ApiClientError` class (preserves HTTP status) and `isExpiredJobError()` helper.
 - `src/api/course-generation/api.ts` — `uploadDocument`, `generateTO` (with async-poll fallback)
 - `src/api/jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`
 - `src/api/pipeline/sse.ts` — `PipelineSSEClient`
-- `src/api/editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure`. The download call handles two shapes: binary blob (local dev) triggers a browser download; JSON `{ url }` (production) opens a signed blob URL. `saveToAzure` calls `POST /jobs/{jobId}/artifacts/save-to-azure` and is wrapped by `useSaveToAzure` (TanStack Query mutation).
-- `src/api/storage/api.ts` — `browseStorage(prefix, source)` where `source` is `'uploads'` or `'artifacts'`; also exposes download and delete calls.
+- `src/api/editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure`. Download handles binary blob (local dev → browser download) and JSON `{ url }` (production → signed blob URL). `saveToAzure` calls `POST /jobs/{jobId}/artifacts/save-to-azure`.
+- `src/api/storage/api.ts` — `browseStorage(prefix, source)` where `source` is `'uploads'` or `'artifacts'`; also download and delete.
 - `src/api/settings/api.ts` — settings persistence
 
-`baseURL` comes from `src/config/api.ts` (`API_BASE_URL`): in dev it resolves to `/api` (Vite proxy → `http://localhost:8000`); in production it defaults to the Render backend URL, overridable via `VITE_API_BASE_URL`. The Vite proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (required for SSE streams); all other `/api` routes use **10 minutes**. **Do not merge or reorder these rules** — SSE will break.
+`baseURL` from `src/config/api.ts`: dev resolves to `/api` (Vite proxy → `:8000`); production defaults to the Render backend URL, overridable via `VITE_API_BASE_URL`. The Vite proxy has **two separate rules**: `/api/jobs` uses `timeout: 0` (SSE); all other `/api` routes use 10 minutes. **Do not merge or reorder these rules** — SSE will break.
 
-**`generateTO` uses an async poll pattern.** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`) instead of the result immediately. When it does, `generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes. Requires `audience`, `durationHours`, and `difficultyLevel` to be set in the store (unless the user uploaded a custom TO document). On success, `useGenerateTO` also seeds `courseTitle` from `to.course_name` and `detectedRuleFamily` from `to.rule_family`. `GenerateCoursePayload` (`POST /jobs`) also carries `audience` (mandatory) and `specialInstructions` (optional).
+**`generateTO` async poll pattern:** `POST /documents/generate-to` may return HTTP 202 (`GenerateTOJobAccepted`). When it does, `generateTO` polls `GET /documents/generate-to/jobs/{jobId}` every 1 s for up to 15 minutes. Requires `audience`, `durationHours`, and `difficultyLevel` in the store. On success, `useGenerateTO` seeds `courseTitle` from `to.course_name` and `detectedRuleFamily` from `to.rule_family`.
 
-Hooks use **TanStack Query** (`@tanstack/react-query`) for mutations — e.g. `useGenerateTO` wraps `generateTO` in `useMutation`. Query client config (`src/lib/queryClient.ts`): `staleTime: 60_000`, `retry: 2` for queries / `0` for mutations, `refetchOnWindowFocus: false`.
+Hooks use **TanStack Query** (`@tanstack/react-query`): `staleTime: 60_000`, `retry: 2` for queries / `0` for mutations, `refetchOnWindowFocus: false`.
 
-**Page-refresh reconnect** (`useJobPipeline`): on mount, the hook calls `getJobDetail` to verify the job still exists before opening SSE. A 404 response (server restarted / stale session) silently calls `reset()` and returns the user to the upload phase — no error is shown. Any other error surfaces a recoverable message in the log panel.
+**Page-refresh reconnect** (`useJobPipeline`): on mount, calls `getJobDetail` before opening SSE. A 404 silently resets to upload phase; other errors surface in the log panel.
+
+### Types
+
+Under `src/modules/course-generation/types/`:
+- `index.ts` — `WorkflowPhase`, file upload, TO, job, and API response types; re-exports `pipeline.ts`, `editor.ts`, `wizard.ts`.
+- `pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
+- `editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
+- `wizard.ts` — `WizardData`, `DEFAULT_WIZARD_DATA`.
 
 ### Costing module (`src/modules/costing/`)
 
-`CostingDashboardPage` at `/costing` shows LLM usage and cost analytics. It owns its own Zustand store (`costingStore.ts`, no persist) that fetches from two backend endpoints: `GET /costing/summary` (`CostingSummary`) and `GET /costing/documents/{documentId}` (`DocumentCost`). Charts are built with Recharts and live in `components/charts/`. `DocumentDrilldown` renders per-document stage and model breakdowns when a document row is selected. All cost and token data comes from `llm_traces.jsonl` (local `pipeline/logs/` and synced Azure Blob artifacts). No mock fallback — errors and empty states surface directly.
-
-`useDocumentList` hook (`hooks/useDocumentList.ts`) handles document-list filtering/sorting/pagination: debounced search (250 ms), status filter, sort by name/lastUpdated/cost with toggle direction, and paginated output (max 7 items with ellipsis).
+`CostingDashboardPage` at `/costing` shows LLM usage and cost analytics. Owns its own Zustand store (`costingStore.ts`, no persist) fetching from `GET /costing/summary` and `GET /costing/documents/{documentId}`. Charts are built with Recharts in `components/charts/`. `DocumentDrilldown` shows per-document stage/model breakdowns. `useDocumentList` hook handles filtering/sorting/pagination (debounced search 250 ms, 7-item pages).
 
 ### Storage module (`src/modules/storage/`)
 
-`StorageExplorer` is shared between `AssetLibraryPage` and `DocumentsLibraryPage`. It handles folder navigation, file preview (`FilePreviewDialog`), and deletion (`StorageDeleteConfirmDialog`). `ArtifactRenderer` renders structured course artifacts in `CourseEditorModal`, which allows browsing and inspecting stored job outputs without leaving the storage view.
+`StorageExplorer` is shared between `AssetLibraryPage` and `DocumentsLibraryPage`. Handles folder navigation, file preview (`FilePreviewDialog`), and deletion. `ArtifactRenderer` renders structured course artifacts in `CourseEditorModal`.
 
 ### Shared UI (`src/shared/components/`)
 
-Three reusable primitives used across modules — prefer these over inline or ad-hoc implementations:
+Prefer these over ad-hoc implementations:
 
-- **`Button`** — polymorphic button with variants (`primary`/`secondary`/`ghost`/`danger`), sizes (`sm`/`md`/`lg`), loading state, and icon slot.
-- **`ConfirmLeaveModal`** — portal-based confirmation dialog for destructive navigation; handles Escape key and backdrop dismiss.
+- **`Button`** — polymorphic, variants (`primary`/`secondary`/`ghost`/`danger`), sizes (`sm`/`md`/`lg`), loading state, icon slot.
+- **`ConfirmLeaveModal`** — portal-based confirmation dialog; Escape key + backdrop dismiss.
 - **`Spinner`** — animated loading indicator (Lucide `Loader2`).
 
 ### Global hooks (`src/hooks/`)
 
-- **`useModalEscape`** — locks `body` scroll and handles Escape key dismissal for modal overlays. Used by `ConfirmLeaveModal` and other dialogs.
+- **`useModalEscape`** — locks `body` scroll and handles Escape key dismissal for modal overlays.
 
 ### Shared utilities (`src/utils/`)
 
-`fileExtension`, `formatBytes`, and `formatDate` — thin formatting helpers used across modules.
-
-### Types
-
-Split across three files under `src/modules/course-generation/types/`:
-- `index.ts` — workflow, file upload, TO, job, and API response types.
-- `pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
-- `editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
+`fileExtension`, `formatBytes`, `formatDate` — thin formatting helpers.
 
 ### Path alias
 
@@ -158,7 +179,7 @@ Split across three files under `src/modules/course-generation/types/`:
 
 ### Styling
 
-Tailwind CSS v4 via `@tailwindcss/vite` plugin. No `tailwind.config.*` file — configuration is done in CSS using v4's native `@theme` syntax. `src/lib/cn.ts` exports a `clsx` + `tailwind-merge` helper — use it for conditional class names.
+Tailwind CSS v4 via `@tailwindcss/vite` plugin. No `tailwind.config.*` — configuration uses v4's `@theme` syntax in CSS. `src/lib/cn.ts` exports a `clsx` + `tailwind-merge` helper.
 
 ### TypeScript strictness
 

@@ -88,10 +88,10 @@ export const AudienceStep = () => {
       backLabel: 'Back',
       nextPhase: 'wizard-materials',
       nextLabel: 'Next: Source Material',
-      isNextDisabled: !audience.trim(),
+      isNextDisabled: !audience.trim() || !experienceLevel,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audience])
+  }, [audience, experienceLevel])
 
   return (
     <motion.div
@@ -150,7 +150,7 @@ export const AudienceStep = () => {
       {/* Experience Level */}
       <motion.div className="space-y-1.5" variants={fadeUp} style={{ willChange: 'transform' }}>
         <label className="block text-sm font-medium text-slate-700">
-          Learner Experience Level
+          Learner Experience Level <span className="text-red-400">*</span>
         </label>
         <motion.div
           className="grid grid-cols-1 sm:grid-cols-3 gap-3"
@@ -200,7 +200,7 @@ export const AudienceStep = () => {
           Learner Outcomes
         </label>
         <textarea
-          rows={3}
+          rows={6}
           value={learnerOutcomes}
           onChange={(e) => setWizardData({ learnerOutcomes: e.target.value })}
           placeholder="What should learners be able to do after this course?"
@@ -211,14 +211,14 @@ export const AudienceStep = () => {
       {/* Audience Notes */}
       <motion.div className="space-y-1.5" variants={fadeIn} style={{ willChange: 'transform' }}>
         <label className="block text-sm font-medium text-slate-700">
-          Special Audience Notes
+          Additional Learner Context
           <span className="text-slate-400 font-normal ml-1">(optional)</span>
         </label>
         <textarea
-          rows={2}
+          rows={4}
           value={audienceNotes}
           onChange={(e) => setWizardData({ audienceNotes: e.target.value })}
-          placeholder="Any special considerations about your audience..."
+          placeholder="Add any special learner considerations, such as industry background, assumed prior knowledge, regulatory sensitivity."
           className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
         />
       </motion.div>

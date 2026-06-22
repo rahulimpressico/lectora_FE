@@ -54,9 +54,13 @@ export const GenerateCourseBanner = () => {
           ...(timedOutlineBlobPath ? { timedOutline: { blobPath: timedOutlineBlobPath } } : {}),
         },
         ...(toData ? { toOverride: toData } : {}),
-        sourceFilePaths: successFiles
-          .map((f) => f.blobPath)
-          .filter((p): p is string => typeof p === 'string' && p.length > 0),
+        sourceFileSpecs: successFiles
+          .filter((f): f is typeof f & { blobPath: string } => typeof f.blobPath === 'string' && f.blobPath.length > 0)
+          .map((f) => ({
+            blobPath: f.blobPath,
+            ...(f.extractHint?.trim() ? { extractHint: f.extractHint.trim() } : {}),
+            ...(f.importance ? { importance: f.importance } : {}),
+          })),
         audience: audience || '',
         ...(specialInstructions?.trim() ? { specialInstructions: specialInstructions.trim() } : {}),
       }),

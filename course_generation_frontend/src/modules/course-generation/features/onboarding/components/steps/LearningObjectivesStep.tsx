@@ -1,10 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useWizardNav } from '../WizardNavContext'
 import { generateLearningObjectives } from '@/api/course-generation/api'
 import { cn } from '@/lib/cn'
+
+function parseNaturalLanguageObjectives(text: string): string[] {
+  const trimmed = text.trim()
+  if (!trimmed) return []
+
+  // Try numbered list: "1. ...", "1) ..."
+  const numbered = trimmed.split(/\n?\s*\d+[.)]\s+/).map((s) => s.trim()).filter(Boolean)
+  if (numbered.length > 1) return numbered
+
+  // Try bullet list: "- ...", "• ...", "* ..."
+  const bulleted = trimmed.split(/\n\s*[-•*]\s+/).map((s) => s.trim()).filter(Boolean)
+  if (bulleted.length > 1) return bulleted
+
+  // Try semicolons
+  const bySemi = trimmed.split(/;\s*/).map((s) => s.trim()).filter(Boolean)
+  if (bySemi.length > 1) return bySemi
+
+  // Fall back: split on ". " at sentence boundaries
+  const bySentence = trimmed
+    .split(/(?<=[a-z])\.\s+(?=[A-Z])/)
+    .map((s) => s.replace(/\.$/, '').trim())
+    .filter((s) => s.length > 10)
+  if (bySentence.length > 1) return bySentence
+
+  // Single block — return as one objective
+  return [trimmed]
+}
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -45,9 +72,10 @@ interface EditableObjectivesListProps {
   objectives: string[]
   onChange: (objectives: string[]) => void
   onRegenerate: () => void
+  isRegenerating?: boolean
 }
 
-function EditableObjectivesList({ objectives, onChange, onRegenerate }: EditableObjectivesListProps) {
+function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenerating = false }: EditableObjectivesListProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const [newObjective, setNewObjective] = useState('')
@@ -156,13 +184,18 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate }: Editable
       <motion.button
         type="button"
         onClick={onRegenerate}
-        className="flex items-center gap-2 w-full justify-center py-2.5 px-4 border border-dashed border-indigo-200 rounded-xl text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-all"
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
+        disabled={isRegenerating}
+        className="flex items-center gap-2 w-full justify-center py-2.5 px-4 border border-dashed border-indigo-200 rounded-xl text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+        whileHover={isRegenerating ? {} : { scale: 1.03 }}
+        whileTap={isRegenerating ? {} : { scale: 0.97 }}
         style={{ willChange: 'transform' }}
       >
-        <RefreshCw className="w-3.5 h-3.5" />
-        Regenerate Objectives
+        {isRegenerating ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <RefreshCw className="w-3.5 h-3.5" />
+        )}
+        {isRegenerating ? 'Regenerating...' : 'Regenerate Objectives'}
       </motion.button>
     </div>
   )
@@ -190,7 +223,7 @@ export const LearningObjectivesStep = () => {
   const objectivesMode = wizardData.objectivesMode ?? 'ai-generated'
   const objectives = wizardData.objectives ?? []
 
-  const [rawText, setRawText] = useState<string>(objectives.join('\n'))
+  const [naturalText, setNaturalText] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
 
@@ -206,16 +239,10 @@ export const LearningObjectivesStep = () => {
       backLabel: 'Back',
       nextPhase: 'wizard-direction',
       nextLabel: 'Next: Course Direction',
-      isNextDisabled: false,
+      isNextDisabled: objectivesMode === 'ai-generated' && objectives.length === 0,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const handleTextChange = (text: string) => {
-    setRawText(text)
-    const parsed = text.split('\n').map((line) => line.trim()).filter(Boolean)
-    setWizardData({ objectives: parsed })
-  }
+  }, [objectivesMode, objectives.length])
 
   const handleGenerate = () => {
     setIsGenerating(true)
@@ -318,16 +345,37 @@ export const LearningObjectivesStep = () => {
               animate="show"
               exit="hidden"
             >
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-slate-700">Your Learning Objectives</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">Paste your learning objectives</label>
                 <textarea
-                  rows={6}
-                  value={rawText}
-                  onChange={(e) => handleTextChange(e.target.value)}
-                  placeholder="Enter each objective on a new line..."
+                  rows={8}
+                  value={naturalText}
+                  onChange={(e) => setNaturalText(e.target.value)}
+                  placeholder="e.g. After completing this course, learners will understand LTC insurance fundamentals, identify policy types and riders, apply regulatory requirements to client scenarios, and demonstrate ethical sales practices."
                   className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
                 />
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-slate-400">Works with numbered lists, bullet points, semicolons, or full sentences.</p>
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      const parsed = parseNaturalLanguageObjectives(naturalText)
+                      if (parsed.length > 0) {
+                        setWizardData({ objectives: [...objectives, ...parsed] })
+                        setNaturalText('')
+                      }
+                    }}
+                    disabled={!naturalText.trim()}
+                    className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    whileHover={naturalText.trim() ? { scale: 1.02 } : {}}
+                    whileTap={naturalText.trim() ? { scale: 0.97 } : {}}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    Parse Objectives
+                  </motion.button>
+                </div>
               </div>
+
               {objectives.length > 0 && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                   <p className="text-xs font-medium text-slate-500 mb-2">
@@ -435,6 +483,7 @@ export const LearningObjectivesStep = () => {
                       objectives={objectives}
                       onChange={(next) => setWizardData({ objectives: next })}
                       onRegenerate={handleGenerate}
+                      isRegenerating={isGenerating}
                     />
                   </motion.div>
                 )}

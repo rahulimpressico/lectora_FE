@@ -95,6 +95,11 @@ export const OutlinePreferenceStep = () => {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
+  // Snapshot the IDs already in the store when this step mounts so we can
+  // distinguish outline files uploaded here from source files added in step 3.
+  const priorDocIds = useRef<Set<string>>(new Set(rawDocuments.map((f) => f.id)))
+  const outlineFiles = rawDocuments.filter((f) => !priorDocIds.current.has(f.id))
+
   const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestReasoning, setSuggestReasoning] = useState<string | null>(null)
   const [suggestError, setSuggestError] = useState<string | null>(null)
@@ -120,16 +125,16 @@ export const OutlinePreferenceStep = () => {
         },
       })
     } else {
-      const hasUploadedFile = rawDocuments.some((f) => f.status === 'success')
+      const hasOutlineFile = outlineFiles.some((f) => f.status === 'success')
       setConfig({
         backPhase: 'wizard-direction',
         backLabel: 'Back',
         nextPhase: 'wizard-outline-review',
         nextLabel: 'Review Outline',
-        isNextDisabled: !hasUploadedFile,
+        isNextDisabled: !hasOutlineFile,
       })
     }
-  }, [outlineMode, generateTO.isPending, rawDocuments.length, wizardData, audience, setConfig, setCustomToPrompt, generateTO])
+  }, [outlineMode, generateTO.isPending, outlineFiles, wizardData, audience, setConfig, setCustomToPrompt, generateTO])
 
   const handleSuggestStructure = () => {
     setIsSuggesting(true)
@@ -451,11 +456,11 @@ export const OutlinePreferenceStep = () => {
               />
             </motion.div>
 
-            {/* File list */}
-            {rawDocuments.length > 0 && (
+            {/* File list — only files uploaded in this step */}
+            {outlineFiles.length > 0 && (
               <div className="space-y-2">
                 <AnimatePresence initial={false}>
-                  {rawDocuments.map((file) => (
+                  {outlineFiles.map((file) => (
                     <motion.div
                       key={file.id}
                       variants={fileItemVariant}

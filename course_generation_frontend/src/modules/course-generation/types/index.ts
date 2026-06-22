@@ -39,6 +39,8 @@ export interface UploadedFile {
   previewHtml?: string
   blobPath?: string
   source?: 'system' | 'azure'
+  extractHint?: string
+  importance?: 'high' | 'medium' | 'low'
 }
 
 // ─── Training Outline (TO) ────────────────────────────────────────────────────
@@ -145,6 +147,12 @@ export interface JobDetail {
   error: JobErrorDetail | null
 }
 
+export interface SourceFileSpec {
+  blobPath: string
+  extractHint?: string
+  importance?: 'high' | 'medium' | 'low'
+}
+
 export interface GenerateCoursePayload {
   courseTitle: string
   courseType: string
@@ -155,9 +163,9 @@ export interface GenerateCoursePayload {
   /** User-edited Training Outline JSON from the three-panel TO editor.
    *  The backend injects this into shared_state so A1 uses the reviewed version. */
   toOverride?: JsonObject
-  /** All source file blob paths (DOCX + PDF) uploaded during the generate-TO step.
-   *  Passed to A2 so it can build a chunk index for topic-wise content retrieval. */
-  sourceFilePaths?: string[]
+  /** Per-file source specs including blob path, extract hint, and importance.
+   *  Passed to A2 so it can build a chunk index and apply per-file guidance. */
+  sourceFileSpecs?: SourceFileSpec[]
   /** Target audience — mandatory, drives content calibration throughout the pipeline. */
   audience: string
   /** Optional special instructions from the user, injected into A2 generation prompts. */

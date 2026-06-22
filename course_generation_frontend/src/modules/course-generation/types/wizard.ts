@@ -25,7 +25,7 @@ export const DEFAULT_WIZARD_DATA: WizardData = {
   learnerOutcomes: '',
   audienceNotes: '',
   sourceNotes: '',
-  objectivesMode: 'ai-generated',
+  objectivesMode: 'provided',
   objectives: [],
   tone: '',
   depth: 'balanced',

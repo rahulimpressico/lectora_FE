@@ -292,7 +292,7 @@ export const CourseDirectionStep = () => {
           What should the course emphasize?
         </label>
         <motion.textarea
-          rows={3}
+          rows={5}
           value={emphasis}
           onChange={(e) => setWizardData({ emphasis: e.target.value })}
           placeholder="e.g. Focus on real-world agent responsibilities and employer decision-making."
@@ -312,7 +312,7 @@ export const CourseDirectionStep = () => {
           What should the course avoid?
         </label>
         <motion.textarea
-          rows={2}
+          rows={4}
           value={avoid}
           onChange={(e) => setWizardData({ avoid: e.target.value })}
           placeholder="e.g. Avoid lengthy statute-by-statute summaries."
