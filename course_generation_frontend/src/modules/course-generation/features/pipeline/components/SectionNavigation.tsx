@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
+import { ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useEditorStore } from '../../../store/editorStore'
-import { Plus } from 'lucide-react'
 import type { CourseSection } from '../../../types/editor'
 
 interface SectionNavigationProps {
@@ -16,15 +17,24 @@ interface NavItemProps {
 }
 
 function NavItem({ section, activeSectionId, depth, index }: NavItemProps) {
-  const { setActiveSectionId, expandSection, expandedSectionIds, sectionEditStates } =
+  const { setActiveSectionId, expandSection, collapseSection, expandedSectionIds, sectionEditStates } =
     useEditorStore()
   const isActive = activeSectionId === section.id
   const isExpanded = expandedSectionIds.has(section.id)
   const isDirty = sectionEditStates.get(section.id)?.isDirty ?? false
+  const hasChildren = section.children.length > 0
 
   function handleClick() {
     setActiveSectionId(section.id)
-    expandSection(section.id)
+    if (hasChildren) {
+      if (isExpanded) {
+        collapseSection(section.id)
+      } else {
+        expandSection(section.id)
+      }
+    } else {
+      expandSection(section.id)
+    }
     const el = document.getElementById(`section-${section.id}`)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -77,10 +87,22 @@ function NavItem({ section, activeSectionId, depth, index }: NavItemProps) {
         {section.hasKnowledgeCheck && !isDirty && (
           <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-brand-400" title="Knowledge Check" />
         )}
+
+        {/* Expand/collapse chevron for sections with children */}
+        {hasChildren && depth === 0 && (
+          <ChevronRight
+            size={11}
+            className={cn(
+              'shrink-0 transition-transform duration-200',
+              isActive ? 'text-brand-500' : 'text-slate-300 group-hover:text-slate-500',
+              isExpanded && 'rotate-90',
+            )}
+          />
+        )}
       </button>
 
-      {section.children.length > 0 && isExpanded && (
-        <div className="mt-0.5">
+      {hasChildren && isExpanded && (
+        <div className="mt-0.5 border-l border-slate-100 ml-5">
           {section.children.map((child, ci) => (
             <NavItem
               key={child.id}
@@ -100,7 +122,18 @@ export function SectionNavigation({
   sections,
   activeSectionId,
 }: SectionNavigationProps) {
-  const { addSection } = useEditorStore()
+  const { addSection, expandSection } = useEditorStore()
+
+  // Auto-expand L1 sections that have subtopics so the hierarchy is visible
+  const sectionIdsKey = sections.map((s) => s.id).join(',')
+  useEffect(() => {
+    for (const section of sections) {
+      if (section.children.length > 0) {
+        expandSection(section.id)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionIdsKey])
 
   return (
     <aside className="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col border-r border-slate-200 bg-white overflow-y-auto">

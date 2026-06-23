@@ -24,6 +24,7 @@ import { useAIOperation } from '../hooks/useAIOperation'
 import { performAIOperation, saveSectionContent } from '@/api/editor/api'
 import { AIToolbar } from './AIToolbar'
 import { AIOperationModal } from './AIOperationModal'
+import { RichContentRenderer } from './RichContentRenderer'
 import type { AIOperationType, CourseSection } from '../../../types/editor'
 
 interface CourseSectionCardProps {
@@ -630,7 +631,7 @@ export function CourseSectionCard({
                     </div>
                   ) : (
                     editState.currentContent && (
-                      <div className="text-sm text-slate-600 leading-relaxed prose-sm max-w-none">
+                      <div className="prose-sm max-w-none">
                         {isAIProcessing ? (
                           <div className="space-y-2">
                             <div className="skeleton h-4 rounded" style={{ width: '95%' }} />
@@ -640,13 +641,10 @@ export function CourseSectionCard({
                             <div className="skeleton h-4 rounded" style={{ width: '65%' }} />
                           </div>
                         ) : (
-                          editState.currentContent.split('\n').map((para, i) =>
-                            para.trim() ? (
-                              <p key={i} className="mb-2 last:mb-0">{para}</p>
-                            ) : (
-                              <br key={i} />
-                            ),
-                          )
+                          <RichContentRenderer
+                            paragraphs={editState.isDirty ? undefined : section.paragraphs}
+                            fallbackText={editState.currentContent}
+                          />
                         )}
                       </div>
                     )

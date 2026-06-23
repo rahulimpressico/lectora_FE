@@ -503,7 +503,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
   const [feedCollapsed, setFeedCollapsed] = useState(false);
   const [showBackConfirm, setShowBackConfirm] = useState(false);
   const { pipeline, logs, fatalError } = usePipelineStore();
-  const { reset, setActiveJobId, setPhase } = useCourseStore();
+  const { reset, setActiveJobId, setPhase, courseTitle } = useCourseStore();
   const { clearPipeline } = usePipelineStore();
 
   useJobPipeline(jobId);
@@ -642,9 +642,22 @@ export function PipelineView({ jobId }: PipelineViewProps) {
           onCancel={() => setShowBackConfirm(false)}
         />
         <div className="w-px h-3.5 bg-slate-200 shrink-0" />
-        <span className="text-[12px] font-medium text-slate-400 truncate flex-1">
-          Course Generation Pipeline
-        </span>
+        <div className="flex-1 min-w-0">
+          {courseTitle ? (
+            <>
+              <p className="text-[13px] font-semibold text-slate-800 truncate leading-tight">
+                {courseTitle}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+                Course Generation Pipeline
+              </p>
+            </>
+          ) : (
+            <span className="text-[12px] font-medium text-slate-400 truncate">
+              Course Generation Pipeline
+            </span>
+          )}
+        </div>
         {isProcessing && (
           <button
             type="button"

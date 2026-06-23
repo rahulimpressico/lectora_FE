@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { downloadCourseArtifact } from '@/api/editor/api'
+import { RichContentRenderer } from './RichContentRenderer'
 import type { CourseContent, CourseSection, SectionImage } from '../../../types/editor'
 
 interface CoursePreviewModalProps {
@@ -217,17 +218,11 @@ function PreviewSection({
         </ol>
       ) : (
         /* Prose content */
-        <div className="space-y-3 mb-4">
-          {section.content.split('\n').map((para, i) =>
-            para.trim() ? (
-              <p
-                key={i}
-                className="text-[13.5px] text-slate-600 leading-[1.82] tracking-[0.008em]"
-              >
-                {para}
-              </p>
-            ) : null,
-          )}
+        <div className="mb-4">
+          <RichContentRenderer
+            paragraphs={section.paragraphs}
+            fallbackText={section.content}
+          />
         </div>
       )}
 

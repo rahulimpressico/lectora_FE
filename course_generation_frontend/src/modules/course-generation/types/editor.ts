@@ -1,6 +1,26 @@
 // ─── Course content structure returned by GET /jobs/{jobId}/course ────────────
 export type SectionType = 'overview' | 'learning-objectives' | 'conclusion' | 'content'
 
+// Structured paragraph block from A2 body_paragraphs
+export interface BodyParagraph {
+  type: string
+  // text / heading_3 / heading_4 / important_callout / callout
+  content?: string
+  // important_callout / callout
+  label?: string
+  // bullet_list / numbered_list / sub_bullet_list
+  items?: string[]
+  // knowledge_check
+  question?: string
+  options?: string[]
+  correct_answer?: string | number
+  explanation?: string
+  // table
+  headers?: string[]
+  rows?: string[][]
+  caption?: string
+}
+
 export interface SectionImage {
   id: string
   fileName: string
@@ -15,6 +35,7 @@ export interface CourseSection {
   level: 1 | 2 | 3
   sectionType?: SectionType
   content: string
+  paragraphs?: BodyParagraph[]
   learningObjectives: string[]
   wordCount: number
   hasKnowledgeCheck: boolean
