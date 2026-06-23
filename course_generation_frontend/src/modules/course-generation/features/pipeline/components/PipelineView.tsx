@@ -14,7 +14,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { usePipelineStore } from "../../../store/pipelineStore";
-import { useCourseStore } from "../../../store/courseStore";
+import { useCourseStore, clearCourseStorage } from "../../../store/courseStore";
 import { retryJob, cancelJob } from "@/api/jobs/api";
 import { useJobPipeline } from "../hooks/useJobPipeline";
 import { CourseGifLoader } from "./CourseGifLoader";
@@ -570,6 +570,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
             <button
               type="button"
               onClick={() => {
+                clearCourseStorage();
                 reset();
               }}
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_3px_12px_rgba(99,102,241,0.35)] hover:shadow-[0_5px_20px_rgba(99,102,241,0.45)] hover:scale-[1.02] transition-all duration-200"

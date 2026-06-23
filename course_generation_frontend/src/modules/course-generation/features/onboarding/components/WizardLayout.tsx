@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore, clearCourseStorage } from '../../../store/courseStore'
 import { cn } from '@/lib/cn'
 import type { WorkflowPhase } from '../../../types'
 import { WizardNavContext } from './WizardNavContext'
@@ -96,6 +96,7 @@ export const WizardLayout = ({ children }: { children: ReactNode }) => {
   const handleBack = () => {
     if (!navConfig.backPhase) return
     if (navConfig.backPhase === 'welcome') {
+      clearCourseStorage()
       reset() // reset() already sets phase → 'welcome'; clears all wizard state
     } else {
       setPhase(navConfig.backPhase)
@@ -124,7 +125,7 @@ export const WizardLayout = ({ children }: { children: ReactNode }) => {
                 <span className="text-xs text-slate-500 font-medium">Reset all?</span>
                 <button
                   type="button"
-                  onClick={() => { setConfirmRestart(false); reset() }}
+                  onClick={() => { setConfirmRestart(false); clearCourseStorage(); reset() }}
                   className="px-2.5 py-1 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 transition-colors"
                 >
                   Yes

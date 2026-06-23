@@ -23,7 +23,7 @@ import { Button } from '@/shared/components/Button'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
 import { useEditorStore } from '../../../store/editorStore'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore, clearCourseStorage } from '../../../store/courseStore'
 import { useSaveToAzure } from '../hooks/useSaveToAzure'
 import { SectionNavigation } from './SectionNavigation'
 import { CourseSectionCard } from './CourseSectionCard'
@@ -151,6 +151,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   useEffect(() => {
     if (!error) return
     if (!isExpiredJobError(error)) return
+    clearCourseStorage()
     reset()
     setPhase('upload')
   }, [error, reset, setPhase])

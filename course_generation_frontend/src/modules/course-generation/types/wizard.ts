@@ -3,6 +3,7 @@
 export interface WizardData {
   description: string
   experienceLevel: 'new' | 'some' | 'experienced' | ''
+  selectedAudiences: string[]
   learnerOutcomes: string
   audienceNotes: string
   sourceNotes: string
@@ -22,6 +23,7 @@ export interface WizardData {
 export const DEFAULT_WIZARD_DATA: WizardData = {
   description: '',
   experienceLevel: '',
+  selectedAudiences: [],
   learnerOutcomes: '',
   audienceNotes: '',
   sourceNotes: '',

@@ -79,6 +79,15 @@ export const AudienceStep = () => {
   const experienceLevel = wizardData.experienceLevel ?? ''
   const learnerOutcomes = wizardData.learnerOutcomes ?? ''
   const audienceNotes = wizardData.audienceNotes ?? ''
+  const selectedAudiences = wizardData.selectedAudiences ?? []
+
+  const toggleAudiencePill = (pill: string) => {
+    const next = selectedAudiences.includes(pill)
+      ? selectedAudiences.filter((a) => a !== pill)
+      : [...selectedAudiences, pill]
+    setWizardData({ selectedAudiences: next })
+    setAudience(next.join(', '))
+  }
 
   const { setConfig } = useWizardNav()
 
@@ -112,39 +121,45 @@ export const AudienceStep = () => {
         <label className="block text-sm font-medium text-slate-700">
           Target Audience <span className="text-red-400">*</span>
         </label>
+        {/* Multi-select pills */}
+        <motion.div className="flex flex-wrap gap-2 mb-2" variants={staggerContainer}>
+          <AnimatePresence>
+            {AUDIENCE_PILLS.map((pill) => {
+              const isSelected = selectedAudiences.includes(pill)
+              return (
+                <motion.button
+                  key={pill}
+                  type="button"
+                  onClick={() => toggleAudiencePill(pill)}
+                  variants={pillVariant}
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                  style={{ willChange: 'transform' }}
+                  className={cn(
+                    'px-3 py-1 text-xs rounded-full border transition-colors font-medium',
+                    isSelected
+                      ? 'bg-brand-500 text-white border-brand-500 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600',
+                  )}
+                >
+                  {isSelected && <span className="mr-1">✓</span>}
+                  {pill}
+                </motion.button>
+              )
+            })}
+          </AnimatePresence>
+        </motion.div>
+        {/* Free-text override / custom entry */}
         <input
           type="text"
           value={audience}
-          onChange={(e) => setAudience(e.target.value)}
-          placeholder="e.g. Licensed insurance agents in Washington State"
-          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all mb-2"
+          onChange={(e) => {
+            setAudience(e.target.value)
+            setWizardData({ selectedAudiences: [] })
+          }}
+          placeholder="Or describe your audience… e.g. Licensed insurance agents in Washington State"
+          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all"
         />
-        <motion.div
-          className="flex flex-wrap gap-2"
-          variants={staggerContainer}
-        >
-          <AnimatePresence>
-            {AUDIENCE_PILLS.map((pill) => (
-              <motion.button
-                key={pill}
-                type="button"
-                onClick={() => setAudience(pill)}
-                variants={pillVariant}
-                whileHover={{ scale: 1.05, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-                style={{ willChange: 'transform' }}
-                className={cn(
-                  'px-3 py-1 text-xs rounded-full border transition-colors',
-                  audience === pill
-                    ? 'bg-brand-500 text-white border-brand-500'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600',
-                )}
-              >
-                {pill}
-              </motion.button>
-            ))}
-          </AnimatePresence>
-        </motion.div>
       </motion.div>
 
       {/* Experience Level */}
@@ -200,12 +215,16 @@ export const AudienceStep = () => {
           Learner Outcomes
         </label>
         <textarea
-          rows={6}
+          rows={5}
           value={learnerOutcomes}
           onChange={(e) => setWizardData({ learnerOutcomes: e.target.value })}
-          placeholder="What should learners be able to do after this course?"
+          placeholder="What should learners be able to do after completing this course?"
           className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
         />
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <span className="font-medium text-slate-500">Examples: </span>
+          Identify benefit triggers and eligibility criteria · Compare policy types and cost structures · Apply suitability analysis to client scenarios · Explain regulatory requirements and disclosure obligations
+        </p>
       </motion.div>
 
       {/* Audience Notes */}

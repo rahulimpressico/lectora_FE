@@ -19,6 +19,7 @@ import { OutlineReviewStep } from '../features/onboarding/components/steps/Outli
 import { useCourseStore } from '../store/courseStore'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useEditorStore } from '../store/editorStore'
+import { useBrowserHistory } from '../store/useBrowserHistory'
 
 const WIZARD_PHASES = new Set([
   'wizard-basics',
@@ -34,6 +35,9 @@ export const CourseGenerationPage = () => {
   const { phase, activeJobId, activeTOJobId } = useCourseStore()
   const { clearPipeline } = usePipelineStore()
   const { resetEditor } = useEditorStore()
+
+  // Keeps browser Back / Forward in sync with in-app phase navigation.
+  useBrowserHistory()
 
   // Wizard & welcome phases auto-save via Zustand persist — never block navigation there.
   // Only block once real work exists: after TO generation, in three-panel, pipeline, or editor.

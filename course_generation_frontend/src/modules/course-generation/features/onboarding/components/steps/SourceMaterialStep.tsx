@@ -88,9 +88,6 @@ export const SourceMaterialStep = () => {
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
   const updateRawDocument = useCourseStore((s) => s.updateRawDocument)
-  const wizardData = useCourseStore((s) => s.wizardData)
-  const setWizardData = useCourseStore((s) => s.setWizardData)
-
   const { enqueueFiles, enqueueAzureFiles } = useFileUpload()
   const [isDragging, setIsDragging] = useState(false)
   const [sourceMode, setSourceMode] = useState<'upload' | 'azure'>('upload')
@@ -121,8 +118,6 @@ export const SourceMaterialStep = () => {
       setCourseTopic(courseTitle)
     }
   }, [courseTitle, courseTopic, setCourseTopic])
-
-  const sourceNotes = wizardData.sourceNotes ?? ''
 
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault()
@@ -423,20 +418,6 @@ export const SourceMaterialStep = () => {
         )}
       </AnimatePresence>
 
-      {/* Source Notes */}
-      <motion.div className="space-y-1.5" variants={fadeUp}>
-        <label className="block text-sm font-medium text-slate-700">
-          Source Notes
-          <span className="text-slate-400 font-normal ml-1">(optional)</span>
-        </label>
-        <textarea
-          rows={4}
-          value={sourceNotes}
-          onChange={(e) => setWizardData({ sourceNotes: e.target.value })}
-          placeholder="Tell the assistant which materials are most important, what to focus on, or what to avoid."
-          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
-        />
-      </motion.div>
     </motion.div>
   );
 }

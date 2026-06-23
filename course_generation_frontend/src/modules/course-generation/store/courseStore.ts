@@ -618,74 +618,69 @@ export const useCourseStore = create<CourseState>()(
           }),
       }),
       {
-        name: 'course-workflow-v3',
-        // Persist only the fields needed to reconnect after a page refresh.
-        // If the user refreshes during pipeline/course-editor, we reattach to
-        // the same job via SSE using the persisted jobId and phase.
+        name: 'course-workflow-v4',
+        // ── Serialise rawDocuments safely ──────────────────────────────────────
+        // `File` objects are not JSON-serialisable and `previewHtml` can be
+        // several MB. Strip both. Only keep files that have been successfully
+        // uploaded (have a blobPath) so a stale "uploading" entry doesn't
+        // re-appear on restore.
         partialize: (s) => {
-          // Pipeline / editor: only persist the job ID when the user is
-          // actually on one of those phases so a stale activeJobId from a
-          // completed run cannot be restored alongside an unrelated phase.
+          const persistedDocs = s.rawDocuments
+            .filter((d) => d.status === 'success' && d.blobPath)
+            .map(({ file: _f, previewHtml: _h, ...rest }) => rest)
+
+          // Base shape — common to every phase.
+          const base = {
+            phase: s.phase,
+            // Course configuration
+            courseTitle:         s.courseTitle,
+            courseId:            s.courseId,
+            courseTypeHint:      s.courseTypeHint,
+            audience:            s.audience,
+            durationHours:       s.durationHours,
+            difficultyLevel:     s.difficultyLevel,
+            calculatedWordCount: s.calculatedWordCount,
+            courseTopic:         s.courseTopic,
+            uploadFolder:        s.uploadFolder,
+            customToPrompt:      s.customToPrompt,
+            detectedRuleFamily:  s.detectedRuleFamily,
+            specialInstructions: s.specialInstructions,
+            wizardData:          s.wizardData,
+            // Uploaded source documents (metadata only — no File object)
+            rawDocuments:        persistedDocs,
+            // TO + Rules JSON (present once generation has run)
+            toData:              s.toData,
+            toOriginal:          s.toOriginal,
+            rulesData:           s.rulesData,
+            rulesOriginal:       s.rulesOriginal,
+            generatedToBlobPath: s.generatedToBlobPath,
+          }
+
+          // Pipeline / editor: also include the active job ID so SSE can
+          // reconnect and the back-navigation can restore the three-panel.
           if (
             s.activeJobId &&
             (s.phase === 'pipeline' || s.phase === 'course-editor')
           ) {
-            return { activeJobId: s.activeJobId, phase: s.phase }
+            return { ...base, activeJobId: s.activeJobId }
           }
-          // TO-generation in progress: restore loader + polling on return
+
+          // TO-generation in progress: keep the polling job ID.
           if (s.activeTOJobId) {
-            return { activeTOJobId: s.activeTOJobId }
+            return { ...base, activeTOJobId: s.activeTOJobId }
           }
-          // TO-summary and three-panel: persist the full TO/Rules JSON so that
-          // (a) the two-card screen and modal survive refresh without re-generating,
-          // (b) every edit made in the three-panel JSON editor is written to
-          //     localStorage immediately (Zustand persist fires on every set()),
-          //     so the data is never lost on refresh or navigation.
-          // useLoadTrainingOutline's `if (toData) return` guard then skips the
-          // blob fetch when data is already hydrated from localStorage.
-          // Outline review + TO-summary + three-panel: persist full TO/Rules JSON
-          if (s.phase === 'wizard-outline-review' || s.phase === 'to-summary' || s.phase === 'three-panel') {
-            return {
-              phase: s.phase,
-              toData: s.toData,
-              toOriginal: s.toOriginal,
-              rulesData: s.rulesData,
-              rulesOriginal: s.rulesOriginal,
-              courseTitle: s.courseTitle,
-              detectedRuleFamily: s.detectedRuleFamily,
-              generatedToBlobPath: s.generatedToBlobPath,
-              courseTopic: s.courseTopic,
-              difficultyLevel: s.difficultyLevel,
-              wizardData: s.wizardData,
-              audience: s.audience,
-              courseId: s.courseId,
-              courseTypeHint: s.courseTypeHint,
-              durationHours: s.durationHours,
-            }
-          }
-          // Active wizard steps: persist form data so drafts survive refresh.
-          // Also persist toData/rulesData when present so a generated outline
-          // is not lost if the user navigates back to an earlier step then refreshes.
-          if (s.phase.startsWith('wizard-') || s.phase === 'welcome') {
-            return {
-              phase: s.phase,
-              wizardData: s.wizardData,
-              courseTitle: s.courseTitle,
-              courseId: s.courseId,
-              audience: s.audience,
-              courseTypeHint: s.courseTypeHint,
-              durationHours: s.durationHours,
-              difficultyLevel: s.difficultyLevel,
-              courseTopic: s.courseTopic,
-              ...(s.toData ? { toData: s.toData, toOriginal: s.toOriginal } : {}),
-              ...(s.rulesData ? { rulesData: s.rulesData, rulesOriginal: s.rulesOriginal } : {}),
-              ...(s.generatedToBlobPath ? { generatedToBlobPath: s.generatedToBlobPath } : {}),
-            }
-          }
-          return {}
+
+          return base
         },
       },
     ),
     { name: 'course-store' },
   ),
 )
+
+/**
+ * Wipe the persisted localStorage entry completely.
+ * Call this alongside `reset()` when the user clicks "Start Over" so that
+ * a hard refresh after that action still lands on the Welcome screen.
+ */
+export const clearCourseStorage = () => useCourseStore.persist.clearStorage()

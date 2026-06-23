@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useCourseStore } from '../../../../store/courseStore'
@@ -44,6 +44,24 @@ export const CourseBasicsStep = () => {
   const setWizardData = useCourseStore((s) => s.setWizardData)
 
   const description = wizardData.description ?? ''
+
+  // Custom duration text — separate from pill selection so they don't fight each other
+  const [customHours, setCustomHours] = useState('')
+
+  const handlePillDuration = (hrs: number) => {
+    setDurationHours(durationHours === hrs ? null : hrs)
+    setCustomHours('')
+  }
+
+  const handleCustomDuration = (val: string) => {
+    setCustomHours(val)
+    const n = parseFloat(val)
+    if (!isNaN(n) && n > 0) {
+      setDurationHours(n)
+    } else {
+      setDurationHours(null)
+    }
+  }
 
   const { setConfig } = useWizardNav()
 
@@ -187,16 +205,14 @@ export const CourseBasicsStep = () => {
             <motion.button
               key={hrs}
               type="button"
-              onClick={() =>
-                setDurationHours(durationHours === hrs ? null : hrs)
-              }
+              onClick={() => handlePillDuration(hrs)}
               whileHover={{ y: -2, boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               style={{ willChange: "transform" }}
               className={cn(
                 "px-4 py-2 text-sm rounded-full border transition-colors font-medium",
-                durationHours === hrs
+                durationHours === hrs && customHours === ""
                   ? "bg-brand-500 text-white border-brand-500 shadow-sm"
                   : "bg-white text-slate-700 border-slate-200 hover:border-brand-300 shadow-xs",
               )}
@@ -204,6 +220,19 @@ export const CourseBasicsStep = () => {
               {hrs} {hrs === 1 ? "Hour" : "Hours"}
             </motion.button>
           ))}
+        </div>
+        {/* Custom duration text input */}
+        <div className="flex items-center gap-2 pt-1">
+          <input
+            type="number"
+            min="0.5"
+            step="0.5"
+            value={customHours}
+            onChange={(e) => handleCustomDuration(e.target.value)}
+            placeholder="Custom (e.g. 6)"
+            className="w-36 px-3.5 py-2 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all"
+          />
+          <span className="text-sm text-slate-400">hours</span>
         </div>
       </motion.div>
 
