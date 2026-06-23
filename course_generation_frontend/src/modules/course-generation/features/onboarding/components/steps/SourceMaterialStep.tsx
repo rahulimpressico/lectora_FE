@@ -1,13 +1,44 @@
 import type { ChangeEvent, DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, Cloud, HardDrive, Loader2, Upload, X, XCircle } from 'lucide-react'
+import { CheckCircle2, Cloud, Database, HardDrive, Loader2, Upload, X, XCircle } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useFileUpload } from '../../../upload/hooks/useFileUpload'
 import { useWizardNav } from '../WizardNavContext'
 import { InlineAzureBrowser } from '../../../upload/components/InlineAzureBrowser'
 import { formatBytes } from '@/utils/formatBytes'
 import { cn } from '@/lib/cn'
+import type { IngestionStatus } from '../../../../types'
+
+function IngestionBadge({ status }: { status: IngestionStatus | undefined }) {
+  if (!status || status === 'indexed' || status === 'parsed') return null
+  if (status === 'pending' || status === 'processing') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+        Indexing…
+      </span>
+    )
+  }
+  if (status === 'failed') {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
+        Index skipped
+      </span>
+    )
+  }
+  return null
+}
+
+function IndexedBadge({ status }: { status: IngestionStatus | undefined }) {
+  if (status !== 'indexed') return null
+  return (
+    <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">
+      <Database className="w-2.5 h-2.5" />
+      Indexed
+    </span>
+  )
+}
 
 // ── Animation variants ────────────────────────────────────────────────────────
 
@@ -67,6 +98,9 @@ export const SourceMaterialStep = () => {
 
   const successDocs = rawDocuments.filter((d) => d.status === 'success')
   const addedPaths = new Set(successDocs.map((d) => d.blobPath).filter(Boolean) as string[])
+  const isIngesting = successDocs.some(
+    (d) => d.ingestionStatus === 'pending' || d.ingestionStatus === 'processing',
+  )
 
   const { setConfig } = useWizardNav()
 
@@ -75,11 +109,12 @@ export const SourceMaterialStep = () => {
       backPhase: 'wizard-audience',
       backLabel: 'Back',
       nextPhase: 'wizard-objectives',
-      nextLabel: 'Next: Objectives',
-      isNextDisabled: successDocs.length === 0,
+      nextLabel: isIngesting ? 'Indexing…' : 'Next: Objectives',
+      isNextDisabled: successDocs.length === 0 || isIngesting,
+      isNextLoading: isIngesting,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [successDocs.length])
+  }, [successDocs.length, isIngesting])
 
   useEffect(() => {
     if (!courseTopic.trim() && courseTitle.trim()) {
@@ -309,7 +344,11 @@ export const SourceMaterialStep = () => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
+                        <IngestionBadge status={file.ingestionStatus} />
+                        <IndexedBadge status={file.ingestionStatus} />
+                      </div>
                       <p className="text-xs text-slate-400">
                         {formatBytes(file.sizeBytes)}
                         {file.source === "azure" && " · Azure Storage"}

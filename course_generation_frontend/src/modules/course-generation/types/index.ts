@@ -27,6 +27,7 @@ export type * from './wizard'
 // ─── File upload ───────────────────────────────────────────────────────────────
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'
 export type UploadedFileType = 'docx' | 'pdf' | 'json'
+export type IngestionStatus = 'pending' | 'processing' | 'indexed' | 'parsed' | 'failed'
 
 export interface UploadedFile {
   id: string
@@ -41,6 +42,8 @@ export interface UploadedFile {
   source?: 'system' | 'azure'
   extractHint?: string
   importance?: 'high' | 'medium' | 'low'
+  documentId?: string
+  ingestionStatus?: IngestionStatus
 }
 
 // ─── Training Outline (TO) ────────────────────────────────────────────────────

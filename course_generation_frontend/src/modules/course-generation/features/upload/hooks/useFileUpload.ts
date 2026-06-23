@@ -1,12 +1,14 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { v4 as uuid } from 'uuid'
-import { uploadDocument } from '@/api/course-generation/api'
+import { uploadDocument, pollIngestionStatus } from '@/api/course-generation/api'
 import { useCourseStore } from '../../../store/courseStore'
 import { useDocxPreview } from './useDocxPreview'
 import type { UploadedFile, UploadedFileType } from '../../../types'
 
 const ACCEPTED_EXTENSIONS = ['.docx', '.pdf']
+const INGESTION_POLL_INTERVAL_MS = 3_000
+const INGESTION_POLL_TIMEOUT_MS = 10 * 60 * 1_000 // 10 min
 
 function isValidCourseTopic(topic: string): boolean {
   const t = topic.trim()
@@ -29,11 +31,45 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
     setUploadFolder,
   } = useCourseStore()
   const { parseFile } = useDocxPreview()
+  // Track active poll timers so we can cancel them on unmount (best-effort)
+  const pollTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const { mutateAsync: uploadToServer } = useMutation({
     mutationFn: ({ file, topic }: { file: File; topic: string }) =>
       uploadDocument(file, topic),
   })
+
+  function startIngestionPolling(fileId: string, documentId: string) {
+    const deadline = Date.now() + INGESTION_POLL_TIMEOUT_MS
+
+    async function poll() {
+      if (Date.now() > deadline) {
+        updateRawDocument(fileId, { ingestionStatus: 'failed' })
+        return
+      }
+      try {
+        const result = await pollIngestionStatus(documentId)
+        if (!result) {
+          // 404 — entry expired or unknown; treat as failure
+          updateRawDocument(fileId, { ingestionStatus: 'failed' })
+          return
+        }
+        updateRawDocument(fileId, { ingestionStatus: result.status })
+        if (result.status === 'pending' || result.status === 'processing') {
+          const timer = setTimeout(() => void poll(), INGESTION_POLL_INTERVAL_MS)
+          pollTimers.current.set(fileId, timer)
+        } else {
+          pollTimers.current.delete(fileId)
+        }
+      } catch {
+        // Network error — retry
+        const timer = setTimeout(() => void poll(), INGESTION_POLL_INTERVAL_MS)
+        pollTimers.current.set(fileId, timer)
+      }
+    }
+
+    void poll()
+  }
 
   const enqueueFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -70,12 +106,19 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
           }
 
           try {
-            const { blobPath, uploadFolder } = await uploadToServer({
+            const { blobPath, uploadFolder, documentId } = await uploadToServer({
               file,
               topic: courseTopic.trim(),
             })
             setUploadFolder(uploadFolder)
-            updateRawDocument(id, { blobPath, status: 'success' })
+            updateRawDocument(id, {
+              blobPath,
+              status: 'success',
+              documentId,
+              ingestionStatus: 'pending',
+            })
+            // Start polling ingestion status — Next button stays disabled until done
+            if (documentId) startIngestionPolling(id, documentId)
           } catch (err) {
             const msg =
               err instanceof Error ? err.message : 'Upload failed — server unreachable'
@@ -86,6 +129,7 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
         }
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [addRawDocument, updateRawDocument, parseFile, uploadToServer, courseTopic, setUploadFolder],
   )
 
@@ -111,6 +155,7 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
           fileType,
           blobPath: entry.path,
           source: 'azure',
+          // Azure-picked files are pre-existing blobs — no ingestion status to wait for
         })
       }
     },

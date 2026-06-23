@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ArrowLeft, Pencil } from 'lucide-react'
-import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import { useCourseStore } from '../../../store/courseStore'
 
 const RULE_FAMILY_LABELS: Record<string, string> = {
@@ -18,35 +17,20 @@ const RULE_FAMILY_OPTIONS = [
 export const ThreePanelHeader = () => {
   const {
     setPhase,
-    reset,
     rawDocuments,
     audience,
     courseTitle,
     setCourseTitle,
     detectedRuleFamily,
     setDetectedRuleFamily,
-    modifiedTOPaths,
-    modifiedRulesPaths,
   } = useCourseStore()
 
   const [editingTitle, setEditingTitle] = useState(false)
   const [localTitle, setLocalTitle] = useState('')
   const [showFamilyDropdown, setShowFamilyDropdown] = useState(false)
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
-
-  const hasUnsavedEdits = modifiedTOPaths.size > 0 || modifiedRulesPaths.size > 0
-
-  const goToWelcome = () => {
-    reset()
-    setPhase('welcome')
-  }
 
   const handleBack = () => {
-    if (hasUnsavedEdits) {
-      setShowLeaveConfirm(true)
-    } else {
-      goToWelcome()
-    }
+    setPhase('to-summary')
   }
 
   const fileCount = rawDocuments.filter((f) => f.status === 'success').length
@@ -79,16 +63,6 @@ export const ThreePanelHeader = () => {
         <ArrowLeft size={15} />
         <span className="hidden sm:inline">Back</span>
       </button>
-
-      <ConfirmLeaveModal
-        open={showLeaveConfirm}
-        title="Discard changes?"
-        message="You have unsaved edits to the Training Outline or Rules. Going back will discard these changes and they cannot be recovered."
-        confirmLabel="Discard & go back"
-        cancelLabel="Keep editing"
-        onConfirm={() => { setShowLeaveConfirm(false); goToWelcome() }}
-        onCancel={() => setShowLeaveConfirm(false)}
-      />
 
       <div className="w-px h-5 bg-slate-200 shrink-0" />
 

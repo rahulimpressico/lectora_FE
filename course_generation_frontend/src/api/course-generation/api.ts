@@ -40,7 +40,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * Upload a single document (DOCX / PDF) to blob storage.
- * Returns the blob path and upload folder for downstream use.
+ * Returns the blob path, upload folder, and document ID for downstream use.
  *
  * Note: do NOT set Content-Type manually — Axios auto-sets multipart/form-data
  * with the correct boundary when a FormData body is detected.
@@ -48,11 +48,11 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 export async function uploadDocument(
   file: File,
   courseTopic: string,
-): Promise<{ blobPath: string; uploadFolder: string }> {
+): Promise<{ blobPath: string; uploadFolder: string; documentId: string }> {
   const form = new FormData()
   form.append('file', file)
   form.append('courseTopic', courseTopic.trim())
-  const { data } = await apiClient.post<{ blobPath: string; uploadFolder: string }>(
+  const { data } = await apiClient.post<{ blobPath: string; uploadFolder: string; documentId: string }>(
     '/documents/upload',
     form,
     {
@@ -61,6 +61,31 @@ export async function uploadDocument(
     },
   )
   return data
+}
+
+export interface IngestionStatusResponse {
+  document_id: string
+  status: 'pending' | 'processing' | 'indexed' | 'parsed' | 'failed'
+  total_chunks: number
+  error: string | null
+  updated_at: number
+}
+
+/**
+ * Poll the backend ingestion status for a document uploaded via POST /documents/upload.
+ * Returns null with a 404 — document_id unknown or expired.
+ */
+export async function pollIngestionStatus(documentId: string): Promise<IngestionStatusResponse | null> {
+  try {
+    const { data } = await apiClient.get<IngestionStatusResponse>(
+      `/documents/${documentId}/ingestion-status`,
+      { timeout: 15_000 },
+    )
+    return data
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 404) return null
+    throw err
+  }
 }
 
 /** Cancel an in-flight A0 generate-to job on the backend (best-effort, fire-and-forget). */

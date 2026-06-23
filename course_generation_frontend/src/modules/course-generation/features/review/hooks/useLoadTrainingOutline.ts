@@ -11,6 +11,7 @@ import type { JsonObject } from '../../../types'
 export function useLoadTrainingOutline() {
   const {
     toData,
+    courseTitle,
     generatedToBlobPath,
     activeJobId,
     setTOData,
@@ -36,7 +37,7 @@ export function useLoadTrainingOutline() {
           if (cancelled) return
           setTOData(to as JsonObject, to as JsonObject)
           setRulesData(rules as JsonObject, rules as JsonObject)
-          if (typeof to.course_name === 'string') setCourseTitle(to.course_name)
+          if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name)
           if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family)
           return
         }
@@ -46,7 +47,7 @@ export function useLoadTrainingOutline() {
           if (cancelled) return
           setTOData(to as JsonObject, to as JsonObject)
           setRulesData(rules as JsonObject, rules as JsonObject)
-          if (typeof to.course_name === 'string') setCourseTitle(to.course_name as string)
+          if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name as string)
           if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family as string)
         }
       } catch (err) {
@@ -67,6 +68,7 @@ export function useLoadTrainingOutline() {
     }
   }, [
     toData,
+    courseTitle,
     generatedToBlobPath,
     activeJobId,
     setTOData,
