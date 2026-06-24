@@ -29,6 +29,7 @@ import { SectionNavigation } from './SectionNavigation'
 import { CourseSectionCard } from './CourseSectionCard'
 import { CoursePreviewModal } from './CoursePreviewModal'
 import { isExpiredJobError } from '@/api/errors'
+import { AIAssistantLabel, AIAssistantOverlay } from './AIAssistant'
 import type { CourseSection } from '../../../types/editor'
 
 interface CourseEditorViewProps {
@@ -121,6 +122,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const dirtySectionCount = [...sectionEditStates.values()].filter((s) => s.isDirty).length
 
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false)
   const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
@@ -240,7 +242,6 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   return (
     <div className="relative flex-1 flex flex-col min-h-0 bg-[#f4f6f9]">
-
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
         <button
@@ -248,7 +249,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           onClick={() =>
             dirtySectionCount > 0
               ? setConfirmPendingEdits(true)
-              : setPhase('three-panel')
+              : setPhase("three-panel")
           }
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors shrink-0"
         >
@@ -259,12 +260,12 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         <ConfirmLeaveModal
           open={confirmPendingEdits}
           title="Discard unsaved edits?"
-          message={`You have unsaved edits in ${dirtySectionCount} section${dirtySectionCount !== 1 ? 's' : ''}. Going back will discard all changes.`}
+          message={`You have unsaved edits in ${dirtySectionCount} section${dirtySectionCount !== 1 ? "s" : ""}. Going back will discard all changes.`}
           confirmLabel="Discard & go back"
           cancelLabel="Keep editing"
           onConfirm={() => {
-            setConfirmPendingEdits(false)
-            setPhase('three-panel')
+            setConfirmPendingEdits(false);
+            setPhase("three-panel");
           }}
           onCancel={() => setConfirmPendingEdits(false)}
         />
@@ -281,14 +282,15 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                   value={editTitleValue}
                   onChange={(e) => setEditTitleValue(e.target.value)}
                   onBlur={() => {
-                    const t = editTitleValue.trim() || courseContent.courseTitle
-                    updateCourseTitle(t)
-                    setCourseTitle(t)
-                    setIsEditingTitle(false)
+                    const t =
+                      editTitleValue.trim() || courseContent.courseTitle;
+                    updateCourseTitle(t);
+                    setCourseTitle(t);
+                    setIsEditingTitle(false);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.currentTarget.blur()
-                    if (e.key === 'Escape') setIsEditingTitle(false)
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") setIsEditingTitle(false);
                   }}
                   className="text-sm font-bold text-slate-900 leading-tight w-full bg-transparent border-b border-indigo-400 outline-none"
                 />
@@ -296,8 +298,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    setEditTitleValue(courseContent.courseTitle)
-                    setIsEditingTitle(true)
+                    setEditTitleValue(courseContent.courseTitle);
+                    setIsEditingTitle(true);
                   }}
                   className="group flex items-center gap-1.5 text-left w-full"
                   title="Click to edit course title"
@@ -314,12 +316,22 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
               <div className="flex items-center gap-3 mt-0.5">
                 <span className="flex items-center gap-1 text-[11px] text-slate-400">
                   <BookOpen size={10} />
-                  {Number.isFinite(courseContent.meta.sectionCount) ? courseContent.meta.sectionCount : 0} sections,{' '}
-                  {Number.isFinite(courseContent.meta.chapterCount) ? courseContent.meta.chapterCount : 0} chapters
+                  {Number.isFinite(courseContent.meta.sectionCount)
+                    ? courseContent.meta.sectionCount
+                    : 0}{" "}
+                  sections,{" "}
+                  {Number.isFinite(courseContent.meta.chapterCount)
+                    ? courseContent.meta.chapterCount
+                    : 0}{" "}
+                  chapters
                 </span>
                 <span className="flex items-center gap-1 text-[11px] text-slate-400">
                   <Hash size={10} />
-                  {(Number.isFinite(courseContent.meta.totalWordCount) ? courseContent.meta.totalWordCount : 0).toLocaleString()} words
+                  {(Number.isFinite(courseContent.meta.totalWordCount)
+                    ? courseContent.meta.totalWordCount
+                    : 0
+                  ).toLocaleString()}{" "}
+                  words
                 </span>
                 <span className="flex items-center gap-1 text-[11px] text-slate-400">
                   <Clock size={10} />
@@ -334,6 +346,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          <AIAssistantLabel onClick={() => setIsAIAssistantOpen(true)} />
+
           <Button
             variant="secondary"
             size="sm"
@@ -363,19 +377,21 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
               icon={<CloudUpload size={13} />}
               onClick={() => {
                 if (dirtySectionCount > 0 && !confirmPendingEdits) {
-                  setConfirmPendingEdits(true)
-                  return
+                  setConfirmPendingEdits(true);
+                  return;
                 }
-                setConfirmPendingEdits(false)
-                resetSaveToAzure()
+                setConfirmPendingEdits(false);
+                resetSaveToAzure();
                 saveToAzure({
                   jobId,
                   courseTitle: courseContent?.courseTitle,
-                  sectionOrder: courseContent ? buildSectionOrder(courseContent.sections) : undefined,
-                })
+                  sectionOrder: courseContent
+                    ? buildSectionOrder(courseContent.sections)
+                    : undefined,
+                });
               }}
               disabled={!courseContent}
-              loading={saveStatus === 'loading'}
+              loading={saveStatus === "loading"}
             >
               Save to Azure
             </Button>
@@ -383,7 +399,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             {confirmPendingEdits && (
               <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] max-w-xs text-left">
                 <p className="font-semibold text-amber-800">
-                  You have {dirtySectionCount} unsaved edit{dirtySectionCount !== 1 ? 's' : ''}.
+                  You have {dirtySectionCount} unsaved edit
+                  {dirtySectionCount !== 1 ? "s" : ""}.
                 </p>
                 <p className="mt-0.5 text-amber-700">
                   Only saved edits will be included in the export.
@@ -412,18 +429,21 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       </div>
 
       {/* ── Save to Azure status banner ───────────────────────────────────── */}
-      {saveStatus === 'loading' && (
+      {saveStatus === "loading" && (
         <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-700">
-          Uploading to Azure… large courses can take several minutes. Please keep this tab open.
+          Uploading to Azure… large courses can take several minutes. Please
+          keep this tab open.
         </div>
       )}
-      {saveStatus === 'success' && saveResult && (
+      {saveStatus === "success" && saveResult && (
         <div className="mx-4 mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100">
             <CheckCircle2 size={14} className="text-emerald-600" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-semibold text-emerald-800">Course saved to Azure</p>
+            <p className="text-[13px] font-semibold text-emerald-800">
+              Course saved to Azure
+            </p>
             <p className="text-[11px] text-emerald-600 mt-0.5 break-all leading-relaxed">
               {saveResult.blobPath}
             </p>
@@ -442,13 +462,15 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           </button>
         </div>
       )}
-      {saveStatus === 'error' && (
+      {saveStatus === "error" && (
         <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
           <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-semibold text-red-700">Failed to save to Azure</p>
+            <p className="text-[13px] font-semibold text-red-700">
+              Failed to save to Azure
+            </p>
             <p className="text-[11px] text-red-500 mt-0.5 leading-relaxed">
-              {saveError ?? 'An unexpected error occurred. Please try again.'}
+              {saveError ?? "An unexpected error occurred. Please try again."}
             </p>
           </div>
           <button
@@ -466,14 +488,13 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         <div className="h-[2px] bg-slate-100 shrink-0">
           <div
             className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-500 animate-[shimmer_1.5s_ease-in-out_infinite]"
-            style={{ width: '100%' }}
+            style={{ width: "100%" }}
           />
         </div>
       )}
 
       {/* ── Content area ───────────────────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0">
-
+      <div className="relative flex-1 flex min-h-0">
         {/* Left nav */}
         {courseContent && (
           <SectionNavigation
@@ -481,6 +502,12 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             activeSectionId={activeSectionId}
           />
         )}
+        {/* Alia — floating overlay between nav and editor */}
+        <AnimatePresence>
+          {isAIAssistantOpen && (
+            <AIAssistantOverlay onClose={() => setIsAIAssistantOpen(false)} />
+          )}
+        </AnimatePresence>
 
         {/* Main editor */}
         <div className="flex-1 overflow-y-auto">
@@ -492,7 +519,6 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             </div>
           ) : courseContent ? (
             <div className="max-w-4xl mx-auto px-6 py-6">
-
               {/* Toolbar row */}
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
@@ -537,8 +563,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                   className="space-y-3"
                 >
                   {localSectionIds.map((id, index) => {
-                    const section = sectionById.get(id)
-                    if (!section) return null
+                    const section = sectionById.get(id);
+                    if (!section) return null;
                     return (
                       <DraggableSectionItem
                         key={id}
@@ -547,7 +573,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                         jobId={jobId}
                         onDragCommit={commitSectionOrder}
                       />
-                    )
+                    );
                   })}
                 </Reorder.Group>
               </AnimatePresence>
@@ -558,10 +584,12 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                 onClick={() => addSection()}
                 className="mt-4 w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed border-slate-200 text-sm font-medium text-slate-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/50 transition-all duration-150 group"
               >
-                <Plus size={15} className="group-hover:scale-110 transition-transform" />
+                <Plus
+                  size={15}
+                  className="group-hover:scale-110 transition-transform"
+                />
                 Add Section
               </button>
-
             </div>
           ) : null}
         </div>
@@ -585,5 +613,5 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         />
       )}
     </div>
-  )
+  );
 }

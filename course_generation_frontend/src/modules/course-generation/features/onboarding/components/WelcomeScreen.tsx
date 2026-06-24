@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, BookOpen, Clock, Sparkles, Users, Zap } from 'lucide-react'
 import { useCourseStore } from '../../../store/courseStore'
@@ -32,9 +31,9 @@ export const WelcomeScreen = () => {
   const setPhase = useCourseStore((s) => s.setPhase)
   const reset = useCourseStore((s) => s.reset)
 
-  useEffect(() => {
-    reset()
-  }, [reset])
+  // No auto-reset on mount — data is preserved when the user is sent back here
+  // from the pipeline or editor. Reset fires explicitly on "Start Course Setup"
+  // so returning users keep their wizard data until they consciously start over.
 
   return (
     <div
@@ -140,7 +139,7 @@ export const WelcomeScreen = () => {
 
           {/* CTA button */}
           <motion.button
-            onClick={() => setPhase("wizard-basics")}
+            onClick={() => { reset(); setPhase("wizard-basics") }}
             className="group relative overflow-hidden flex items-center gap-3 px-8 py-3.5 bg-indigo-600 text-white text-sm font-semibold rounded-2xl shadow-lg shadow-indigo-300/40 hover:bg-indigo-700 active:translate-y-0 transition-colors duration-200"
             variants={scaleIn}
             transition={{ delay: 0.34 }}
