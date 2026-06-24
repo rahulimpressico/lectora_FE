@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { useBlocker } from 'react-router-dom'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import { UploadPhase } from '../features/upload/components/UploadPhase'
-import { TOSummaryPhase } from '../features/review/components/TOSummaryPhase'
 import { ThreePanelPhase } from '../features/review/components/ThreePanelPhase'
 import { DocPreviewModal } from '../features/upload/components/DocPreviewModal'
 import { PipelineView } from '../features/pipeline/components/PipelineView'
@@ -110,8 +109,7 @@ export const CourseGenerationPage = () => {
   return (
     <>
       {phase === 'upload' && <UploadPhase />}
-      {phase === 'to-summary' && <TOSummaryPhase />}
-      {phase === 'three-panel' && <ThreePanelPhase />}
+{phase === 'three-panel' && <ThreePanelPhase />}
       <DocPreviewModal />
 
       <ConfirmLeaveModal

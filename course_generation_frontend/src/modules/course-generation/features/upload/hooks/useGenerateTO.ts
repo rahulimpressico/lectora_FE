@@ -54,7 +54,7 @@ function isCompletedResponse(
  * `statusMessage` reflects the backend's latest `message` field and can drive
  * step labels in the loader.
  */
-export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
+export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
   const qc = useQueryClient()
   const {
     setTOData,
