@@ -19,6 +19,7 @@ export const GenerateCourseBanner = () => {
     audience,
     courseTitle,
     detectedRuleFamily,
+    wizardData,
     setSpecialInstructions,
     setPhase,
     setActiveJobId,
@@ -63,6 +64,21 @@ export const GenerateCourseBanner = () => {
           })),
         audience: audience || '',
         ...(specialInstructions?.trim() ? { specialInstructions: specialInstructions.trim() } : {}),
+        courseConfig: {
+          // Title and description: user-provided values are the single source of truth.
+          ...(courseTitle.trim() ? { courseTitle: courseTitle.trim() } : {}),
+          ...(wizardData.description.trim() ? { courseDescription: wizardData.description.trim() } : {}),
+          ...(wizardData.experienceLevel ? { experienceLevel: wizardData.experienceLevel } : {}),
+          ...(wizardData.learnerOutcomes.trim() ? { learnerOutcomes: wizardData.learnerOutcomes.trim() } : {}),
+          ...(wizardData.audienceNotes.trim() ? { audienceNotes: wizardData.audienceNotes.trim() } : {}),
+          ...(wizardData.objectives.length > 0 ? { learningObjectives: wizardData.objectives } : {}),
+          ...(wizardData.tone.trim() ? { tone: wizardData.tone.trim() } : {}),
+          ...(wizardData.depth ? { depth: wizardData.depth } : {}),
+          ...(wizardData.emphasis.trim() ? { emphasis: wizardData.emphasis.trim() } : {}),
+          ...(wizardData.avoid.trim() ? { avoid: wizardData.avoid.trim() } : {}),
+          includeScenarios: wizardData.includeScenarios,
+          includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
+        },
       }),
     onSuccess: (response) => {
       setActiveJobId(response.jobId)

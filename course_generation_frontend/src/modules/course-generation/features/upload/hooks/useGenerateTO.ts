@@ -165,6 +165,10 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
       const { wizardData } = useCourseStore.getState()
       const body: Record<string, unknown> = {
         blobPaths,
+        // User-provided title and description — single source of truth.
+        // Sent as separate fields so the backend can override LLM output verbatim.
+        ...(courseTitle.trim() && { courseTitle: courseTitle.trim() }),
+        ...(wizardData.description.trim() && { courseDescription: wizardData.description.trim() }),
         // Only include difficulty fields when values are actually set.
         ...(difficulty && { difficulty, difficultyLevel: difficulty }),
         ...(effectiveCustomPrompt && { customToPrompt: effectiveCustomPrompt }),
@@ -174,8 +178,22 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
         ...(durationHours != null && { durationHours }),
         ...(calculatedWordCount != null && { calculatedWordCount }),
         ...(audience.trim() && { audience: audience.trim() }),
-        // Structured wizard fields — backend merges these into the A0 prompt context.
+        // ── Onboarding wizard fields ──────────────────────────────────────────
+        // Audience & experience
+        ...(wizardData.experienceLevel && { experienceLevel: wizardData.experienceLevel }),
+        ...(wizardData.learnerOutcomes.trim() && { learnerOutcomes: wizardData.learnerOutcomes.trim() }),
+        ...(wizardData.audienceNotes.trim() && { audienceNotes: wizardData.audienceNotes.trim() }),
+        // Learning objectives
         ...(wizardData.objectives.length > 0 && { learningObjectives: wizardData.objectives }),
+        // Content direction
+        ...(wizardData.tone.trim() && { tone: wizardData.tone.trim() }),
+        ...(wizardData.depth && { depth: wizardData.depth }),
+        ...(wizardData.emphasis.trim() && { emphasis: wizardData.emphasis.trim() }),
+        ...(wizardData.avoid.trim() && { avoid: wizardData.avoid.trim() }),
+        // Instructional design flags (always send when wizard has been visited)
+        includeScenarios: wizardData.includeScenarios,
+        includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
+        // Outline structure
         ...(wizardData.preferredChapters && { preferredChapters: parseInt(wizardData.preferredChapters, 10) || undefined }),
         ...(wizardData.lessonStyle && { lessonStyle: wizardData.lessonStyle }),
       }
@@ -186,6 +204,16 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
         calculatedWordCount,
         audience: audience.trim(),
         courseTypeHint: courseTypeHint.trim(),
+        experienceLevel: wizardData.experienceLevel,
+        tone: wizardData.tone,
+        depth: wizardData.depth,
+        hasDescription: !!wizardData.description.trim(),
+        hasLearnerOutcomes: !!wizardData.learnerOutcomes.trim(),
+        hasAudienceNotes: !!wizardData.audienceNotes.trim(),
+        hasEmphasis: !!wizardData.emphasis.trim(),
+        hasAvoid: !!wizardData.avoid.trim(),
+        includeScenarios: wizardData.includeScenarios,
+        includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
         objectivesCount: wizardData.objectives.length,
         preferredChapters: wizardData.preferredChapters,
         lessonStyle: wizardData.lessonStyle,

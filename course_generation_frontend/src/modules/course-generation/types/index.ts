@@ -173,6 +173,23 @@ export interface GenerateCoursePayload {
   audience: string
   /** Optional special instructions from the user, injected into A2 generation prompts. */
   specialInstructions?: string
+  /** Onboarding wizard fields forwarded to A2 for dynamic prompt construction. */
+  courseConfig?: {
+    /** User-provided title — single source of truth, never overwritten by LLM. */
+    courseTitle?: string
+    /** User-provided description — used verbatim in DOCX overview, never regenerated. */
+    courseDescription?: string
+    experienceLevel?: string
+    learnerOutcomes?: string
+    audienceNotes?: string
+    learningObjectives?: string[]
+    tone?: string
+    depth?: string
+    emphasis?: string
+    avoid?: string
+    includeScenarios?: boolean
+    includeKnowledgeChecks?: boolean
+  }
 }
 
 // ─── SSE Pipeline Events (GET /jobs/{jobId}/events) ───────────────────────────
