@@ -3,6 +3,7 @@ import { devtools, persist } from 'zustand/middleware'
 import { deepSet, deepGet } from '../utils/deepUpdate'
 import { calcWordCount, WORDS_PER_CREDIT_HOUR } from '../utils/courseConfig'
 import type {
+  SourceAnalysis,
   UploadedFile,
   WorkflowPhase,
   JsonObject,
@@ -80,6 +81,21 @@ interface CourseState {
   /** Structured data collected by the Course Setup Wizard steps. */
   wizardData: WizardData
 
+  // ── Source analysis ──────────────────────────────────────────────────────────
+  /**
+   * Per-document source analysis results computed when the user clicks
+   * "Next: Objectives" on the Materials step.
+   * Persisted to localStorage so they survive page refresh.
+   * Passed to POST /documents/generate-to as sourceAnalyses.
+   */
+  sourceAnalyses: SourceAnalysis[]
+  /**
+   * Cache key for the current sourceAnalyses — a sorted JSON string of each
+   * document's {blobPath, sourceRole, importance}. Used to skip re-calling
+   * the analyze-source API when the user navigates back and forward.
+   */
+  sourceAnalysesCacheKey: string | null
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
@@ -111,6 +127,7 @@ interface CourseState {
   resetRulesField: (path: string[]) => void
 
   setWizardData: (patch: Partial<WizardData>) => void
+  setSourceAnalyses: (analyses: SourceAnalysis[], cacheKey?: string) => void
 
   setToDocument: (file: UploadedFile | null) => void
   setActiveJob: (job: JobResponse | null) => void
@@ -423,6 +440,8 @@ const initialState = {
   durationHours:        null as number | null,
   difficultyLevel:      null as string | null,
   calculatedWordCount:  null as number | null,
+  sourceAnalyses:            [] as SourceAnalysis[],
+  sourceAnalysesCacheKey:    null as string | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -445,6 +464,8 @@ export const useCourseStore = create<CourseState>()(
 
         setWizardData: (patch) =>
           set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
+
+        setSourceAnalyses: (analyses, cacheKey) => set({ sourceAnalyses: analyses, sourceAnalysesCacheKey: cacheKey ?? null }),
 
         setDurationHours: (hours) =>
           set((s) => {
@@ -654,6 +675,9 @@ export const useCourseStore = create<CourseState>()(
             rulesData:           s.rulesData,
             rulesOriginal:       s.rulesOriginal,
             generatedToBlobPath: s.generatedToBlobPath,
+            // Source analysis results (computed at Materials step Next time)
+            sourceAnalyses:           s.sourceAnalyses,
+            sourceAnalysesCacheKey:   s.sourceAnalysesCacheKey,
           }
 
           // Pipeline / editor: also include the active job ID so SSE can

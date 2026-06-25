@@ -135,9 +135,8 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         courseTitle,
       } = useCourseStore.getState()
 
-      const blobPaths = rawDocuments
-        .filter((f) => f.status === 'success' && f.blobPath)
-        .map((f) => f.blobPath as string)
+      const successDocs = rawDocuments.filter((f) => f.status === 'success' && f.blobPath)
+      const blobPaths = successDocs.map((f) => f.blobPath as string)
 
       if (blobPaths.length === 0) throw new Error('No uploaded documents found.')
       if (!audience.trim()) {
@@ -156,6 +155,9 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
 
       // Use raw store values — no silent defaults that would mask missing data.
       const difficulty = difficultyLevel ? difficultyLevel.toLowerCase() : null
+
+      // ── Source analyses computed at LO generation time (stored in courseStore) ─
+      const sourceAnalyses = useCourseStore.getState().sourceAnalyses
 
       const metadataContext = buildCourseMetadataContext({ courseId, courseTitle })
       const effectiveCustomPrompt =
@@ -196,6 +198,10 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         // Outline structure
         ...(wizardData.preferredChapters && { preferredChapters: parseInt(wizardData.preferredChapters, 10) || undefined }),
         ...(wizardData.lessonStyle && { lessonStyle: wizardData.lessonStyle }),
+        // Source analysis results — used by A0 to weight TO/LO generation
+        ...(sourceAnalyses.length > 0 && { sourceAnalyses }),
+        // Required topics — mandatory content areas specified by the user
+        ...(wizardData.requiredTopics?.length > 0 && { requiredTopics: wizardData.requiredTopics }),
       }
 
       console.debug('[useGenerateTO] onboarding state snapshot:', {

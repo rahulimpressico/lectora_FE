@@ -7,13 +7,14 @@ export type JsonArray = JsonValue[]
 // ─── Workflow ──────────────────────────────────────────────────────────────────
 export type WorkflowPhase =
   | 'welcome'              // wizard welcome screen
-  | 'wizard-basics'        // wizard step 1: course basics
-  | 'wizard-audience'      // wizard step 2: audience
-  | 'wizard-materials'     // wizard step 3: source materials
-  | 'wizard-objectives'    // wizard step 4: learning objectives
-  | 'wizard-direction'     // wizard step 5: course direction
-  | 'wizard-outline-pref'  // wizard step 6: outline preference
-  | 'wizard-outline-review'// wizard step 7: outline review
+  | 'wizard-basics'          // wizard step 1: course basics
+  | 'wizard-required-topics' // wizard step 2: required topics
+  | 'wizard-audience'        // wizard step 3: audience
+  | 'wizard-materials'       // wizard step 4: source materials
+  | 'wizard-objectives'      // wizard step 5: learning objectives
+  | 'wizard-direction'       // wizard step 6: course direction
+  | 'wizard-outline-pref'    // wizard step 7: outline preference
+  | 'wizard-outline-review'  // wizard step 8: outline review
   | 'upload'               // file drop + A0 TO generation
   | 'three-panel'          // review TO / rules, trigger generation
   | 'pipeline'             // A1→S1→A2→S2 processing view
@@ -27,6 +28,8 @@ export type * from './wizard'
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'
 export type UploadedFileType = 'docx' | 'pdf' | 'json'
 export type IngestionStatus = 'pending' | 'processing' | 'indexed' | 'parsed' | 'failed'
+export type SourceRole = 'primary_source' | 'supporting_source' | 'reference_only'
+export type ImportanceLevel = 'high' | 'medium' | 'low'
 
 export interface UploadedFile {
   id: string
@@ -40,9 +43,22 @@ export interface UploadedFile {
   blobPath?: string
   source?: 'system' | 'azure'
   extractHint?: string
-  importance?: 'high' | 'medium' | 'low'
+  sourceRole?: SourceRole
+  importance?: ImportanceLevel
   documentId?: string
   ingestionStatus?: IngestionStatus
+}
+
+// ─── Source analysis ───────────────────────────────────────────────────────────
+export interface SourceAnalysis {
+  sourceName: string
+  sourceRole: SourceRole
+  importance: ImportanceLevel
+  mainTopics: string[]
+  recommendedCourseUse: string
+  recommendedDepth: string
+  supportsLearningObjectives: string[]
+  ignoreOrReduce: string[]
 }
 
 // ─── Training Outline (TO) ────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ interface WizardStep {
 
 const WIZARD_STEPS: WizardStep[] = [
   { id: 'wizard-basics', label: 'Course Basics' },
+  { id: 'wizard-required-topics', label: 'Topics' },
   { id: 'wizard-audience', label: 'Audience' },
   { id: 'wizard-materials', label: 'Materials' },
   { id: 'wizard-objectives', label: 'Objectives' },

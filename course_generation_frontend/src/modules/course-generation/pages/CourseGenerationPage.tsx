@@ -9,6 +9,7 @@ import { CourseEditorView } from '../features/pipeline/components/CourseEditorVi
 import { WelcomeScreen } from '../features/onboarding/components/WelcomeScreen'
 import { WizardLayout } from '../features/onboarding/components/WizardLayout'
 import { CourseBasicsStep } from '../features/onboarding/components/steps/CourseBasicsStep'
+import { RequiredTopicsStep } from '../features/onboarding/components/steps/RequiredTopicsStep'
 import { AudienceStep } from '../features/onboarding/components/steps/AudienceStep'
 import { SourceMaterialStep } from '../features/onboarding/components/steps/SourceMaterialStep'
 import { LearningObjectivesStep } from '../features/onboarding/components/steps/LearningObjectivesStep'
@@ -22,6 +23,7 @@ import { useBrowserHistory } from '../store/useBrowserHistory'
 
 const WIZARD_PHASES = new Set([
   'wizard-basics',
+  'wizard-required-topics',
   'wizard-audience',
   'wizard-materials',
   'wizard-objectives',
@@ -95,13 +97,14 @@ export const CourseGenerationPage = () => {
   if (WIZARD_PHASES.has(phase)) {
     return (
       <WizardLayout>
-        {phase === 'wizard-basics'         && <CourseBasicsStep />}
-        {phase === 'wizard-audience'       && <AudienceStep />}
-        {phase === 'wizard-materials'      && <SourceMaterialStep />}
-        {phase === 'wizard-objectives'     && <LearningObjectivesStep />}
-        {phase === 'wizard-direction'      && <CourseDirectionStep />}
-        {phase === 'wizard-outline-pref'   && <OutlinePreferenceStep />}
-        {phase === 'wizard-outline-review' && <OutlineReviewStep />}
+        {phase === 'wizard-basics'           && <CourseBasicsStep />}
+        {phase === 'wizard-required-topics'  && <RequiredTopicsStep />}
+        {phase === 'wizard-audience'         && <AudienceStep />}
+        {phase === 'wizard-materials'        && <SourceMaterialStep />}
+        {phase === 'wizard-objectives'       && <LearningObjectivesStep />}
+        {phase === 'wizard-direction'        && <CourseDirectionStep />}
+        {phase === 'wizard-outline-pref'     && <OutlinePreferenceStep />}
+        {phase === 'wizard-outline-review'   && <OutlineReviewStep />}
       </WizardLayout>
     )
   }

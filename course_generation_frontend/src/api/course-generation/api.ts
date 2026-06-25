@@ -10,6 +10,9 @@ import type {
   GenerateTOJobAccepted,
   GenerateTOJobPollResponse,
   GenerateTOResponse,
+  ImportanceLevel,
+  SourceAnalysis,
+  SourceRole,
 } from '@/modules/course-generation/types'
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -178,6 +181,8 @@ export interface GenerateLearningObjectivesBody {
   desiredOutcomes?: string
   certificationFocus?: string
   additionalInstructions?: string
+  sourceAnalyses?: SourceAnalysis[]
+  requiredTopics?: string[]
 }
 
 /** AI-generate measurable learning objectives from course metadata. */
@@ -248,6 +253,29 @@ export async function suggestOutlineStructure(
     '/documents/suggest-outline-structure',
     body,
     { timeout: 30_000 },
+  )
+  return data
+}
+
+// ─── Source analysis ───────────────────────────────────────────────────────────
+
+export interface AnalyzeSourcePayload {
+  blobPath: string
+  sourceRole: SourceRole
+  importance: ImportanceLevel
+}
+
+/**
+ * Extract the TOC from an uploaded document and run LLM source analysis.
+ * Call this for every uploaded source document before POST /documents/generate-to.
+ * Returns a SourceAnalysis object that should be aggregated and passed to
+ * generate-to as `sourceAnalyses`.
+ */
+export async function analyzeSource(payload: AnalyzeSourcePayload): Promise<SourceAnalysis> {
+  const { data } = await apiClient.post<SourceAnalysis>(
+    '/documents/analyze-source',
+    payload,
+    { timeout: 60_000 },
   )
   return data
 }

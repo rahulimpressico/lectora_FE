@@ -117,11 +117,11 @@ export const CourseBasicsStep = () => {
     setConfig({
       backPhase:      'welcome',
       backLabel:      'Welcome',
-      nextLabel:      'Next: Audience',
+      nextLabel:      'Next: Required Topics',
       isNextDisabled: !description.trim() || !courseTitle.trim() || !durationHours || !difficultyLevel || !courseTypeHint,
       onNext: () => {
         setCourseTopic(courseTitle.trim() || 'course')
-        setPhase('wizard-audience')
+        setPhase('wizard-required-topics')
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

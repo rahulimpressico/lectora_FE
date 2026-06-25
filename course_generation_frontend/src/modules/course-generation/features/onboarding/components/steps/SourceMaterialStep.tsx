@@ -1,14 +1,28 @@
 import type { ChangeEvent, DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, Cloud, Database, HardDrive, Loader2, Upload, X, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Cloud, Database, HardDrive, Loader2, RefreshCw, Upload, X, XCircle } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useFileUpload } from '../../../upload/hooks/useFileUpload'
 import { useWizardNav } from '../WizardNavContext'
 import { InlineAzureBrowser } from '../../../upload/components/InlineAzureBrowser'
+import { analyzeSource } from '@/api/course-generation/api'
 import { formatBytes } from '@/utils/formatBytes'
 import { cn } from '@/lib/cn'
-import type { IngestionStatus } from '../../../../types'
+import type { ImportanceLevel, IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
+
+/** Build a deterministic cache key from the current set of analyzable docs. */
+function buildAnalysisCacheKey(docs: Array<{ blobPath: string; sourceRole?: SourceRole; importance?: ImportanceLevel }>): string {
+  return JSON.stringify(
+    [...docs]
+      .sort((a, b) => a.blobPath.localeCompare(b.blobPath))
+      .map((d) => ({
+        blobPath: d.blobPath,
+        sourceRole: d.sourceRole ?? 'primary_source',
+        importance: d.importance ?? 'high',
+      })),
+  )
+}
 
 function IngestionBadge({ status }: { status: IngestionStatus | undefined }) {
   if (!status || status === 'indexed' || status === 'parsed') return null
@@ -88,9 +102,15 @@ export const SourceMaterialStep = () => {
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
   const updateRawDocument = useCourseStore((s) => s.updateRawDocument)
+  const setPhase = useCourseStore((s) => s.setPhase)
+  const setSourceAnalyses = useCourseStore((s) => s.setSourceAnalyses)
+  const sourceAnalysesCacheKey = useCourseStore((s) => s.sourceAnalysesCacheKey)
+  const existingAnalyses = useCourseStore((s) => s.sourceAnalyses)
   const { enqueueFiles, enqueueAzureFiles } = useFileUpload()
   const [isDragging, setIsDragging] = useState(false)
   const [sourceMode, setSourceMode] = useState<'upload' | 'azure'>('upload')
+  const [isAnalysing, setIsAnalysing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const successDocs = rawDocuments.filter((d) => d.status === 'success')
@@ -99,19 +119,77 @@ export const SourceMaterialStep = () => {
     (d) => d.ingestionStatus === 'pending' || d.ingestionStatus === 'processing',
   )
 
+  const analyzableDocs = successDocs.filter(
+    (d) => d.blobPath && (d.fileType === 'docx' || d.fileType === 'pdf'),
+  )
+
   const { setConfig } = useWizardNav()
 
+  const handleNext = () => {
+    setAnalysisError(null)
+
+    // Compute cache key for current set of documents
+    const currentCacheKey = buildAnalysisCacheKey(
+      analyzableDocs.map((d) => ({
+        blobPath: d.blobPath as string,
+        sourceRole: d.sourceRole,
+        importance: d.importance,
+      })),
+    )
+
+    // Cache hit: analyses already exist for these exact docs → skip API
+    if (
+      currentCacheKey === sourceAnalysesCacheKey &&
+      existingAnalyses.length > 0
+    ) {
+      setPhase('wizard-objectives')
+      return
+    }
+
+    // Cache miss: run analyzeSource for all docs in parallel
+    if (analyzableDocs.length === 0) {
+      // No analyzable docs (e.g. only JSON files) — navigate directly
+      setPhase('wizard-objectives')
+      return
+    }
+
+    setIsAnalysing(true)
+    Promise.allSettled(
+      analyzableDocs.map((d) =>
+        analyzeSource({
+          blobPath: d.blobPath as string,
+          sourceRole: (d.sourceRole ?? 'primary_source') as SourceRole,
+          importance: (d.importance ?? 'high') as ImportanceLevel,
+        }),
+      ),
+    )
+      .then((results) => {
+        const analyses: SourceAnalysis[] = results
+          .filter((r): r is PromiseFulfilledResult<SourceAnalysis> => r.status === 'fulfilled')
+          .map((r) => r.value)
+        setSourceAnalyses(analyses, currentCacheKey)
+        setPhase('wizard-objectives')
+      })
+      .catch(() => {
+        setAnalysisError('Source analysis failed. Please try again.')
+      })
+      .finally(() => {
+        setIsAnalysing(false)
+      })
+  }
+
   useEffect(() => {
+    const isBlocked = successDocs.length === 0 || isIngesting || isAnalysing
     setConfig({
       backPhase: 'wizard-audience',
       backLabel: 'Back',
-      nextPhase: 'wizard-objectives',
-      nextLabel: isIngesting ? 'Indexing…' : 'Next: Objectives',
-      isNextDisabled: successDocs.length === 0 || isIngesting,
-      isNextLoading: isIngesting,
+      nextLabel: isAnalysing ? 'Analysing Sources…' : isIngesting ? 'Indexing…' : 'Next: Objectives',
+      isNextDisabled: isBlocked,
+      isNextLoading: isIngesting || isAnalysing,
+      onNext: handleNext,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [successDocs.length, isIngesting])
+  }, [successDocs.length, isIngesting, isAnalysing])
 
   useEffect(() => {
     if (!courseTopic.trim() && courseTitle.trim()) {
@@ -271,6 +349,30 @@ export const SourceMaterialStep = () => {
               onAdd={enqueueAzureFiles}
               addedPaths={addedPaths}
             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Analysis error */}
+      <AnimatePresence>
+        {analysisError && (
+          <motion.div
+            key="analysis-error"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="flex-1">{analysisError}</span>
+            <button
+              type="button"
+              onClick={handleNext}
+              className="flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-800 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Retry
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
