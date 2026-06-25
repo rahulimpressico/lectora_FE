@@ -30,6 +30,16 @@ const WIZARD_PHASES = new Set([
   'wizard-outline-review',
 ])
 
+const RENDERABLE_PHASES = new Set([
+  'welcome',
+  'upload',
+  'to-summary',
+  'three-panel',
+  'pipeline',
+  'course-editor',
+  ...WIZARD_PHASES,
+])
+
 export const CourseGenerationPage = () => {
   const { phase, activeJobId, activeTOJobId } = useCourseStore()
   const { clearPipeline } = usePipelineStore()
@@ -43,6 +53,13 @@ export const CourseGenerationPage = () => {
   const isOnboardingPhase = phase === 'welcome' || WIZARD_PHASES.has(phase)
   const hasProgress = !isOnboardingPhase || !!activeTOJobId
   const blocker = useBlocker(hasProgress)
+
+  // Old persisted localStorage can survive branch switches and hold a phase
+  // that this build no longer knows how to render. Fall back safely instead
+  // of leaving the page visually blank.
+  if (!RENDERABLE_PHASES.has(phase)) {
+    return <WelcomeScreen />
+  }
 
   useEffect(() => {
     if (!hasProgress) return

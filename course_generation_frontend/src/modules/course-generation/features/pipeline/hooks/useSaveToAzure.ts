@@ -35,7 +35,7 @@ export function useSaveToAzure() {
     : { status: 'idle', result: null, errorMessage: null }
 
   return {
-    save: (params: SaveToAzureParams) => mutation.mutate(params),
+    save: (params: SaveToAzureParams) => mutation.mutateAsync(params),
     reset: () => mutation.reset(),
     ...state,
   }

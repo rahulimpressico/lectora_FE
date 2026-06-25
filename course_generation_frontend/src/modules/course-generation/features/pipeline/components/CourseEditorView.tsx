@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
-import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
+import { getCourseContent, downloadCourseArtifact, saveSectionContent } from '@/api/editor/api'
 import { useEditorStore } from '../../../store/editorStore'
 import { useCourseStore, clearCourseStorage } from '../../../store/courseStore'
 import { useSaveToAzure } from '../hooks/useSaveToAzure'
@@ -33,6 +33,62 @@ import type { CourseSection } from '../../../types/editor'
 
 interface CourseEditorViewProps {
   jobId: string
+}
+
+interface SectionSnapshot {
+  id: string
+  title: string
+  content: string
+  children: SectionSnapshot[]
+}
+
+function resolvePendingCourseTitle(
+  courseTitle: string,
+  isEditingTitle: boolean,
+  editTitleValue: string,
+) {
+  return isEditingTitle ? editTitleValue.trim() || courseTitle : courseTitle
+}
+
+function buildSectionSnapshot(
+  sections: CourseSection[],
+  sectionEditStates: Map<string, { currentContent: string; isDirty: boolean }>,
+): SectionSnapshot[] {
+  return sections.map((section) => ({
+    id: section.id,
+    title: section.title,
+    content: sectionEditStates.get(section.id)?.currentContent ?? section.content,
+    children: buildSectionSnapshot(section.children, sectionEditStates),
+  }))
+}
+
+async function saveDirtySectionsToBackend({
+  jobId,
+  sections,
+  sectionEditStates,
+  saveSection,
+}: {
+  jobId: string
+  sections: CourseSection[]
+  sectionEditStates: Map<string, { currentContent: string; isDirty: boolean }>
+  saveSection: (sectionId: string, content: string) => void
+}) {
+  async function flush(section: CourseSection): Promise<void> {
+    const editState = sectionEditStates.get(section.id)
+    if (editState?.isDirty) {
+      const content = editState.currentContent
+      await saveSectionContent(jobId, section.id, content, section.sectionType)
+      saveSection(section.id, content)
+    }
+
+    for (const child of section.children) {
+      await flush(child)
+    }
+  }
+
+  for (const section of sections) {
+    await flush(section)
+  }
 }
 
 // ── Drag-handle wrapper ──────────────────────────────────────────────────────
@@ -109,6 +165,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     expandAll,
     collapseAll,
     addSection,
+    saveSection,
     reorderSections,
   } = useEditorStore()
 
@@ -121,11 +178,15 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const dirtySectionCount = [...sectionEditStates.values()].filter((s) => s.isDirty).length
 
-  const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
+  const [isPreparingSaveToAzure, setIsPreparingSaveToAzure] = useState(false)
+  const [savePreparationError, setSavePreparationError] = useState<string | null>(null)
+  const [savePreparationNote, setSavePreparationNote] = useState<string | null>(null)
   // Original section order captured on first content load — used for Reset Order
   const [originalSectionIds, setOriginalSectionIds] = useState<string[] | null>(null)
+  const lastSavedAzureSnapshotRef = useRef<string | null>(null)
 
   const { setPhase, reset, setCourseTitle } = useCourseStore()
 
@@ -147,6 +208,10 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       setOriginalSectionIds((prev) => prev ?? content.sections.map((s) => s.id))
     }
   }, [content, setCourseContent])
+
+  useEffect(() => {
+    lastSavedAzureSnapshotRef.current = null
+  }, [jobId])
 
   useEffect(() => {
     if (!error) return
@@ -237,6 +302,83 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const expandedCount = expandedSectionIds.size
   const totalSections = courseContent?.meta.sectionCount ?? 0
+  const isSaveToAzureBusy = isPreparingSaveToAzure || saveStatus === 'loading'
+  const pendingCourseTitle = courseContent
+    ? resolvePendingCourseTitle(courseContent.courseTitle, isEditingTitle, editTitleValue)
+    : ''
+  const currentAzureSnapshot = useMemo(() => {
+    if (!courseContent) return null
+    return JSON.stringify({
+      courseTitle: pendingCourseTitle,
+      sectionOrder: buildSectionOrder(courseContent.sections),
+      sections: buildSectionSnapshot(courseContent.sections, sectionEditStates),
+    })
+  }, [courseContent, pendingCourseTitle, sectionEditStates])
+  const hasPendingAzureChanges =
+    !!courseContent &&
+    !!currentAzureSnapshot &&
+    currentAzureSnapshot !== lastSavedAzureSnapshotRef.current
+
+  useEffect(() => {
+    if (!courseContent || !currentAzureSnapshot) return
+    if (lastSavedAzureSnapshotRef.current === null) {
+      lastSavedAzureSnapshotRef.current = currentAzureSnapshot
+    }
+  }, [courseContent, currentAzureSnapshot])
+
+  useEffect(() => {
+    if (hasPendingAzureChanges) {
+      setSavePreparationNote(null)
+    }
+  }, [hasPendingAzureChanges])
+
+  async function handleSaveToAzure() {
+    if (!courseContent || isSaveToAzureBusy) return
+
+    if (!hasPendingAzureChanges) {
+      resetSaveToAzure()
+      setSavePreparationError(null)
+      setSavePreparationNote('No new changes to save to Azure.')
+      return
+    }
+
+    resetSaveToAzure()
+    setSavePreparationError(null)
+    setSavePreparationNote(null)
+    setIsPreparingSaveToAzure(true)
+
+    try {
+      const nextCourseTitle = pendingCourseTitle
+
+      if (nextCourseTitle !== courseContent.courseTitle) {
+        updateCourseTitle(nextCourseTitle)
+        setCourseTitle(nextCourseTitle)
+      }
+      setIsEditingTitle(false)
+
+      await saveDirtySectionsToBackend({
+        jobId,
+        sections: courseContent.sections,
+        sectionEditStates,
+        saveSection,
+      })
+
+      await saveToAzure({
+        jobId,
+        courseTitle: nextCourseTitle,
+        sectionOrder: buildSectionOrder(courseContent.sections),
+      })
+      lastSavedAzureSnapshotRef.current = currentAzureSnapshot
+    } catch (error) {
+      setSavePreparationError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to save the latest edits before uploading to Azure.',
+      )
+    } finally {
+      setIsPreparingSaveToAzure(false)
+    }
+  }
 
   return (
     <div className="relative flex-1 flex flex-col min-h-0 bg-[#f4f6f9]">
@@ -247,7 +389,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           type="button"
           onClick={() =>
             dirtySectionCount > 0
-              ? setConfirmPendingEdits(true)
+              ? setShowDiscardConfirm(true)
               : setPhase('three-panel')
           }
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors shrink-0"
@@ -257,16 +399,16 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         </button>
 
         <ConfirmLeaveModal
-          open={confirmPendingEdits}
+          open={showDiscardConfirm}
           title="Discard unsaved edits?"
           message={`You have unsaved edits in ${dirtySectionCount} section${dirtySectionCount !== 1 ? 's' : ''}. Going back will discard all changes.`}
           confirmLabel="Discard & go back"
           cancelLabel="Keep editing"
           onConfirm={() => {
-            setConfirmPendingEdits(false)
+            setShowDiscardConfirm(false)
             setPhase('three-panel')
           }}
-          onCancel={() => setConfirmPendingEdits(false)}
+          onCancel={() => setShowDiscardConfirm(false)}
         />
 
         <div className="w-px h-5 bg-slate-200 shrink-0" />
@@ -361,42 +503,17 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
               variant="secondary"
               size="sm"
               icon={<CloudUpload size={13} />}
-              onClick={() => {
-                if (dirtySectionCount > 0 && !confirmPendingEdits) {
-                  setConfirmPendingEdits(true)
-                  return
-                }
-                setConfirmPendingEdits(false)
-                resetSaveToAzure()
-                saveToAzure({
-                  jobId,
-                  courseTitle: courseContent?.courseTitle,
-                  sectionOrder: courseContent ? buildSectionOrder(courseContent.sections) : undefined,
-                })
-              }}
-              disabled={!courseContent}
-              loading={saveStatus === 'loading'}
+              onClick={() => { void handleSaveToAzure() }}
+              disabled={!courseContent || isSaveToAzureBusy}
+              loading={isSaveToAzureBusy}
+              title={!hasPendingAzureChanges ? 'No new changes to save.' : undefined}
             >
-              Save to Azure
+              {isPreparingSaveToAzure
+                ? 'Saving latest edits…'
+                : saveStatus === 'loading'
+                  ? 'Saving to Azure…'
+                  : 'Save to Azure'}
             </Button>
-
-            {confirmPendingEdits && (
-              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] max-w-xs text-left">
-                <p className="font-semibold text-amber-800">
-                  You have {dirtySectionCount} unsaved edit{dirtySectionCount !== 1 ? 's' : ''}.
-                </p>
-                <p className="mt-0.5 text-amber-700">
-                  Only saved edits will be included in the export.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setConfirmPendingEdits(false)}
-                  className="mt-1.5 text-amber-600 underline text-[11px] hover:text-amber-800"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
           </div>
 
           <Button
@@ -412,7 +529,12 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       </div>
 
       {/* ── Save to Azure status banner ───────────────────────────────────── */}
-      {saveStatus === 'loading' && (
+      {isPreparingSaveToAzure && (
+        <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-700">
+          Saving your latest editor changes before uploading to Azure…
+        </div>
+      )}
+      {saveStatus === 'loading' && !isPreparingSaveToAzure && (
         <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-700">
           Uploading to Azure… large courses can take several minutes. Please keep this tab open.
         </div>
@@ -442,19 +564,40 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           </button>
         </div>
       )}
-      {saveStatus === 'error' && (
+      {(saveStatus === 'error' || savePreparationError) && (
         <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
           <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-semibold text-red-700">Failed to save to Azure</p>
             <p className="text-[11px] text-red-500 mt-0.5 leading-relaxed">
-              {saveError ?? 'An unexpected error occurred. Please try again.'}
+              {savePreparationError ?? saveError ?? 'An unexpected error occurred. Please try again.'}
             </p>
           </div>
           <button
             type="button"
-            onClick={resetSaveToAzure}
+            onClick={() => {
+              setSavePreparationError(null)
+              resetSaveToAzure()
+            }}
             className="shrink-0 text-red-400 hover:text-red-600 transition-colors"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+      {savePreparationNote && (
+        <div className="mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-amber-800">Nothing new to save</p>
+            <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+              {savePreparationNote}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSavePreparationNote(null)}
+            className="shrink-0 text-amber-400 hover:text-amber-600 transition-colors"
           >
             <X size={13} />
           </button>

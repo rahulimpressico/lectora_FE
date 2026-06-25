@@ -425,6 +425,42 @@ const initialState = {
   calculatedWordCount:  null as number | null,
 }
 
+const VALID_WORKFLOW_PHASES = new Set<WorkflowPhase>([
+  'welcome',
+  'wizard-basics',
+  'wizard-audience',
+  'wizard-materials',
+  'wizard-objectives',
+  'wizard-direction',
+  'wizard-outline-pref',
+  'wizard-outline-review',
+  'upload',
+  'to-summary',
+  'three-panel',
+  'pipeline',
+  'course-editor',
+])
+
+function sanitizePersistedCourseState(
+  persistedState: unknown,
+): Partial<CourseState> {
+  if (!persistedState || typeof persistedState !== 'object') return {}
+
+  const state = persistedState as Partial<CourseState>
+  const sanitized: Partial<CourseState> = { ...state }
+
+  if (
+    typeof state.phase !== 'string' ||
+    !VALID_WORKFLOW_PHASES.has(state.phase as WorkflowPhase)
+  ) {
+    sanitized.phase = initialState.phase
+    sanitized.activeJobId = null
+    sanitized.activeTOJobId = null
+  }
+
+  return sanitized
+}
+
 export const useCourseStore = create<CourseState>()(
   devtools(
     persist(
@@ -619,7 +655,13 @@ export const useCourseStore = create<CourseState>()(
       }),
       {
         name: 'course-workflow-v4',
-        // ── Serialise rawDocuments safely ──────────────────────────────────────
+        merge: (persistedState, currentState) => ({
+          ...currentState,
+          ...sanitizePersistedCourseState(persistedState),
+        }),
+        // Persist only the fields needed to reconnect after a page refresh.
+        // If the user refreshes during pipeline/course-editor, we reattach to
+        // the same job via SSE using the persisted jobId and phase.
         // `File` objects are not JSON-serialisable and `previewHtml` can be
         // several MB. Strip both. Only keep files that have been successfully
         // uploaded (have a blobPath) so a stale "uploading" entry doesn't

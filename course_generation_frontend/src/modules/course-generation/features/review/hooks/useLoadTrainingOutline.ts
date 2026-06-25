@@ -23,6 +23,14 @@ export function useLoadTrainingOutline() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  function applyHydratedTitle(to: JsonObject) {
+    const nextTitle = typeof to.course_name === 'string' ? to.course_name.trim() : ''
+    const existingTitle = useCourseStore.getState().courseTitle.trim()
+    if (!existingTitle && nextTitle) {
+      setCourseTitle(nextTitle)
+    }
+  }
+
   useEffect(() => {
     if (toData) return
 
@@ -37,7 +45,7 @@ export function useLoadTrainingOutline() {
           if (cancelled) return
           setTOData(to as JsonObject, to as JsonObject)
           setRulesData(rules as JsonObject, rules as JsonObject)
-          if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name)
+          applyHydratedTitle(to as JsonObject)
           if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family)
           return
         }
@@ -47,7 +55,7 @@ export function useLoadTrainingOutline() {
           if (cancelled) return
           setTOData(to as JsonObject, to as JsonObject)
           setRulesData(rules as JsonObject, rules as JsonObject)
-          if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name as string)
+          applyHydratedTitle(to as JsonObject)
           if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family as string)
         }
       } catch (err) {

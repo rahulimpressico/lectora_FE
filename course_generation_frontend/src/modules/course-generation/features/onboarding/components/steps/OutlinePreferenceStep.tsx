@@ -1,5 +1,5 @@
 import type { ChangeEvent, DragEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertCircle, Loader2, Sparkles, Upload, Wand2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCourseStore } from '../../../../store/courseStore'
@@ -87,6 +87,7 @@ export const OutlinePreferenceStep = () => {
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
   const { enqueueFiles } = useFileUpload()
   const generateTO = useGenerateTO('wizard-outline-review')
+  const { mutate: triggerGenerateTO, isPending: isGeneratingOutline } = generateTO
 
   const outlineMode = wizardData.outlineMode ?? 'generate'
   const preferredChapters = wizardData.preferredChapters
@@ -105,27 +106,27 @@ export const OutlinePreferenceStep = () => {
   const [suggestError, setSuggestError] = useState<string | null>(null)
 
   const { setConfig } = useWizardNav()
+  const hasOutlineFile = outlineFiles.some((f) => f.status === 'success')
+
+  const handleGenerateOutline = useCallback(() => {
+    if (isGeneratingOutline) return
+
+    const composite = buildCompositePrompt(wizardData, audience)
+    setCustomToPrompt(composite)
+    triggerGenerateTO()
+  }, [audience, isGeneratingOutline, setCustomToPrompt, triggerGenerateTO, wizardData])
 
   useEffect(() => {
     if (outlineMode === 'generate') {
       setConfig({
         backPhase: 'wizard-direction',
         backLabel: 'Back',
-        nextLabel: generateTO.isPending ? 'Generating...' : 'Generate Outline',
-        isNextLoading: generateTO.isPending,
-        isNextDisabled: generateTO.isPending,
-        onNext: () => {
-          if (!generateTO.isPending) {
-            // Build the composite prompt from the latest wizard state so the
-            // closure is never stale — wizardData and audience are in deps.
-            const composite = buildCompositePrompt(wizardData, audience)
-            setCustomToPrompt(composite)
-            generateTO.mutate()
-          }
-        },
+        nextLabel: isGeneratingOutline ? 'Generating...' : 'Generate Outline',
+        isNextLoading: isGeneratingOutline,
+        isNextDisabled: isGeneratingOutline,
+        onNext: handleGenerateOutline,
       })
     } else {
-      const hasOutlineFile = outlineFiles.some((f) => f.status === 'success')
       setConfig({
         backPhase: 'wizard-direction',
         backLabel: 'Back',
@@ -134,7 +135,7 @@ export const OutlinePreferenceStep = () => {
         isNextDisabled: !hasOutlineFile,
       })
     }
-  }, [outlineMode, generateTO.isPending, outlineFiles, wizardData, audience, setConfig, setCustomToPrompt, generateTO])
+  }, [handleGenerateOutline, hasOutlineFile, isGeneratingOutline, outlineMode, setConfig])
 
   const handleSuggestStructure = () => {
     setIsSuggesting(true)

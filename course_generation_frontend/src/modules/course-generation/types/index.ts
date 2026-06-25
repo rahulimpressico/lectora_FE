@@ -15,6 +15,7 @@ export type WorkflowPhase =
   | 'wizard-outline-pref'  // wizard step 6: outline preference
   | 'wizard-outline-review'// wizard step 7: outline review
   | 'upload'               // file drop + A0 TO generation
+  | 'to-summary'           // TO summary / three-panel handoff
   | 'three-panel'          // review TO / rules, trigger generation
   | 'pipeline'             // A1→S1→A2→S2 processing view
   | 'course-editor'        // post-generation rich editor
