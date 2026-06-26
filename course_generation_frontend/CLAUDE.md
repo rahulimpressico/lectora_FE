@@ -74,7 +74,7 @@ Each feature owns its components and hooks internally — import from the featur
 | Phase | Component | Description |
 |---|---|---|
 | `welcome` | `WelcomeScreen` | Full-viewport landing; user chooses wizard or direct upload |
-| `wizard-basics` … `wizard-outline-review` | `WizardLayout` + step components | 7 animated steps collecting course configuration into `courseStore.wizardData` (`WizardData`). `OutlineReviewStep` triggers TO generation; on success advances to `three-panel`. `WizardNavContext` lets each step override Next/Back label and behavior via `setConfig()`. |
+| `wizard-basics` … `wizard-outline-review` | `WizardLayout` + step components | 8 animated steps collecting course configuration into `courseStore.wizardData` (`WizardData`). Steps in order: `CourseBasicsStep`, `RequiredTopicsStep`, `AudienceStep`, `SourceMaterialStep`, `LearningObjectivesStep`, `CourseDirectionStep`, `OutlinePreferenceStep`, `OutlineReviewStep`. `OutlineReviewStep` triggers TO generation; on success advances to `three-panel`. `WizardNavContext` lets each step override Next/Back label and behavior via `setConfig()`. |
 
 **Path B — Direct upload**
 
@@ -139,7 +139,7 @@ All modules under `src/api/`:
 - `client.ts` — shared Axios instance (120 s timeout, error-normalisation interceptor). Always import this; never create ad-hoc instances.
 - `errors.ts` — `ApiClientError` (preserves HTTP status), `isExpiredJobError()`.
 - `course-generation/api.ts` — `uploadDocument`, `generateTO` (async-poll fallback: 202 → polls `GET /documents/generate-to/jobs/{jobId}` every 1 s up to 15 min). `useGenerateTO` (`features/upload/hooks/`) forwards all populated `wizardData` fields to `POST /documents/generate-to` (experience level, learner outcomes, objectives, tone, depth, scenarios/knowledge-check flags, etc.) so A0 can use them for prompt construction.
-- `jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`. `GenerateCoursePayload` (sent by `GenerateCourseBanner`) carries an optional `courseConfig` field that forwards `wizardData` content to the backend for A2 dynamic prompt construction. Both `generateTO` and `createJob` receive wizard data so it influences the full pipeline (A0 → A2).
+- `jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`. `GenerateCoursePayload` (sent by `GenerateCourseBanner`) carries: an optional `courseConfig` field forwarding `wizardData` for A2 dynamic prompt construction; an optional `sourceFileSpecs` array (`SourceFileSpec[]`) with per-file blob path, extract hint, and `ImportanceLevel` so A2 can build a chunk index and apply per-file guidance. Both `generateTO` and `createJob` receive wizard data so it influences the full pipeline (A0 → A2).
 - `pipeline/sse.ts` — `PipelineSSEClient`.
 - `editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure` (`POST /jobs/{jobId}/artifacts/save-to-azure`). Download handles binary blob (local → browser download) and JSON `{ url }` (prod → signed blob URL).
 - `storage/api.ts` — `browseStorage(prefix, source)` (`source`: `'uploads'` | `'artifacts'`), download, delete.
@@ -153,7 +153,7 @@ Hooks use **TanStack Query**: `staleTime: 60_000`, `retry: 2` for queries / `0` 
 
 ### Types (`src/modules/course-generation/types/`)
 
-- `index.ts` — `WorkflowPhase`, file upload, TO, job, `GenerateCoursePayload` (with `courseConfig`), API response types; re-exports `pipeline.ts`, `editor.ts`, `wizard.ts`.
+- `index.ts` — `WorkflowPhase`, file upload (`UploadedFile` with `sourceRole`, `importance`, `documentId`, `ingestionStatus` fields), `SourceAnalysis`, `SourceFileSpec`, `SourceRole`, `ImportanceLevel`, `IngestionStatus`, TO, job, `GenerateCoursePayload` (with `courseConfig` and `sourceFileSpecs`), API response types; re-exports `pipeline.ts`, `editor.ts`, `wizard.ts`.
 - `pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
 - `editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
 - `wizard.ts` — `WizardData`, `DEFAULT_WIZARD_DATA`.

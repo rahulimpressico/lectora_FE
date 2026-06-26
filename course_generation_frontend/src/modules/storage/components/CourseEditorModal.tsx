@@ -10,10 +10,8 @@
  *  Preview — formatted read-only render of the course content, matching the
  *             same CoursePreviewModal layout used after generation
  *
- * Content is loaded once via React Query (shares the ['course-content', jobId]
- * cache with the main editor), then fed into both tabs.  Both panels stay
- * mounted at all times so unsaved in-progress edits in the Editor tab are not
- * lost when the user temporarily switches to Preview.
+ * Drafts are persisted to IndexedDB so page refreshes restore in-progress edits.
+ * Backend is NOT updated on every edit — a bulk sync happens only on Save/Download.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -36,12 +34,14 @@ import {
   Pencil,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
+import { getCourseContent, downloadCourseArtifact, syncCourseContent } from '@/api/editor/api'
+import { loadDraft, clearDraft, createDebouncedSave } from '@/modules/course-generation/store/courseEditorDraft'
 import { useEditorStore } from '@/modules/course-generation/store/editorStore'
 import { useSaveToAzure } from '@/modules/course-generation/features/pipeline/hooks/useSaveToAzure'
 import { SectionNavigation } from '@/modules/course-generation/features/pipeline/components/SectionNavigation'
 import { CourseSectionCard } from '@/modules/course-generation/features/pipeline/components/CourseSectionCard'
 import { Button } from '@/shared/components/Button'
+import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import type { CourseContent, CourseSection, SectionImage } from '@/modules/course-generation/types/editor'
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -53,8 +53,7 @@ interface CourseEditorModalProps {
   onClose: () => void
 }
 
-// ─── Preview tab internals (inlined to avoid re-exporting CoursePreviewModal's
-//     overlay shell — we're already inside a full-screen overlay) ──────────────
+// ─── Preview tab internals ────────────────────────────────────────────────────
 
 function SectionImageView({ image }: { image: SectionImage }) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
@@ -179,7 +178,13 @@ function PreviewSection({ section, depth, index }: { section: CourseSection; dep
   )
 }
 
-function PreviewPane({ courseContent, jobId }: { courseContent: CourseContent; jobId: string }) {
+function PreviewPane({
+  courseContent,
+  onDownload,
+}: {
+  courseContent: CourseContent
+  onDownload: () => void
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [activeSectionId, setActiveSectionId] = useState(courseContent.sections[0]?.id ?? '')
 
@@ -269,7 +274,7 @@ function PreviewPane({ courseContent, jobId }: { courseContent: CourseContent; j
         <div className="relative shrink-0 px-3 py-3 border-t border-white/[0.07]">
           <button
             type="button"
-            onClick={() => downloadCourseArtifact(jobId)}
+            onClick={onDownload}
             className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-white/60 rounded-xl border border-white/[0.09] hover:bg-white/[0.09] hover:text-white/85 hover:border-white/[0.16] transition-all duration-200 active:scale-[0.98]"
           >
             <Download size={11} className="shrink-0" />
@@ -312,9 +317,11 @@ function SkeletonLoader() {
 
 export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorModalProps) {
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor')
-  const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
+  const [confirmLeave, setConfirmLeave] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [syncingBeforeSave, setSyncingBeforeSave] = useState(false)
 
   const {
     courseContent,
@@ -328,9 +335,38 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
     resetEditor,
   } = useEditorStore()
 
-  const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
+  // ── Draft / IDB ────────────────────────────────────────────────────────────
+  const [draftChecked, setDraftChecked] = useState(false)
+  const [draftExists, setDraftExists] = useState(false)
+  const draftLoadedRef = useRef(false)
+  const debouncedSaveRef = useRef(createDebouncedSave(400))
 
-  const dirtySectionCount = [...sectionEditStates.values()].filter((s) => s.isDirty).length
+  useEffect(() => {
+    const debounced = debouncedSaveRef.current
+    loadDraft(jobId).then((draft) => {
+      if (draft) {
+        setCourseContent(draft.content)
+        draftLoadedRef.current = true
+        setDraftExists(true)
+      }
+      setDraftChecked(true)
+    })
+    return () => { debounced.cancel() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId])
+
+  // Auto-save snapshot to IDB after any store mutation
+  useEffect(() => {
+    if (!draftChecked || !courseContent) return
+    const snapshot = useEditorStore.getState().getCourseSnapshot()
+    if (snapshot) {
+      debouncedSaveRef.current.schedule(jobId, snapshot)
+      setDraftExists(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseContent, sectionEditStates, draftChecked, jobId])
+
+  const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
 
   const { data: content, isLoading, error } = useQuery({
     queryKey: ['course-content', jobId, courseSlug ?? ''],
@@ -341,16 +377,35 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
     retry: 2,
   })
 
+  // Apply API content only when no IDB draft was loaded
   useEffect(() => {
+    if (draftLoadedRef.current) return
     if (content) setCourseContent(content)
   }, [content, setCourseContent])
 
-  const handleClose = useCallback(() => {
+  // Clear draft after successful Azure save
+  useEffect(() => {
+    if (saveStatus === 'success') {
+      void clearDraft(jobId).then(() => setDraftExists(false))
+    }
+  }, [saveStatus, jobId])
+
+  // ── Close logic ────────────────────────────────────────────────────────────
+  const doClose = useCallback(() => {
+    debouncedSaveRef.current.cancel()
     resetEditor()
     onClose()
   }, [resetEditor, onClose])
 
-  // Escape key closes
+  const handleClose = useCallback(() => {
+    if (draftExists) {
+      setConfirmLeave(true)
+    } else {
+      doClose()
+    }
+  }, [draftExists, doClose])
+
+  // Escape key
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') handleClose()
@@ -365,11 +420,63 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
     return () => { document.body.style.overflow = '' }
   }, [])
 
+  // ── Download DOCX ──────────────────────────────────────────────────────────
+  async function handleDownload() {
+    if (!courseContent) return
+    setIsDownloading(true)
+    try {
+      const snapshot = useEditorStore.getState().getCourseSnapshot()
+      if (snapshot) await syncCourseContent(jobId, snapshot)
+      await downloadCourseArtifact(jobId)
+      void clearDraft(jobId).then(() => setDraftExists(false))
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  // ── Save to Azure ──────────────────────────────────────────────────────────
+  async function handleSaveToAzure() {
+    if (!courseContent) return
+    setSyncingBeforeSave(true)
+    try {
+      const snapshot = useEditorStore.getState().getCourseSnapshot()
+      if (snapshot) await syncCourseContent(jobId, snapshot)
+    } catch {
+      // proceed
+    } finally {
+      setSyncingBeforeSave(false)
+    }
+    resetSaveToAzure()
+    saveToAzure({
+      jobId,
+      courseTitle: courseContent.courseTitle,
+      courseSlug,
+    })
+  }
+
   const expandedCount = expandedSectionIds.size
   const totalSections = courseContent?.meta.sectionCount ?? 0
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#f4f6f9]">
+
+      {/* Confirm leave dialog */}
+      <ConfirmLeaveModal
+        open={confirmLeave}
+        title="Leave without saving?"
+        message="Your edits are saved locally but haven't been synced to the backend yet. Close anyway?"
+        confirmLabel="Discard & close"
+        cancelLabel="Keep editing"
+        onConfirm={() => {
+          void clearDraft(jobId).then(() => {
+            setDraftExists(false)
+            setConfirmLeave(false)
+            doClose()
+          })
+        }}
+        onCancel={() => setConfirmLeave(false)}
+      />
+
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
         {/* Course title + meta */}
@@ -453,59 +560,27 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
           </button>
         </div>
 
-        {/* Action buttons (always visible, relevant to active tab) */}
+        {/* Action buttons */}
         {activeTab === 'editor' && (
           <div className="flex items-center gap-2 shrink-0">
-            <div className="flex flex-col items-end">
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<CloudUpload size={13} />}
-                onClick={() => {
-                  if (dirtySectionCount > 0 && !confirmPendingEdits) {
-                    setConfirmPendingEdits(true)
-                    return
-                  }
-                  setConfirmPendingEdits(false)
-                  resetSaveToAzure()
-                  saveToAzure({
-                    jobId,
-                    courseTitle: courseContent?.courseTitle,
-                    courseSlug,
-                  })
-                }}
-                disabled={!courseContent}
-                loading={saveStatus === 'loading'}
-              >
-                Save to Azure
-              </Button>
-              {confirmPendingEdits && (
-                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] max-w-xs text-left absolute top-14 right-[120px] z-10 shadow-md">
-                  <p className="font-semibold text-amber-800">
-                    You have {dirtySectionCount} unsaved edit{dirtySectionCount !== 1 ? 's' : ''}.
-                  </p>
-                  <p className="mt-0.5 text-amber-700">
-                    Only saved edits will be included in the exported DOCX.
-                    Click <strong>Save to Azure</strong> again to proceed.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmPendingEdits(false)}
-                    className="mt-1.5 text-amber-600 underline text-[11px] hover:text-amber-800"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              )}
-            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<CloudUpload size={13} />}
+              onClick={() => { void handleSaveToAzure() }}
+              disabled={!courseContent}
+              loading={syncingBeforeSave || saveStatus === 'loading'}
+            >
+              Save to Azure
+            </Button>
             <Button
               variant="primary"
               size="sm"
-              icon={<Download size={13} />}
-              onClick={() => downloadCourseArtifact(jobId)}
-              disabled={!courseContent}
+              icon={isDownloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              onClick={() => { void handleDownload() }}
+              disabled={!courseContent || isDownloading}
             >
-              Download DOCX
+              {isDownloading ? 'Saving…' : 'Download DOCX'}
             </Button>
           </div>
         )}
@@ -514,10 +589,11 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
           <Button
             variant="primary"
             size="sm"
-            icon={<Download size={13} />}
-            onClick={() => downloadCourseArtifact(jobId)}
+            icon={isDownloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            onClick={() => { void handleDownload() }}
+            disabled={isDownloading}
           >
-            Download DOCX
+            {isDownloading ? 'Saving…' : 'Download DOCX'}
           </Button>
         )}
 
@@ -573,16 +649,16 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
       )}
 
       {/* ── Loading / Error states ────────────────────────────────────── */}
-      {isLoading && <SkeletonLoader />}
+      {(isLoading && !courseContent && !draftChecked) && <SkeletonLoader />}
 
-      {!isLoading && error && (
+      {!isLoading && error && !courseContent && (
         <div className="flex items-center justify-center flex-1 text-sm text-red-500 px-6">
           Failed to load course content. Please try closing and reopening.
         </div>
       )}
 
       {/* ── Tab panels (both always mounted — CSS visibility only) ────── */}
-      {!isLoading && !error && courseContent && (
+      {courseContent && (
         <div className="flex flex-1 min-h-0">
 
           {/* ── EDITOR TAB ──────────────────────────────────────────────── */}
@@ -643,14 +719,17 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
             className={cn('flex flex-1 min-h-0', activeTab !== 'preview' && 'hidden')}
             aria-hidden={activeTab !== 'preview'}
           >
-            <PreviewPane courseContent={courseContent} jobId={jobId} />
+            <PreviewPane
+              courseContent={courseContent}
+              onDownload={() => { void handleDownload() }}
+            />
           </div>
 
         </div>
       )}
 
       {/* Loading spinner overlay */}
-      {isLoading && (
+      {(isLoading && !courseContent && !draftChecked) && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm z-10 pointer-events-none">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Loader2 size={16} className="animate-spin text-brand-500" />

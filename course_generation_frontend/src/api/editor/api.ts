@@ -57,16 +57,60 @@ export async function saveSectionContent(
   })
 }
 
+export async function deleteSectionAPI(jobId: string, sectionId: string): Promise<void> {
+  await apiClient.delete(`/jobs/${jobId}/sections/${sectionId}`)
+}
+
+export async function persistSectionOrder(jobId: string, sectionOrder: string[]): Promise<void> {
+  await apiClient.patch(`/jobs/${jobId}/sections/reorder`, { sectionOrder })
+}
+
+export async function updateCourseTitleAPI(jobId: string, courseTitle: string): Promise<void> {
+  await apiClient.patch(`/jobs/${jobId}/course`, { courseTitle })
+}
+
+export interface SyncCourseResponse {
+  jobId: string
+  status: 'synced'
+  generatedAt: string
+  meta: {
+    totalWordCount: number
+    sectionCount: number
+    chapterCount: number
+    estimatedReadTime: string
+  }
+}
+
+/** Bulk-sync the full course tree to the backend. Called before Download DOCX and Save to Azure. */
+export async function syncCourseContent(
+  jobId: string,
+  content: CourseContent,
+): Promise<SyncCourseResponse> {
+  const { data } = await apiClient.put<SyncCourseResponse>(
+    `/jobs/${jobId}/course`,
+    content,
+    { timeout: LONG_JOB_TIMEOUT_MS },
+  )
+  return data
+}
+
 /**
  * Download the generated study guide DOCX.
  * Handles two response shapes:
  *   - Local dev:  FileResponse (binary blob) → triggers browser download
  *   - Production: JSON { url: string }       → opens signed blob URL
+ *
+ * Pass sectionOrder to have the backend apply the current editor order before
+ * building the DOCX so the file matches what the user sees in the editor.
  */
-export async function downloadCourseArtifact(jobId: string): Promise<void> {
+export async function downloadCourseArtifact(jobId: string, sectionOrder?: string[]): Promise<void> {
+  const params: Record<string, string> = {}
+  if (sectionOrder && sectionOrder.length > 0) {
+    params.sectionOrder = sectionOrder.join(',')
+  }
   const { data, headers } = await apiClient.get(
     `/jobs/${jobId}/artifacts/download`,
-    { responseType: 'blob', timeout: LONG_JOB_TIMEOUT_MS },
+    { responseType: 'blob', timeout: LONG_JOB_TIMEOUT_MS, params },
   )
   const contentType = String(headers['content-type'] ?? '')
 

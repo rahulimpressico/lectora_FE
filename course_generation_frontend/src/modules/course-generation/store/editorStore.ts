@@ -37,15 +37,19 @@ interface EditorStoreState {
   clearAIOperation: (sectionId: string) => void
 
   // ── Section/subtopic CRUD ───────────────────────────────────────────────────
-  addSection: (afterSectionId?: string | null) => void
-  addSubtopic: (parentSectionId: string) => void
+  addSection: (afterSectionId?: string | null) => string
+  addSubtopic: (parentSectionId: string) => string
+  moveSubtopicToSection: (subtopicId: string, targetParentId: string) => void
   deleteSection: (sectionId: string) => void
   reorderSections: (newSections: CourseSection[]) => void
   reorderChildren: (parentId: string, newChildren: CourseSection[]) => void
+  moveChildBetweenSections: (fromParentId: string, toParentId: string, childId: string, toIndex: number) => void
 
   openPreview: () => void
   closePreview: () => void
   resetEditor: () => void
+  /** Returns a CourseContent snapshot with all in-progress textarea edits merged in. */
+  getCourseSnapshot: () => CourseContent | null
 }
 
 // ─── Title sanitization ───────────────────────────────────────────────────────
@@ -169,7 +173,7 @@ function makeNewSection(overrides: Partial<CourseSection> & { level: 1 | 2 | 3 }
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useEditorStore = create<EditorStoreState>()(
   devtools(
-    (set) => ({
+    (set, get) => ({
       courseContent: null,
       sectionEditStates: new Map(),
       activeSectionId: null,
@@ -374,10 +378,10 @@ export const useEditorStore = create<EditorStoreState>()(
 
       // ── CRUD ─────────────────────────────────────────────────────────────────
 
-      addSection: (afterSectionId) =>
+      addSection: (afterSectionId) => {
+        const newSection = makeNewSection({ level: 1 })
         set((s) => {
           if (!s.courseContent) return s
-          const newSection = makeNewSection({ level: 1 })
 
           let newSections: CourseSection[]
           if (afterSectionId) {
@@ -410,17 +414,18 @@ export const useEditorStore = create<EditorStoreState>()(
             expandedSectionIds: newExpanded,
             activeSectionId: newSection.id,
           }
-        }),
+        })
+        return newSection.id
+      },
 
-      addSubtopic: (parentSectionId) =>
+      addSubtopic: (parentSectionId) => {
+        const currentSections = get().courseContent?.sections ?? []
+        const parent = findSection(currentSections, parentSectionId)
+        const childLevel: 2 | 3 = parent?.level === 1 ? 2 : 3
+        const newSubtopic = makeNewSection({ level: childLevel, parentId: parentSectionId })
+
         set((s) => {
           if (!s.courseContent) return s
-          const parent = findSection(s.courseContent.sections, parentSectionId)
-          const childLevel: 2 | 3 = parent?.level === 1 ? 2 : 3
-          const newSubtopic = makeNewSection({
-            level: childLevel,
-            parentId: parentSectionId,
-          })
 
           const newSections = updateSectionTree(
             s.courseContent.sections,
@@ -447,6 +452,43 @@ export const useEditorStore = create<EditorStoreState>()(
             expandedSectionIds: newExpanded,
             activeSectionId: newSubtopic.id,
           }
+        })
+
+        return newSubtopic.id
+      },
+
+      moveSubtopicToSection: (subtopicId, targetParentId) =>
+        set((s) => {
+          if (!s.courseContent) return s
+
+          // Find the subtopic in the tree
+          const subtopic = findSection(s.courseContent.sections, subtopicId)
+          if (!subtopic) return s
+
+          const movedSubtopic = { ...subtopic, parentId: targetParentId }
+
+          // Remove from current parent
+          const withoutSubtopic = s.courseContent.sections.map((sec) => ({
+            ...sec,
+            children: sec.children
+              .filter((c) => c.id !== subtopicId)
+              .map((c, i) => ({ ...c, order: i })),
+          }))
+
+          // Add to new parent at end
+          const withNewParent = updateSectionTree(
+            withoutSubtopic,
+            targetParentId,
+            (parent) => ({
+              ...parent,
+              children: [
+                ...parent.children,
+                { ...movedSubtopic, order: parent.children.length },
+              ],
+            }),
+          )
+
+          return { courseContent: { ...s.courseContent, sections: withNewParent } }
         }),
 
       deleteSection: (sectionId) =>
@@ -506,6 +548,31 @@ export const useEditorStore = create<EditorStoreState>()(
           return { courseContent: { ...s.courseContent, sections: updatedSections } }
         }),
 
+      moveChildBetweenSections: (fromParentId, toParentId, childId, toIndex) =>
+        set((s) => {
+          if (!s.courseContent) return s
+          // Find and detach the child from the source parent
+          let movedChild: CourseSection | null = null
+          const afterDetach = s.courseContent.sections.map((sec) => {
+            if (sec.id !== fromParentId) return sec
+            const child = sec.children.find((c) => c.id === childId)
+            if (!child) return sec
+            movedChild = child
+            return { ...sec, children: sec.children.filter((c) => c.id !== childId) }
+          })
+          if (!movedChild) return s
+          const child = movedChild as CourseSection
+          // Attach to destination parent at the given index with updated parentId
+          const updated = { ...child, parentId: toParentId }
+          const afterInsert = afterDetach.map((sec) => {
+            if (sec.id !== toParentId) return sec
+            const children = [...sec.children]
+            children.splice(toIndex, 0, updated)
+            return { ...sec, children: children.map((c, i) => ({ ...c, order: i })) }
+          })
+          return { courseContent: { ...s.courseContent, sections: afterInsert } }
+        }),
+
       openPreview: () => set({ isPreviewOpen: true }),
       closePreview: () => set({ isPreviewOpen: false }),
 
@@ -517,6 +584,20 @@ export const useEditorStore = create<EditorStoreState>()(
           isPreviewOpen: false,
           expandedSectionIds: new Set(),
         }),
+
+      getCourseSnapshot: () => {
+        const { courseContent, sectionEditStates } = get()
+        if (!courseContent) return null
+        function mergeSection(section: CourseSection): CourseSection {
+          const editState = sectionEditStates.get(section.id)
+          return {
+            ...section,
+            content: editState !== undefined ? editState.currentContent : section.content,
+            children: section.children.map(mergeSection),
+          }
+        }
+        return { ...courseContent, sections: courseContent.sections.map(mergeSection) }
+      },
     }),
     { name: 'editor-store' },
   ),

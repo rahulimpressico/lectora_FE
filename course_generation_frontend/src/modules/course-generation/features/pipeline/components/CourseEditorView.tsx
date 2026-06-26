@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Reorder, useDragControls, AnimatePresence } from 'framer-motion'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+import type { DropResult } from '@hello-pangea/dnd'
 import {
   ArrowLeft,
   Eye,
@@ -21,7 +22,12 @@ import {
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
-import { getCourseContent, downloadCourseArtifact, saveSectionContent } from '@/api/editor/api'
+import {
+  getCourseContent,
+  downloadCourseArtifact,
+  syncCourseContent,
+} from '@/api/editor/api'
+import { loadDraft, clearDraft, createDebouncedSave } from '../../../store/courseEditorDraft'
 import { useEditorStore } from '../../../store/editorStore'
 import { useCourseStore, clearCourseStorage } from '../../../store/courseStore'
 import { useSaveToAzure } from '../hooks/useSaveToAzure'
@@ -35,47 +41,6 @@ interface CourseEditorViewProps {
   jobId: string
 }
 
-// ── Drag-handle wrapper ──────────────────────────────────────────────────────
-// Keeps Reorder.Item + useDragControls co-located so CourseSectionCard
-// only receives a plain onDragHandlePointerDown callback.
-// onDragCommit is called when the drag gesture ends to flush the new order
-// into the Zustand store — keeping visual reorder decoupled from store commits.
-function DraggableSectionItem({
-  section,
-  index,
-  jobId,
-  onDragCommit,
-}: {
-  section: CourseSection
-  index: number
-  jobId: string
-  onDragCommit?: () => void
-}) {
-  const dragControls = useDragControls()
-  return (
-    // as="div" is required — default "li" inside a "div" group breaks layout measurement
-    <Reorder.Item
-      as="div"
-      value={section.id}
-      dragListener={false}
-      dragControls={dragControls}
-      style={{ position: 'relative' }}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.18 }}
-      onDragEnd={() => onDragCommit?.()}
-    >
-      <CourseSectionCard
-        section={section}
-        jobId={jobId}
-        depth={0}
-        index={index}
-        onDragHandlePointerDown={(e) => dragControls.start(e)}
-      />
-    </Reorder.Item>
-  )
-}
 
 function SkeletonLoader() {
   return (
@@ -110,52 +75,55 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     collapseAll,
     addSection,
     reorderSections,
+    reorderChildren,
+    moveChildBetweenSections,
   } = useEditorStore()
 
-  // IDs never shown in section order (special sections rendered at fixed positions in DOCX)
-  const SPECIAL_SECTION_IDS = new Set([
-    'course-overview',
-    'course-learning-objectives',
-    'course-conclusion',
-  ])
+  // ── Draft / IDB ───────────────────────────────────────────────────────────
+  const [draftChecked, setDraftChecked] = useState(false)
+  const [draftExists, setDraftExists] = useState(false)
+  const draftLoadedRef = useRef(false)
+  const debouncedSaveRef = useRef(createDebouncedSave(400))
 
+  useEffect(() => {
+    const debounced = debouncedSaveRef.current
+    loadDraft(jobId).then((draft) => {
+      if (draft) {
+        setCourseContent(draft.content)
+        setOriginalSectionIds(draft.content.sections.map((s) => s.id))
+        draftLoadedRef.current = true
+        setDraftExists(true)
+      }
+      setDraftChecked(true)
+    })
+    return () => { debounced.cancel() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId])
+
+  // Auto-save snapshot to IDB after any store mutation (debounced 400 ms)
+  useEffect(() => {
+    if (!draftChecked || !courseContent) return
+    const snapshot = useEditorStore.getState().getCourseSnapshot()
+    if (snapshot) {
+      debouncedSaveRef.current.schedule(jobId, snapshot)
+      setDraftExists(true)
+    }
+    // sectionEditStates is a dep so inline edits (not yet "Saved") also trigger the auto-save
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseContent, sectionEditStates, draftChecked, jobId])
+
+  // ── Other state ──────────────────────────────────────────────────────────
   const dirtySectionCount = [...sectionEditStates.values()].filter((s) => s.isDirty).length
 
-  async function handleDownload() {
-    if (!courseContent) return
-    setIsDownloading(true)
-    try {
-      // Flush all dirty sections to the backend before generating the DOCX
-      const allSections: CourseSection[] = []
-      const collect = (sections: CourseSection[]) => {
-        sections.forEach((s) => { allSections.push(s); collect(s.children) })
-      }
-      collect(courseContent.sections)
-
-      const flushJobs = allSections
-        .filter((s) => sectionEditStates.get(s.id)?.isDirty)
-        .map((s) => {
-          const content = sectionEditStates.get(s.id)?.currentContent ?? s.content
-          return saveSectionContent(jobId, s.id, content, s.sectionType).catch(() => {
-            // Ignore individual save errors; proceed with download
-          })
-        })
-      await Promise.all(flushJobs)
-      await downloadCourseArtifact(jobId)
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
+  const [confirmLeave, setConfirmLeave] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
+  const [syncingBeforeSave, setSyncingBeforeSave] = useState(false)
   // Original section order captured on first content load — used for Reset Order
   const [originalSectionIds, setOriginalSectionIds] = useState<string[] | null>(null)
 
   const { setPhase, reset, setCourseTitle } = useCourseStore()
-
   const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
 
   const { data: content, isLoading, error } = useQuery({
@@ -167,10 +135,11 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     retry: 2,
   })
 
+  // Apply API content only when no IDB draft was loaded
   useEffect(() => {
+    if (draftLoadedRef.current) return
     if (content) {
       setCourseContent(content)
-      // Capture original order only on first load — functional update ensures single capture
       setOriginalSectionIds((prev) => prev ?? content.sections.map((s) => s.id))
     }
   }, [content, setCourseContent])
@@ -183,98 +152,113 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
     setPhase('upload')
   }, [error, reset, setPhase])
 
-  // ── DnD local order state ──────────────────────────────────────────────────
-  // Track section IDs separately from full objects so Reorder.Item uses stable
-  // primitive values and the order survives store re-renders.
-  const sectionIds = useMemo(
-    () => courseContent?.sections.map((s) => s.id) ?? [],
-    [courseContent?.sections],
-  )
-  const [localSectionIds, setLocalSectionIds] = useState<string[]>(sectionIds)
-
-  // Ref always holds the latest localSectionIds — avoids stale closures in
-  // commitSectionOrder which is called from onDragEnd event handlers.
-  const localSectionIdsRef = useRef(localSectionIds)
+  // Clear local draft after a successful Azure save
   useEffect(() => {
-    localSectionIdsRef.current = localSectionIds
-  }, [localSectionIds])
+    if (saveStatus === 'success') {
+      void clearDraft(jobId).then(() => setDraftExists(false))
+    }
+  }, [saveStatus, jobId])
 
-  // Sync local order when the set of section IDs changes (add/delete/reset).
-  // NOTE: join(',') changes on BOTH set membership changes AND reorders, so this
-  // also fires after commitSectionOrder — but localSectionIds already matches, no-op.
-  const sectionIdsKey = sectionIds.join(',')
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocalSectionIds(sectionIds)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionIdsKey])
+  // ── DnD ───────────────────────────────────────────────────────────────────
+  const onDragEnd = useCallback((result: DropResult) => {
+    const { source, destination, draggableId } = result
+    if (!destination || !courseContent) return
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return
 
-  // Map id → full section for rendering
-  const sectionById = useMemo(() => {
-    const m = new Map<string, CourseSection>()
-    courseContent?.sections.forEach((s) => m.set(s.id, s))
-    return m
-  }, [courseContent?.sections])
+    if (source.droppableId === '__SECTIONS__' && destination.droppableId === '__SECTIONS__') {
+      // ── Reorder top-level sections ──────────────────────────────────────────
+      const sections = [...courseContent.sections]
+      const [moved] = sections.splice(source.index, 1)
+      sections.splice(destination.index, 0, moved)
+      reorderSections(sections)
+    } else if (source.droppableId === destination.droppableId) {
+      // ── Reorder children within the same parent ─────────────────────────────
+      const parent = courseContent.sections.find((s) => s.id === source.droppableId)
+      if (!parent) return
+      const children = [...parent.children]
+      const [moved] = children.splice(source.index, 1)
+      children.splice(destination.index, 0, moved)
+      reorderChildren(source.droppableId, children)
+    } else {
+      // ── Move child across sections ──────────────────────────────────────────
+      moveChildBetweenSections(
+        source.droppableId,
+        destination.droppableId,
+        draggableId,
+        destination.index,
+      )
+    }
+  }, [courseContent, reorderSections, reorderChildren, moveChildBetweenSections])
 
-  // handleReorder updates ONLY the visual order during drag — no store write.
-  // Calling reorderSections here would trigger a Zustand update → re-render →
-  // framer-motion's internal order[] resets → active drag loses tracking.
-  function handleReorder(newIds: string[]) {
-    setLocalSectionIds(newIds)
-  }
-
-  // Commit the current visual order to the Zustand store on drag end.
-  // Called via onDragEnd on each Reorder.Item.
-  function commitSectionOrder() {
-    const currentIds = localSectionIdsRef.current
-    const reordered = currentIds
-      .map((id) => sectionById.get(id))
-      .filter(Boolean) as CourseSection[]
-    reorderSections(reordered)
-  }
-
-  // Reset both local state and store to the original API-returned order.
   function handleResetOrder() {
     if (!originalSectionIds || !courseContent) return
     const currentMap = new Map(courseContent.sections.map((s) => [s.id, s]))
-    // Preserve current section content; only restore order
     const reordered = originalSectionIds
       .map((id) => currentMap.get(id))
       .filter(Boolean) as CourseSection[]
-    setLocalSectionIds(originalSectionIds)
     reorderSections(reordered)
   }
 
-  // Build a flat ordered list of content section IDs (top-level + children)
-  // for the Save-to-Azure payload. Special sections have fixed DOCX positions.
-  function buildSectionOrder(sections: CourseSection[]): string[] {
-    const ids: string[] = []
-    sections.forEach((s) => {
-      if (!SPECIAL_SECTION_IDS.has(s.id)) {
-        ids.push(s.id)
-        s.children.forEach((c) => ids.push(c.id))
-      }
-    })
-    return ids
-  }
+  const currentSectionIds = useMemo(
+    () => courseContent?.sections.map((s) => s.id) ?? [],
+    [courseContent?.sections],
+  )
 
   const orderChanged =
     originalSectionIds !== null &&
-    localSectionIds.join(',') !== originalSectionIds.join(',')
+    currentSectionIds.join(',') !== originalSectionIds.join(',')
+
+  // ── Download DOCX ─────────────────────────────────────────────────────────
+  async function handleDownload() {
+    if (!courseContent) return
+    setIsDownloading(true)
+    try {
+      const snapshot = useEditorStore.getState().getCourseSnapshot()
+      if (snapshot) await syncCourseContent(jobId, snapshot)
+      // syncCourseContent already wrote sections in the correct editor order;
+      // do NOT pass sectionOrder here — it would trigger _apply_section_order_to_shared_state
+      // which can produce duplicates when heading-slug IDs have changed.
+      await downloadCourseArtifact(jobId)
+      await clearDraft(jobId)
+      setDraftExists(false)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  // ── Save to Azure ─────────────────────────────────────────────────────────
+  async function handleSaveToAzure() {
+    if (!courseContent) return
+    setSyncingBeforeSave(true)
+    try {
+      const snapshot = useEditorStore.getState().getCourseSnapshot()
+      if (snapshot) await syncCourseContent(jobId, snapshot)
+    } catch {
+      // Sync failed — proceed with Azure save anyway
+    } finally {
+      setSyncingBeforeSave(false)
+    }
+    resetSaveToAzure()
+    saveToAzure({
+      jobId,
+      courseTitle: courseContent.courseTitle,
+    })
+  }
 
   const expandedCount = expandedSectionIds.size
   const totalSections = courseContent?.meta.sectionCount ?? 0
+  const showSkeleton = !courseContent && (isLoading || !draftChecked)
 
   return (
     <div className="relative flex-1 flex flex-col min-h-0 bg-[#f4f6f9]">
 
-      {/* ── Top bar ────────────────────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────────────────────── */}
       <div className="shrink-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center gap-3">
         <button
           type="button"
           onClick={() =>
-            dirtySectionCount > 0
-              ? setConfirmPendingEdits(true)
+            draftExists
+              ? setConfirmLeave(true)
               : setPhase('three-panel')
           }
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors shrink-0"
@@ -284,16 +268,16 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         </button>
 
         <ConfirmLeaveModal
-          open={confirmPendingEdits}
-          title="Discard unsaved edits?"
-          message={`You have unsaved edits in ${dirtySectionCount} section${dirtySectionCount !== 1 ? 's' : ''}. Going back will discard all changes.`}
-          confirmLabel="Discard & go back"
+          open={confirmLeave}
+          title="Leave without saving?"
+          message="Your edits are saved locally but haven't been synced to the backend yet. Go back anyway?"
+          confirmLabel="Leave"
           cancelLabel="Keep editing"
           onConfirm={() => {
-            setConfirmPendingEdits(false)
+            setConfirmLeave(false)
             setPhase('three-panel')
           }}
-          onCancel={() => setConfirmPendingEdits(false)}
+          onCancel={() => setConfirmLeave(false)}
         />
 
         <div className="w-px h-5 bg-slate-200 shrink-0" />
@@ -383,48 +367,16 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             </Button>
           )}
 
-          <div className="flex flex-col items-end">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<CloudUpload size={13} />}
-              onClick={() => {
-                if (dirtySectionCount > 0 && !confirmPendingEdits) {
-                  setConfirmPendingEdits(true)
-                  return
-                }
-                setConfirmPendingEdits(false)
-                resetSaveToAzure()
-                saveToAzure({
-                  jobId,
-                  courseTitle: courseContent?.courseTitle,
-                  sectionOrder: courseContent ? buildSectionOrder(courseContent.sections) : undefined,
-                })
-              }}
-              disabled={!courseContent}
-              loading={saveStatus === 'loading'}
-            >
-              Save to Azure
-            </Button>
-
-            {confirmPendingEdits && (
-              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[12px] max-w-xs text-left">
-                <p className="font-semibold text-amber-800">
-                  You have {dirtySectionCount} unsaved edit{dirtySectionCount !== 1 ? 's' : ''}.
-                </p>
-                <p className="mt-0.5 text-amber-700">
-                  Only saved edits will be included in the export.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setConfirmPendingEdits(false)}
-                  className="mt-1.5 text-amber-600 underline text-[11px] hover:text-amber-800"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<CloudUpload size={13} />}
+            onClick={() => { void handleSaveToAzure() }}
+            disabled={!courseContent}
+            loading={syncingBeforeSave || saveStatus === 'loading'}
+          >
+            Save to Azure
+          </Button>
 
           <Button
             variant="primary"
@@ -511,9 +463,9 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
         {/* Main editor */}
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
+          {showSkeleton ? (
             <SkeletonLoader />
-          ) : error ? (
+          ) : error && !courseContent ? (
             <div className="flex items-center justify-center h-40 text-sm text-red-500 px-6">
               Failed to load course content. Please try refreshing.
             </div>
@@ -554,35 +506,47 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
               </div>
 
               {/* Section cards — drag-reorderable */}
-              {/* AnimatePresence wraps the group (not inside it) — prevents layout interference */}
-              <AnimatePresence initial={false} mode="popLayout">
-                <Reorder.Group
-                  axis="y"
-                  values={localSectionIds}
-                  onReorder={handleReorder}
-                  as="div"
-                  className="space-y-3"
-                >
-                  {localSectionIds.map((id, index) => {
-                    const section = sectionById.get(id)
-                    if (!section) return null
-                    return (
-                      <DraggableSectionItem
-                        key={id}
-                        section={section}
-                        index={index}
-                        jobId={jobId}
-                        onDragCommit={commitSectionOrder}
-                      />
-                    )
-                  })}
-                </Reorder.Group>
-              </AnimatePresence>
+              <DragDropContext onDragEnd={onDragEnd}>
+                <Droppable droppableId="__SECTIONS__" type="SECTION">
+                  {(droppableProvided) => (
+                    <div
+                      ref={droppableProvided.innerRef}
+                      {...droppableProvided.droppableProps}
+                      className="space-y-3"
+                    >
+                      {(courseContent?.sections ?? []).map((section, index) => (
+                        <Draggable
+                          key={section.id}
+                          draggableId={section.id}
+                          index={index}
+                        >
+                          {(draggableProvided, draggableSnapshot) => (
+                            <div
+                              ref={draggableProvided.innerRef}
+                              {...draggableProvided.draggableProps}
+                              className={draggableSnapshot.isDragging ? 'opacity-90 shadow-xl' : ''}
+                            >
+                              <CourseSectionCard
+                                section={section}
+                                jobId={jobId}
+                                depth={0}
+                                index={index}
+                                dragHandleProps={draggableProvided.dragHandleProps}
+                              />
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {droppableProvided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
 
               {/* Add Section button */}
               <button
                 type="button"
-                onClick={() => addSection()}
+                onClick={() => { addSection() }}
                 className="mt-4 w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed border-slate-200 text-sm font-medium text-slate-400 hover:border-brand-300 hover:text-brand-500 hover:bg-brand-50/50 transition-all duration-150 group"
               >
                 <Plus size={15} className="group-hover:scale-110 transition-transform" />
@@ -595,7 +559,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       </div>
 
       {/* Processing overlay while loading */}
-      {isLoading && (
+      {showSkeleton && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm z-10">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Loader2 size={16} className="animate-spin text-brand-500" />
