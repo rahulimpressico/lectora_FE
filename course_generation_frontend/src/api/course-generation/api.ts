@@ -257,6 +257,30 @@ export async function suggestOutlineStructure(
   return data
 }
 
+// ─── TO persistence (user edits → backend blob) ──────────────────────────────
+
+export interface SaveTOResponse {
+  blobPath: string
+}
+
+/**
+ * Persist the user-edited Training Outline to the backend blob at `blobPath`.
+ * The backend overwrites the file in FE format so that `GET /documents/load-to`
+ * returns user edits on the next page refresh, regardless of localStorage state.
+ */
+export async function saveTrainingOutline(
+  blobPath: string,
+  to: Record<string, unknown>,
+  rules: Record<string, unknown> | null,
+): Promise<SaveTOResponse> {
+  const { data } = await apiClient.post<SaveTOResponse>(
+    '/documents/save-to',
+    { blobPath, to, ...(rules !== null ? { rules } : {}) },
+    { timeout: 30_000 },
+  )
+  return data
+}
+
 // ─── TO revision ─────────────────────────────────────────────────────────────
 
 export interface ReviseTOResponse {

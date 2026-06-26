@@ -216,6 +216,18 @@ export function CourseSectionCard({
     saveSection(section.id, content)
   }
 
+  function commitTitle(newTitle: string) {
+    const saved = newTitle.trim() || section.title
+    updateSectionTitle(section.id, saved)
+    setTitleValue(saved)
+    setIsTitleEditing(false)
+    // Persist title to backend (fire-and-forget; UI already updated)
+    const content = editState?.currentContent ?? section.content
+    saveSectionContent(jobId, section.id, content, section.sectionType, saved).catch(() => {
+      // Network error — title stays updated in Zustand
+    })
+  }
+
   // Auto-focus textarea when editing starts
   useEffect(() => {
     if (editState?.isEditing && textareaRef.current) {
@@ -459,10 +471,7 @@ export function CourseSectionCard({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    const saved = titleValue.trim() || section.title
-                    updateSectionTitle(section.id, saved)
-                    setTitleValue(saved)
-                    setIsTitleEditing(false)
+                    commitTitle(titleValue)
                   }
                   if (e.key === 'Escape') {
                     setTitleValue(section.title)
@@ -470,10 +479,7 @@ export function CourseSectionCard({
                   }
                 }}
                 onBlur={() => {
-                  const saved = titleValue.trim() || section.title
-                  updateSectionTitle(section.id, saved)
-                  setTitleValue(saved)
-                  setIsTitleEditing(false)
+                  commitTitle(titleValue)
                 }}
                 className={cn(
                   'flex-1 min-w-0 text-slate-900 leading-snug bg-white border border-brand-300 rounded px-1.5 py-0.5 outline-none ring-2 ring-brand-200',
@@ -485,10 +491,7 @@ export function CourseSectionCard({
                 onMouseDown={(e) => {
                   // Use mousedown so it fires before the input's onBlur
                   e.preventDefault()
-                  const saved = titleValue.trim() || section.title
-                  updateSectionTitle(section.id, saved)
-                  setTitleValue(saved)
-                  setIsTitleEditing(false)
+                  commitTitle(titleValue)
                 }}
                 className="shrink-0 flex items-center justify-center h-6 w-6 rounded bg-brand-600 text-white hover:bg-brand-700 transition-colors"
                 title="Save title (Enter)"

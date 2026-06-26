@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
-import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
+import { getCourseContent, downloadCourseArtifact, saveSectionContent } from '@/api/editor/api'
 import { useEditorStore } from '../../../store/editorStore'
 import { useCourseStore, clearCourseStorage } from '../../../store/courseStore'
 import { useSaveToAzure } from '../hooks/useSaveToAzure'
@@ -121,9 +121,36 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
   const dirtySectionCount = [...sectionEditStates.values()].filter((s) => s.isDirty).length
 
+  async function handleDownload() {
+    if (!courseContent) return
+    setIsDownloading(true)
+    try {
+      // Flush all dirty sections to the backend before generating the DOCX
+      const allSections: CourseSection[] = []
+      const collect = (sections: CourseSection[]) => {
+        sections.forEach((s) => { allSections.push(s); collect(s.children) })
+      }
+      collect(courseContent.sections)
+
+      const flushJobs = allSections
+        .filter((s) => sectionEditStates.get(s.id)?.isDirty)
+        .map((s) => {
+          const content = sectionEditStates.get(s.id)?.currentContent ?? s.content
+          return saveSectionContent(jobId, s.id, content, s.sectionType).catch(() => {
+            // Ignore individual save errors; proceed with download
+          })
+        })
+      await Promise.all(flushJobs)
+      await downloadCourseArtifact(jobId)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   const [confirmPendingEdits, setConfirmPendingEdits] = useState(false)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
+  const [isDownloading, setIsDownloading] = useState(false)
   // Original section order captured on first content load — used for Reset Order
   const [originalSectionIds, setOriginalSectionIds] = useState<string[] | null>(null)
 
@@ -402,11 +429,11 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
           <Button
             variant="primary"
             size="sm"
-            icon={<Download size={13} />}
-            onClick={() => downloadCourseArtifact(jobId)}
-            disabled={!courseContent}
+            icon={isDownloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            onClick={() => { void handleDownload() }}
+            disabled={!courseContent || isDownloading}
           >
-            Download DOCX
+            {isDownloading ? 'Saving…' : 'Download DOCX'}
           </Button>
         </div>
       </div>

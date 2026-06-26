@@ -48,10 +48,12 @@ export async function saveSectionContent(
   sectionId: string,
   content: string,
   sectionType?: string,
+  title?: string,
 ): Promise<void> {
   await apiClient.patch(`/jobs/${jobId}/sections/${sectionId}`, {
     content,
     sectionType,
+    ...(title !== undefined ? { title } : {}),
   })
 }
 

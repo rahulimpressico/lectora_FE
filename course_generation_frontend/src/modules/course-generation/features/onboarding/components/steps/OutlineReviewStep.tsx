@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertCircle, BookOpen, Clock, RefreshCw, Wand2 } from 'lucide-react'
+import { AlertCircle, BookOpen, Clock, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { AIGenerationLoader } from '../AIGenerationLoader'
 import { useCourseStore } from '../../../../store/courseStore'
@@ -68,12 +68,8 @@ export const OutlineReviewStep = () => {
   const setPhase = useCourseStore((s) => s.setPhase)
   const toData = useCourseStore((s) => s.toData)
   const courseTitle = useCourseStore((s) => s.courseTitle)
-  const setCustomToPrompt = useCourseStore((s) => s.setCustomToPrompt)
-  const customToPrompt = useCourseStore((s) => s.customToPrompt)
-
   const generateTO = useGenerateTO()
 
-  const [revisionText, setRevisionText] = useState('')
   const [editNote, setEditNote] = useState<string | null>(null)
 
   const { setConfig } = useWizardNav()
@@ -107,13 +103,6 @@ export const OutlineReviewStep = () => {
   const visibleSections = sections.slice(0, 8)
 
   const handleRegenerate = () => {
-    generateTO.mutate()
-  }
-
-  const handleRegenerateWithFeedback = () => {
-    if (!revisionText.trim()) return
-    const combined = [customToPrompt, revisionText.trim()].filter(Boolean).join('\n\n')
-    setCustomToPrompt(combined)
     generateTO.mutate()
   }
 
@@ -302,43 +291,6 @@ export const OutlineReviewStep = () => {
         )}
       </AnimatePresence>
 
-      {/* Revision request */}
-      <motion.div
-        variants={scaleIn}
-        className="bg-white border border-border rounded-xl p-5 space-y-3"
-        style={{ willChange: 'transform' }}
-      >
-        <div className="flex items-center gap-2">
-          <Wand2 className="w-4 h-4 text-brand-500" />
-          <p className="text-sm font-medium text-slate-700">Ask the assistant to revise</p>
-        </div>
-
-        <textarea
-          rows={3}
-          value={revisionText}
-          onChange={(e) => setRevisionText(e.target.value)}
-          placeholder="Describe how you'd like the outline revised…"
-          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
-        />
-
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          This re-generates the outline from scratch with your instruction. Once in the workspace, use the <span className="font-medium text-slate-500">Revise with AI</span> button in the Training Outline panel to revise the existing outline without regenerating.
-        </p>
-
-        {/* Apply & Regenerate button */}
-        <motion.button
-          type="button"
-          onClick={handleRegenerateWithFeedback}
-          disabled={!revisionText.trim() || generateTO.isPending}
-          whileHover={{ scale: 1.03, y: -1 }}
-          whileTap={{ scale: 0.96 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-brand-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ willChange: 'transform' }}
-        >
-          Apply &amp; Regenerate
-        </motion.button>
-      </motion.div>
     </motion.div>
   )
 }
