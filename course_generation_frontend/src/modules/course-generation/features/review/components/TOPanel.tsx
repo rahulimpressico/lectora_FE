@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { AlertCircle, BookOpen, CheckCircle2, Download, Loader2, RefreshCw, Wand2 } from 'lucide-react'
+import { BookOpen, Download, Loader2, Wand2 } from 'lucide-react'
 import { JsonEditorPanel } from './JsonEditorPanel'
 import { ReviseOutlineModal } from './ReviseOutlineModal'
-import { useAutoSaveTO } from '../hooks/useAutoSaveTO'
 import { useCourseStore } from '../../../store/courseStore'
 import { exportTrainingOutlineToDocx } from '../../../utils/exportTrainingOutline'
-import { cn } from '@/lib/cn'
 import type { JsonValue } from '../../../types'
 
 interface TOPanelProps {
@@ -31,8 +29,6 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
   const [downloading, setDownloading] = useState(false)
   const [showReviseModal, setShowReviseModal] = useState(false)
 
-  const { status: saveStatus, saveError, retry: retrySave } = useAutoSaveTO()
-
   const handleResetAll = () => {
     if (toOriginal) setTOData(toOriginal, toOriginal)
   }
@@ -57,14 +53,8 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
     }
   }
 
-  const saveIndicator = toData ? (
-    <SaveIndicator status={saveStatus} error={saveError} onRetry={retrySave} />
-  ) : null
-
   const headerActions = toData ? (
     <div className="flex items-center gap-1.5">
-      {saveIndicator}
-
       <button
         type="button"
         onClick={() => setShowReviseModal(true)}
@@ -118,56 +108,3 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
   )
 }
 
-// ── Save status indicator ────────────────────────────────────────────────────
-
-interface SaveIndicatorProps {
-  status: 'idle' | 'saving' | 'saved' | 'error'
-  error: string | null
-  onRetry: () => void
-}
-
-function SaveIndicator({ status, error, onRetry }: SaveIndicatorProps) {
-  if (status === 'idle') return null
-
-  if (status === 'saving') {
-    return (
-      <span className="flex items-center gap-1 text-[11px] text-slate-400 select-none">
-        <Loader2 size={11} className="animate-spin" />
-        Saving…
-      </span>
-    )
-  }
-
-  if (status === 'saved') {
-    return (
-      <span className="flex items-center gap-1 text-[11px] text-emerald-600 select-none">
-        <CheckCircle2 size={11} />
-        Saved
-      </span>
-    )
-  }
-
-  // error
-  return (
-    <span
-      title={error ?? 'Auto-save failed'}
-      className="flex items-center gap-1 text-[11px] text-amber-600"
-    >
-      <AlertCircle size={11} />
-      <span className="hidden sm:inline max-w-[120px] truncate">
-        {error ?? 'Save failed'}
-      </span>
-      <button
-        type="button"
-        onClick={onRetry}
-        className={cn(
-          'ml-0.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-semibold',
-          'bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors',
-        )}
-      >
-        <RefreshCw size={9} />
-        Retry
-      </button>
-    </span>
-  )
-}
