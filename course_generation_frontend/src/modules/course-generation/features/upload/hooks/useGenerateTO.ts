@@ -204,30 +204,6 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         ...(wizardData.requiredTopics?.length > 0 && { requiredTopics: wizardData.requiredTopics }),
       }
 
-      console.debug('[useGenerateTO] onboarding state snapshot:', {
-        durationHours,
-        difficultyLevel,
-        calculatedWordCount,
-        audience: audience.trim(),
-        courseTypeHint: courseTypeHint.trim(),
-        experienceLevel: wizardData.experienceLevel,
-        tone: wizardData.tone,
-        depth: wizardData.depth,
-        hasDescription: !!wizardData.description.trim(),
-        hasLearnerOutcomes: !!wizardData.learnerOutcomes.trim(),
-        hasAudienceNotes: !!wizardData.audienceNotes.trim(),
-        hasEmphasis: !!wizardData.emphasis.trim(),
-        hasAvoid: !!wizardData.avoid.trim(),
-        includeScenarios: wizardData.includeScenarios,
-        includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
-        objectivesCount: wizardData.objectives.length,
-        preferredChapters: wizardData.preferredChapters,
-        lessonStyle: wizardData.lessonStyle,
-        blobPathsCount: blobPaths.length,
-        hasCustomPrompt: !!effectiveCustomPrompt,
-      })
-      console.debug('[useGenerateTO] API request body:', body)
-
       return startGenerateTO(body, controller.signal)
     },
     onSuccess: (data) => {

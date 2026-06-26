@@ -1,7 +1,7 @@
 import { FileText, Files, Eye, CheckCircle2, AlertCircle, Loader2, FileX } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useCourseStore } from '../../../store/courseStore'
-import { formatBytes } from '@/utils/formatBytes'
+import { formatBytes } from '@/shared/utils/formatBytes'
 import type { UploadedFile } from '../../../types'
 
 // ── Per-file card ─────────────────────────────────────────────────────────────

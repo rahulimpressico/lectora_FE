@@ -11,7 +11,7 @@ import {
 import { getDocumentTypeTooltip } from '../utils/stageTooltips'
 import { InfoTooltip } from './InfoTooltip'
 import { StageTooltipLabel } from './StageTooltipLabel'
-import { formatStorageDateShort } from '@/utils/formatDate'
+import { formatStorageDateShort } from '@/shared/utils/formatDate'
 
 interface Props {
   doc: DocumentCost

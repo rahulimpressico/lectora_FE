@@ -1,6 +1,6 @@
 import { FileText, FileType2, X, Eye, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { formatBytes } from '@/utils/formatBytes'
+import { formatBytes } from '@/shared/utils/formatBytes'
 import type { ImportanceLevel, SourceRole, UploadedFile } from '../../../types'
 
 interface FileCardProps {

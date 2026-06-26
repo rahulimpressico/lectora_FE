@@ -7,7 +7,7 @@ import { useFileUpload } from '../../../upload/hooks/useFileUpload'
 import { useWizardNav } from '../WizardNavContext'
 import { InlineAzureBrowser } from '../../../upload/components/InlineAzureBrowser'
 import { analyzeSource } from '@/api/course-generation/api'
-import { formatBytes } from '@/utils/formatBytes'
+import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
 import type { ImportanceLevel, IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
 
