@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Reorder, useDragControls, AnimatePresence, motion } from 'framer-motion'
 import {
@@ -17,6 +17,8 @@ import {
   Trash2,
   Plus,
   Layers,
+  Sparkles,
+  XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useEditorStore } from '../../../store/editorStore'
@@ -91,6 +93,7 @@ export function CourseSectionCard({
     updateSectionTitle,
     setAIProcessing,
     clearAIOperation,
+    applyAIResult,
     addSubtopic,
     deleteSection,
     reorderChildren,
@@ -116,6 +119,15 @@ export function CourseSectionCard({
   const [prevWordCount, setPrevWordCount] = useState<number | null>(null)
   const wasProcessingRef = useRef(false)
   const isModalOpRef = useRef(false)
+
+  // Batch AI state — tracks progress when an operation is applied to all children
+  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number } | null>(null)
+  const batchCancelledRef = useRef(false)
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
 
   // ── Child DnD state ───────────────────────────────────────────────────────
   const childIds = useMemo(
@@ -146,6 +158,28 @@ export function CourseSectionCard({
     reorderChildren(section.id, reordered)
   }
 
+  // Computed early so modalMutation and the render path share the same value.
+  const hasChildren = section.children.length > 0
+  const isL1 = depth === 0
+
+  // For L1 sections with children but little/no direct content, build combined text
+  // from all subsections so AI operations have real material to work with.
+  const combinedChildrenContent =
+    isL1 && hasChildren
+      ? section.children
+          .map((child) => {
+            const childState = sectionEditStates.get(child.id)
+            const text = (childState?.currentContent || child.content).trim()
+            return text ? `${child.title}\n${text}` : ''
+          })
+          .filter(Boolean)
+          .join('\n\n')
+      : ''
+  const aiContent =
+    isL1 && hasChildren && !(editState?.currentContent ?? '').trim()
+      ? combinedChildrenContent
+      : (editState?.currentContent ?? '')
+
   const modalMutation = useMutation({
     mutationFn: ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
       isModalOpRef.current = true
@@ -154,7 +188,7 @@ export function CourseSectionCard({
         jobId,
         sectionId: section.id,
         operation: op,
-        content: editState?.currentContent ?? '',
+        content: aiContent,
         userPrompt,
       })
     },
@@ -248,21 +282,62 @@ export function CourseSectionCard({
 
   if (!editState) return null
 
+  // Applies an AI operation to every child individually, sequentially.
+  const handleBatchAITrigger = useCallback(
+    async (op: AIOperationType, userPrompt?: string) => {
+      const children = section.children
+      if (children.length === 0) return
+      batchCancelledRef.current = false
+      setBatchProgress({ total: children.length, done: 0 })
+      expandSection(section.id)
+
+      for (let i = 0; i < children.length; i++) {
+        if (batchCancelledRef.current || !isMountedRef.current) break
+        const child = children[i]
+        const childState = sectionEditStates.get(child.id)
+        const childContent = childState?.currentContent ?? child.content
+        setAIProcessing(child.id, op)
+        try {
+          const result = await performAIOperation({
+            jobId,
+            sectionId: child.id,
+            operation: op,
+            content: childContent,
+            userPrompt,
+          })
+          if (isMountedRef.current) applyAIResult(child.id, result.content)
+        } catch {
+          if (isMountedRef.current) clearAIOperation(child.id)
+        }
+        if (isMountedRef.current) setBatchProgress({ total: children.length, done: i + 1 })
+      }
+      if (isMountedRef.current) setBatchProgress(null)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [section.children, section.id, jobId, sectionEditStates],
+  )
+
+  const isBatchProcessing = batchProgress !== null
+
   const handleAITrigger = (op: AIOperationType, content: string) => {
+    if (isL1 && hasChildren) {
+      void handleBatchAITrigger(op)
+      return
+    }
     setUndoContent(content)
     setPrevWordCount(content.trim().split(/\s+/).filter(Boolean).length)
     setShowUndoBanner(false)
     triggerOperation({ sectionId: section.id, operation: op, content })
   }
 
-  const hasChildren = section.children.length > 0
-  const isL1 = depth === 0
   const isEditing = editState.isEditing
   const isAIProcessing = editState.isAIProcessing
   const sectionLabel = isL1 ? `Section ${index + 1}` : null
-  // Show Edit/AI only on sections that actually have content to work with.
-  // L1 container headers (no content, only children) stay clean.
-  const showEditControls = editState.currentContent.trim().length > 0 || isEditing || !isL1
+  // Show AI/Edit controls when the section has its own content, is actively being
+  // edited, is a non-L1 (subsections always show), or is an L1 with children
+  // (so the whole-section AI feature is reachable from the parent card).
+  const showEditControls =
+    editState.currentContent.trim().length > 0 || isEditing || !isL1 || hasChildren
 
   return (
     <div
@@ -477,7 +552,7 @@ export function CourseSectionCard({
                   <button
                     type="button"
                     onClick={() => startEditing(section.id)}
-                    disabled={isAIProcessing}
+                    disabled={isAIProcessing || isBatchProcessing}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                   >
                     <Pencil size={11} />
@@ -485,8 +560,8 @@ export function CourseSectionCard({
                   </button>
                   <AIToolbar
                     sectionId={section.id}
-                    content={editState.currentContent}
-                    isProcessing={isAIProcessing}
+                    content={aiContent}
+                    isProcessing={isAIProcessing || isBatchProcessing}
                     currentOperation={editState.currentAIOperation}
                     onTrigger={handleAITrigger}
                     onOpenModal={(op) => {
@@ -528,12 +603,20 @@ export function CourseSectionCard({
         <AIOperationModal
           operation={modalOp}
           sectionTitle={section.title}
-          currentContent={editState.currentContent}
+          currentContent={aiContent}
           isProcessing={isAIProcessing}
           result={modalResult}
+          batchCount={isL1 && hasChildren ? section.children.length : undefined}
           onConfirm={(userPrompt) => {
             setModalResult(null)
-            modalMutation.mutate({ op: modalOp as AIOperationType, userPrompt })
+            if (isL1 && hasChildren) {
+              // Batch mode: close the modal immediately and process each child
+              isModalOpRef.current = false
+              setModalOp(null)
+              void handleBatchAITrigger(modalOp as AIOperationType, userPrompt)
+            } else {
+              modalMutation.mutate({ op: modalOp as AIOperationType, userPrompt })
+            }
           }}
           onApply={() => {
             if (modalResult) {
@@ -572,6 +655,29 @@ export function CourseSectionCard({
               {/* Divider before content */}
               {(section.content || isEditing || section.sectionType === 'learning-objectives') && (
                 <div className="border-t border-slate-100 mb-3" />
+              )}
+
+              {/* Batch AI progress banner */}
+              {isBatchProcessing && batchProgress && (
+                <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2 rounded-lg bg-brand-50 border border-brand-100 text-xs">
+                  <div className="flex items-center gap-2 text-brand-700">
+                    <Sparkles size={12} className="animate-pulse" />
+                    <span className="font-medium">
+                      Processing subtopic {batchProgress.done + 1} of {batchProgress.total} with AI…
+                    </span>
+                    <span className="text-brand-400 tabular-nums">
+                      ({batchProgress.done}/{batchProgress.total} done)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { batchCancelledRef.current = true }}
+                    className="flex items-center gap-1 text-brand-500 hover:text-brand-700 font-medium transition-colors"
+                  >
+                    <XCircle size={12} />
+                    Cancel
+                  </button>
+                </div>
               )}
 
               {/* Undo banner */}

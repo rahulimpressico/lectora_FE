@@ -7,6 +7,7 @@ export interface WizardNavConfig {
   nextLabel?: string
   isNextDisabled?: boolean
   isNextLoading?: boolean
+  loadingLabel?: string
   onNext?: () => void
   nextPhase?: WorkflowPhase
 }

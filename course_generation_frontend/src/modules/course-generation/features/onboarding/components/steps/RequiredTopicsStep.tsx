@@ -123,11 +123,11 @@ export const RequiredTopicsStep = () => {
 
   useEffect(() => {
     setConfig({
-      backPhase: 'wizard-basics',
+      backPhase: 'wizard-audience',
       backLabel: 'Back',
-      nextLabel: 'Next: Audience',
+      nextLabel: 'Next: Source Material',
       isNextDisabled: requiredTopics.length === 0,
-      onNext: () => setPhase('wizard-audience'),
+      onNext: () => setPhase('wizard-materials'),
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requiredTopics.length])
@@ -163,7 +163,7 @@ export const RequiredTopicsStep = () => {
     <motion.div
       className="space-y-5 sm:space-y-6"
       variants={staggerContainer}
-      initial="hidden"
+      initial={false}
       animate="show"
     >
       {/* Header */}
@@ -193,7 +193,8 @@ export const RequiredTopicsStep = () => {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="e.g. COBRA continuation rights — press Enter to add"
-            className="flex-1 px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all"
+            autoFocus
+            className="flex-1 px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all"
           />
           <motion.button
             type="button"

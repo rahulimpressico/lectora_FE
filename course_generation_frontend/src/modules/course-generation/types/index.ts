@@ -29,7 +29,7 @@ export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing
 export type UploadedFileType = 'docx' | 'pdf' | 'json'
 export type IngestionStatus = 'pending' | 'processing' | 'indexed' | 'parsed' | 'failed'
 export type SourceRole = 'primary_source' | 'supporting_source' | 'reference_only'
-export type ImportanceLevel = 'high' | 'medium' | 'low'
+export type ImportanceLevel = 'core' | 'supporting' | 'reference_only' | 'ignore'
 
 export interface UploadedFile {
   id: string
@@ -168,7 +168,7 @@ export interface JobDetail {
 export interface SourceFileSpec {
   blobPath: string
   extractHint?: string
-  importance?: 'high' | 'medium' | 'low'
+  importance?: ImportanceLevel
 }
 
 export interface GenerateCoursePayload {

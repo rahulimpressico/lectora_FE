@@ -12,14 +12,15 @@ import { cn } from '@/lib/cn'
 import type { ImportanceLevel, IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
 
 /** Build a deterministic cache key from the current set of analyzable docs. */
-function buildAnalysisCacheKey(docs: Array<{ blobPath: string; sourceRole?: SourceRole; importance?: ImportanceLevel }>): string {
+function buildAnalysisCacheKey(docs: Array<{ blobPath: string; sourceRole?: SourceRole; importance?: ImportanceLevel; extractHint?: string }>): string {
   return JSON.stringify(
     [...docs]
       .sort((a, b) => a.blobPath.localeCompare(b.blobPath))
       .map((d) => ({
         blobPath: d.blobPath,
         sourceRole: d.sourceRole ?? 'primary_source',
-        importance: d.importance ?? 'high',
+        importance: d.importance ?? 'core',
+        extractHint: d.extractHint ?? '',
       })),
   )
 }
@@ -128,13 +129,16 @@ export const SourceMaterialStep = () => {
   const handleNext = () => {
     setAnalysisError(null)
 
-    // Compute cache key for current set of documents
+    // Compute cache key only from docs that will actually be sent
     const currentCacheKey = buildAnalysisCacheKey(
-      analyzableDocs.map((d) => ({
-        blobPath: d.blobPath as string,
-        sourceRole: d.sourceRole,
-        importance: d.importance,
-      })),
+      analyzableDocs
+        .filter((d) => d.extractHint?.trim() || d.importance)
+        .map((d) => ({
+          blobPath: d.blobPath as string,
+          sourceRole: d.sourceRole,
+          importance: d.importance,
+          extractHint: d.extractHint?.trim() || undefined,
+        })),
     )
 
     // Cache hit: analyses already exist for these exact docs → skip API
@@ -146,20 +150,26 @@ export const SourceMaterialStep = () => {
       return
     }
 
-    // Cache miss: run analyzeSource for all docs in parallel
-    if (analyzableDocs.length === 0) {
-      // No analyzable docs (e.g. only JSON files) — navigate directly
+    // Only send docs that have at least one user-provided metadata field.
+    const docsToAnalyze = analyzableDocs.filter(
+      (d) => d.extractHint?.trim() || d.importance,
+    )
+
+    // Cache miss: run analyzeSource for all qualifying docs in parallel
+    if (docsToAnalyze.length === 0) {
+      // No docs with metadata (or no analyzable docs at all) — navigate directly
       setPhase('wizard-objectives')
       return
     }
 
     setIsAnalysing(true)
     Promise.allSettled(
-      analyzableDocs.map((d) =>
+      docsToAnalyze.map((d) =>
         analyzeSource({
           blobPath: d.blobPath as string,
           sourceRole: (d.sourceRole ?? 'primary_source') as SourceRole,
-          importance: (d.importance ?? 'high') as ImportanceLevel,
+          importance: (d.importance ?? 'core') as ImportanceLevel,
+          extractHint: d.extractHint?.trim() || undefined,
         }),
       ),
     )
@@ -186,6 +196,7 @@ export const SourceMaterialStep = () => {
       nextLabel: isAnalysing ? 'Analysing Sources…' : isIngesting ? 'Indexing…' : 'Next: Objectives',
       isNextDisabled: isBlocked,
       isNextLoading: isIngesting || isAnalysing,
+      loadingLabel: isIngesting ? 'Uploading…' : 'Analysing…',
       onNext: handleNext,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -489,24 +500,25 @@ export const SourceMaterialStep = () => {
                         <label className="block text-xs font-semibold text-slate-600">
                           How important is this source?
                         </label>
-                        <div className="flex gap-2">
-                          {(['high', 'medium', 'low'] as const).map((level) => (
+                        <div className="flex flex-wrap gap-2">
+                          {([
+                            { value: 'core',           label: 'Core',                 active: 'bg-indigo-600 text-white border-indigo-600' },
+                            { value: 'supporting',     label: 'Supporting',           active: 'bg-sky-500 text-white border-sky-500' },
+                            { value: 'reference_only', label: 'Reference Only',       active: 'bg-amber-500 text-white border-amber-500' },
+                            { value: 'ignore',         label: 'Ignore unless needed', active: 'bg-slate-400 text-white border-slate-400' },
+                          ] as const).map(({ value, label, active }) => (
                             <button
-                              key={level}
+                              key={value}
                               type="button"
-                              onClick={() => updateRawDocument(file.id, { importance: file.importance === level ? undefined : level })}
+                              onClick={() => updateRawDocument(file.id, { importance: file.importance === value ? undefined : value })}
                               className={cn(
-                                'px-3 py-1 text-xs rounded-full border font-medium transition-colors capitalize',
-                                file.importance === level
-                                  ? level === 'high'
-                                    ? 'bg-red-500 text-white border-red-500'
-                                    : level === 'medium'
-                                    ? 'bg-amber-500 text-white border-amber-500'
-                                    : 'bg-slate-400 text-white border-slate-400'
+                                'px-3 py-1 text-xs rounded-full border font-medium transition-colors',
+                                file.importance === value
+                                  ? active
                                   : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300',
                               )}
                             >
-                              {level}
+                              {label}
                             </button>
                           ))}
                         </div>

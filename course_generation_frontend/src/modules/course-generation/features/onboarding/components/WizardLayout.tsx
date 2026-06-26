@@ -16,8 +16,8 @@ interface WizardStep {
 
 const WIZARD_STEPS: WizardStep[] = [
   { id: 'wizard-basics', label: 'Course Basics' },
-  { id: 'wizard-required-topics', label: 'Topics' },
   { id: 'wizard-audience', label: 'Audience' },
+  { id: 'wizard-required-topics', label: 'Topics' },
   { id: 'wizard-materials', label: 'Materials' },
   { id: 'wizard-objectives', label: 'Objectives' },
   { id: 'wizard-direction', label: 'Direction' },
@@ -324,7 +324,7 @@ export const WizardLayout = ({ children }: { children: ReactNode }) => {
                     {navConfig.isNextLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Generating…</span>
+                        <span>{navConfig.loadingLabel ?? 'Generating…'}</span>
                       </>
                     ) : (
                       <>

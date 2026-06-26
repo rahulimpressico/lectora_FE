@@ -263,6 +263,7 @@ export interface AnalyzeSourcePayload {
   blobPath: string
   sourceRole: SourceRole
   importance: ImportanceLevel
+  extractHint?: string
 }
 
 /**
