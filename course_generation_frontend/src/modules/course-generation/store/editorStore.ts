@@ -289,6 +289,9 @@ export const useEditorStore = create<EditorStoreState>()(
               ...sec,
               content,
               wordCount: content.trim().split(/\s+/).filter(Boolean).length,
+              // Keep paragraphs in sync so RichContentRenderer doesn't fall back
+              // to the original (stale) structured data after isDirty is cleared.
+              paragraphs: [{ type: 'text', content }],
             }),
           )
           return {
@@ -345,6 +348,7 @@ export const useEditorStore = create<EditorStoreState>()(
               ...sec,
               content,
               wordCount: content.trim().split(/\s+/).filter(Boolean).length,
+              paragraphs: [{ type: 'text', content }],
             }),
           )
           return {
