@@ -549,15 +549,17 @@ export function CourseSectionCard({
               )}
               {showEditControls && (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => startEditing(section.id)}
-                    disabled={isAIProcessing || isBatchProcessing}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-                  >
-                    <Pencil size={11} />
-                    Edit
-                  </button>
+                  {!(isL1 && hasChildren) && (
+                    <button
+                      type="button"
+                      onClick={() => startEditing(section.id)}
+                      disabled={isAIProcessing || isBatchProcessing}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      <Pencil size={11} />
+                      Edit
+                    </button>
+                  )}
                   <AIToolbar
                     sectionId={section.id}
                     content={aiContent}
