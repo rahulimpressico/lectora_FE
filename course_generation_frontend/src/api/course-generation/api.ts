@@ -257,6 +257,29 @@ export async function suggestOutlineStructure(
   return data
 }
 
+// ─── TO revision ─────────────────────────────────────────────────────────────
+
+export interface ReviseTOResponse {
+  to: Record<string, unknown>
+}
+
+/**
+ * Revise an existing Training Outline in-place using a user-supplied prompt.
+ * Sends the current TO JSON + the user's instruction to the LLM and returns
+ * the revised TO. Does NOT re-run A0 or regenerate from source documents.
+ */
+export async function reviseTO(
+  currentTo: Record<string, unknown>,
+  revisionPrompt: string,
+): Promise<ReviseTOResponse> {
+  const { data } = await apiClient.post<ReviseTOResponse>(
+    '/documents/revise-to',
+    { currentTo, revisionPrompt },
+    { timeout: 5 * 60 * 1_000 },
+  )
+  return data
+}
+
 // ─── Source analysis ───────────────────────────────────────────────────────────
 
 export interface AnalyzeSourcePayload {

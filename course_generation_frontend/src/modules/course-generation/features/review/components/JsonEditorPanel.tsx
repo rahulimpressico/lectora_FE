@@ -19,6 +19,7 @@ interface JsonEditorPanelProps {
   loadError?: string | null
   emptyMessage?: string
   tooltips?: Record<string, string>
+  headerActions?: React.ReactNode
 }
 
 export function JsonEditorPanel({
@@ -36,6 +37,7 @@ export function JsonEditorPanel({
   loadError = null,
   emptyMessage = 'No data available yet.',
   tooltips,
+  headerActions,
 }: JsonEditorPanelProps) {
   const dirtyCount = modifiedPaths.size
 
@@ -55,23 +57,26 @@ export function JsonEditorPanel({
             </div>
           </div>
 
-          {dirtyCount > 0 && (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 inline-block" />
-                {dirtyCount} unsaved
-              </span>
-              <button
-                type="button"
-                onClick={onResetAll}
-                title="Reset all changes"
-                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all shadow-sm"
-              >
-                <RotateCcw size={11} />
-                Reset all
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {headerActions}
+            {dirtyCount > 0 && (
+              <>
+                <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 inline-block" />
+                  {dirtyCount} unsaved
+                </span>
+                <button
+                  type="button"
+                  onClick={onResetAll}
+                  title="Reset all changes"
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all shadow-sm"
+                >
+                  <RotateCcw size={11} />
+                  Reset all
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

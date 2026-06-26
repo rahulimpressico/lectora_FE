@@ -451,39 +451,72 @@ export function CourseSectionCard({
         {/* Title + meta */}
         <div className="flex-1 min-w-0">
           {isTitleEditing ? (
-            <input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  updateSectionTitle(section.id, titleValue.trim() || section.title)
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const saved = titleValue.trim() || section.title
+                    updateSectionTitle(section.id, saved)
+                    setTitleValue(saved)
+                    setIsTitleEditing(false)
+                  }
+                  if (e.key === 'Escape') {
+                    setTitleValue(section.title)
+                    setIsTitleEditing(false)
+                  }
+                }}
+                onBlur={() => {
+                  const saved = titleValue.trim() || section.title
+                  updateSectionTitle(section.id, saved)
+                  setTitleValue(saved)
                   setIsTitleEditing(false)
-                }
-                if (e.key === 'Escape') {
+                }}
+                className={cn(
+                  'flex-1 min-w-0 text-slate-900 leading-snug bg-white border border-brand-300 rounded px-1.5 py-0.5 outline-none ring-2 ring-brand-200',
+                  isL1 ? 'text-base font-bold' : 'text-sm font-semibold',
+                )}
+              />
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  // Use mousedown so it fires before the input's onBlur
+                  e.preventDefault()
+                  const saved = titleValue.trim() || section.title
+                  updateSectionTitle(section.id, saved)
+                  setTitleValue(saved)
+                  setIsTitleEditing(false)
+                }}
+                className="shrink-0 flex items-center justify-center h-6 w-6 rounded bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+                title="Save title (Enter)"
+              >
+                <Check size={11} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
                   setTitleValue(section.title)
                   setIsTitleEditing(false)
-                }
-              }}
-              onBlur={() => {
-                updateSectionTitle(section.id, titleValue.trim() || section.title)
-                setIsTitleEditing(false)
-              }}
-              className={cn(
-                'w-full text-slate-900 leading-snug bg-white border border-brand-300 rounded px-1.5 py-0.5 outline-none ring-2 ring-brand-200',
-                isL1 ? 'text-base font-bold' : 'text-sm font-semibold',
-              )}
-            />
+                }}
+                className="shrink-0 flex items-center justify-center h-6 w-6 rounded border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                title="Cancel (Esc)"
+              >
+                <X size={11} />
+              </button>
+            </div>
           ) : (
             <h3
-              onDoubleClick={(e) => {
+              onClick={(e) => {
                 e.stopPropagation()
                 setIsTitleEditing(true)
               }}
-              title="Double-click to edit title"
+              title="Click to edit title"
               className={cn(
-                'text-slate-900 leading-snug cursor-text group/title flex items-center gap-1.5',
+                'text-slate-900 leading-snug cursor-pointer group/title flex items-center gap-1.5',
                 isL1 ? 'text-base font-bold hover:text-brand-700' : 'text-sm font-semibold hover:text-brand-700',
                 'transition-colors',
               )}
@@ -491,7 +524,7 @@ export function CourseSectionCard({
               {section.title}
               <Pencil
                 size={10}
-                className="shrink-0 text-slate-300 opacity-0 group-hover/title:opacity-100 transition-opacity"
+                className="shrink-0 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity"
               />
             </h3>
           )}
