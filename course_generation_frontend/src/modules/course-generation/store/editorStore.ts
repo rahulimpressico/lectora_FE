@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { v4 as uuidv4 } from 'uuid'
+import { immer } from 'zustand/middleware/immer'
+import { current, enableMapSet } from 'immer'
 import type {
   CourseContent,
   CourseSection,
@@ -78,14 +79,11 @@ function sanitizeSections(sections: CourseSection[]): CourseSection[] {
   }))
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Pure read helpers ────────────────────────────────────────────────────────
 function collectAllIds(sections: CourseSection[]): string[] {
   const ids: string[] = []
   function walk(list: CourseSection[]) {
-    list.forEach((s) => {
-      ids.push(s.id)
-      walk(s.children)
-    })
+    list.forEach((s) => { ids.push(s.id); walk(s.children) })
   }
   walk(sections)
   return ids
@@ -94,15 +92,13 @@ function collectAllIds(sections: CourseSection[]): string[] {
 function collectDescendantIds(section: CourseSection): string[] {
   const ids: string[] = []
   function walk(s: CourseSection) {
-    s.children.forEach((c) => {
-      ids.push(c.id)
-      walk(c)
-    })
+    s.children.forEach((c) => { ids.push(c.id); walk(c) })
   }
   walk(section)
   return ids
 }
 
+/** Read-only tree search — safe on both plain objects and immer drafts. */
 function findSection(sections: CourseSection[], id: string): CourseSection | null {
   for (const s of sections) {
     if (s.id === id) return s
@@ -112,12 +108,28 @@ function findSection(sections: CourseSection[], id: string): CourseSection | nul
   return null
 }
 
-function removeFromTree(sections: CourseSection[], idsToRemove: Set<string>): CourseSection[] {
-  return sections
-    .filter((s) => !idsToRemove.has(s.id))
-    .map((s) => ({ ...s, children: removeFromTree(s.children, idsToRemove) }))
+/** Mutating tree search — returns the draft node so callers can write to it. */
+function findInDraft(sections: CourseSection[], id: string): CourseSection | undefined {
+  for (const s of sections) {
+    if (s.id === id) return s
+    const found = findInDraft(s.children, id)
+    if (found) return found
+  }
+  return undefined
 }
 
+/** Remove all IDs in the set from the tree in place. */
+function removeFromTreeMut(sections: CourseSection[], idsToRemove: Set<string>) {
+  for (let i = sections.length - 1; i >= 0; i--) {
+    if (idsToRemove.has(sections[i].id)) {
+      sections.splice(i, 1)
+    } else {
+      removeFromTreeMut(sections[i].children, idsToRemove)
+    }
+  }
+}
+
+// ─── Factory helpers ──────────────────────────────────────────────────────────
 function defaultEditState(section: CourseSection): SectionEditState {
   return {
     isEditing: false,
@@ -130,35 +142,9 @@ function defaultEditState(section: CourseSection): SectionEditState {
   }
 }
 
-function updateSectionTree(
-  sections: CourseSection[],
-  sectionId: string,
-  updater: (s: CourseSection) => CourseSection,
-): CourseSection[] {
-  return sections.map((s) => {
-    if (s.id === sectionId) return updater(s)
-    if (s.children.length > 0) {
-      return { ...s, children: updateSectionTree(s.children, sectionId, updater) }
-    }
-    return s
-  })
-}
-
-function patchEditState(
-  states: Map<string, SectionEditState>,
-  id: string,
-  patch: Partial<SectionEditState>,
-): Map<string, SectionEditState> {
-  const existing = states.get(id)
-  if (!existing) return states
-  const next = new Map(states)
-  next.set(id, { ...existing, ...patch })
-  return next
-}
-
 function makeNewSection(overrides: Partial<CourseSection> & { level: 1 | 2 | 3 }): CourseSection {
   return {
-    id: uuidv4(),
+    id: crypto.randomUUID(),
     title: overrides.level === 1 ? 'New Section' : 'New Subtopic',
     content: '',
     learningObjectives: [],
@@ -170,10 +156,13 @@ function makeNewSection(overrides: Partial<CourseSection> & { level: 1 | 2 | 3 }
   }
 }
 
+// Immer draft support for Map/Set state (sectionEditStates, expandedSectionIds)
+enableMapSet()
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useEditorStore = create<EditorStoreState>()(
   devtools(
-    (set, get) => ({
+    immer((set, get) => ({
       courseContent: null,
       sectionEditStates: new Map(),
       activeSectionId: null,
@@ -181,239 +170,154 @@ export const useEditorStore = create<EditorStoreState>()(
       expandedSectionIds: new Set(),
 
       // ── Content loading — preserves title & unsaved edits on re-fetch ─────────
-      setCourseContent: (content) =>
-        set((s) => {
-          // Sanitize titles: never show raw internal pipeline field names in the UI
-          const sanitizedSections = sanitizeSections(content.sections)
-          const sanitizedContent = { ...content, sections: sanitizedSections }
+      setCourseContent: (content) => set((draft) => {
+        const sanitizedSections = sanitizeSections(content.sections)
+        const sanitizedContent = { ...content, sections: sanitizedSections }
+        const courseTitle = draft.courseContent?.courseTitle ?? sanitizedContent.courseTitle
 
-          // Preserve user-edited title on re-fetch
-          const courseTitle = s.courseContent
-            ? s.courseContent.courseTitle
-            : sanitizedContent.courseTitle
+        // Snapshot old edit states before we overwrite courseContent
+        const oldEditStates = current(draft.sectionEditStates)
+        draft.courseContent = { ...sanitizedContent, courseTitle }
 
-          const editStates = new Map<string, SectionEditState>()
-          function initState(section: CourseSection) {
-            const existing = s.sectionEditStates.get(section.id)
-            if (existing && existing.isDirty) {
-              // Preserve unsaved draft; update originalContent to latest server value
-              editStates.set(section.id, {
-                ...defaultEditState(section),
-                currentContent: existing.currentContent,
-                originalContent: section.content,
-                isDirty: existing.currentContent !== section.content,
-                isEditing: existing.isEditing,
-              })
-            } else {
-              editStates.set(section.id, defaultEditState(section))
-            }
-            section.children.forEach(initState)
+        draft.sectionEditStates.clear()
+        function initState(section: CourseSection) {
+          const existing = oldEditStates.get(section.id)
+          if (existing && existing.isDirty) {
+            // Preserve unsaved draft; update originalContent to latest server value
+            draft.sectionEditStates.set(section.id, {
+              ...defaultEditState(section),
+              currentContent: existing.currentContent,
+              originalContent: section.content,
+              isDirty: existing.currentContent !== section.content,
+              isEditing: existing.isEditing,
+            })
+          } else {
+            draft.sectionEditStates.set(section.id, defaultEditState(section))
           }
-          sanitizedContent.sections.forEach(initState)
+          section.children.forEach(initState)
+        }
+        sanitizedContent.sections.forEach(initState)
 
-          return {
-            courseContent: { ...sanitizedContent, courseTitle },
-            sectionEditStates: editStates,
-            // Preserve expand/collapse state on re-fetch; initialize on first load
-            expandedSectionIds:
-              s.expandedSectionIds.size > 0
-                ? s.expandedSectionIds
-                : new Set(collectAllIds(sanitizedContent.sections)),
-            activeSectionId: s.activeSectionId ?? sanitizedContent.sections[0]?.id ?? null,
-          }
-        }),
+        // Preserve expand/collapse on re-fetch; initialize on first load
+        if (draft.expandedSectionIds.size === 0) {
+          collectAllIds(sanitizedContent.sections).forEach((id) => draft.expandedSectionIds.add(id))
+        }
+        draft.activeSectionId ??= sanitizedContent.sections[0]?.id ?? null
+      }),
 
-      updateCourseTitle: (title) =>
-        set((s) =>
-          s.courseContent
-            ? { courseContent: { ...s.courseContent, courseTitle: title } }
-            : {},
-        ),
+      updateCourseTitle: (title) => set((draft) => {
+        if (draft.courseContent) draft.courseContent.courseTitle = title
+      }),
 
-      setActiveSectionId: (id) => set({ activeSectionId: id }),
+      setActiveSectionId: (id) => set((draft) => { draft.activeSectionId = id }),
 
-      expandSection: (id) =>
-        set((s) => {
-          const next = new Set(s.expandedSectionIds)
-          next.add(id)
-          return { expandedSectionIds: next }
-        }),
+      expandSection:  (id) => set((draft) => { draft.expandedSectionIds.add(id) }),
+      collapseSection: (id) => set((draft) => { draft.expandedSectionIds.delete(id) }),
+      toggleSection:  (id) => set((draft) => {
+        if (draft.expandedSectionIds.has(id)) draft.expandedSectionIds.delete(id)
+        else draft.expandedSectionIds.add(id)
+      }),
+      expandAll: () => set((draft) => {
+        if (!draft.courseContent) return
+        collectAllIds(draft.courseContent.sections as CourseSection[]).forEach((id) =>
+          draft.expandedSectionIds.add(id),
+        )
+      }),
+      collapseAll: () => set((draft) => { draft.expandedSectionIds.clear() }),
 
-      collapseSection: (id) =>
-        set((s) => {
-          const next = new Set(s.expandedSectionIds)
-          next.delete(id)
-          return { expandedSectionIds: next }
-        }),
+      startEditing: (sectionId) => set((draft) => {
+        const s = draft.sectionEditStates.get(sectionId)
+        if (s) s.isEditing = true
+      }),
 
-      toggleSection: (id) =>
-        set((s) => {
-          const next = new Set(s.expandedSectionIds)
-          if (next.has(id)) next.delete(id)
-          else next.add(id)
-          return { expandedSectionIds: next }
-        }),
+      updateEditContent: (sectionId, content) => set((draft) => {
+        const s = draft.sectionEditStates.get(sectionId)
+        if (!s) return
+        s.currentContent = content
+        s.isDirty = content !== s.originalContent
+      }),
 
-      expandAll: () =>
-        set((s) => {
-          if (!s.courseContent) return s
-          return {
-            expandedSectionIds: new Set(collectAllIds(s.courseContent.sections)),
-          }
-        }),
+      saveSection: (sectionId, content) => set((draft) => {
+        if (!draft.courseContent) return
+        const section = findInDraft(draft.courseContent.sections as CourseSection[], sectionId)
+        if (section) {
+          section.content = content
+          section.wordCount = content.trim().split(/\s+/).filter(Boolean).length
+          // Keep paragraphs in sync so RichContentRenderer doesn't fall back
+          // to the original (stale) structured data after isDirty is cleared.
+          section.paragraphs = [{ type: 'text', content }]
+        }
+        const s = draft.sectionEditStates.get(sectionId)
+        if (s) {
+          s.isEditing = false
+          s.isDirty = false
+          s.originalContent = content
+          s.currentContent = content
+          s.isSaving = false
+        }
+      }),
 
-      collapseAll: () => set({ expandedSectionIds: new Set() }),
+      cancelEditing: (sectionId) => set((draft) => {
+        const s = draft.sectionEditStates.get(sectionId)
+        if (!s) return
+        s.isEditing = false
+        s.isDirty = false
+        s.currentContent = s.originalContent
+      }),
 
-      startEditing: (sectionId) =>
-        set((s) => ({
-          sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-            isEditing: true,
-          }),
-        })),
+      updateSectionTitle: (sectionId, title) => set((draft) => {
+        if (!draft.courseContent) return
+        const section = findInDraft(draft.courseContent.sections as CourseSection[], sectionId)
+        if (section) section.title = title
+      }),
 
-      updateEditContent: (sectionId, content) =>
-        set((s) => {
-          const existing = s.sectionEditStates.get(sectionId)
-          if (!existing) return s
-          return {
-            sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-              currentContent: content,
-              isDirty: content !== existing.originalContent,
-            }),
-          }
-        }),
+      setAIProcessing: (sectionId, operation) => set((draft) => {
+        const s = draft.sectionEditStates.get(sectionId)
+        if (s) { s.isAIProcessing = true; s.currentAIOperation = operation }
+      }),
 
-      saveSection: (sectionId, content) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          const updatedSections = updateSectionTree(
-            s.courseContent.sections,
-            sectionId,
-            (sec) => ({
-              ...sec,
-              content,
-              wordCount: content.trim().split(/\s+/).filter(Boolean).length,
-              // Keep paragraphs in sync so RichContentRenderer doesn't fall back
-              // to the original (stale) structured data after isDirty is cleared.
-              paragraphs: [{ type: 'text', content }],
-            }),
-          )
-          return {
-            courseContent: { ...s.courseContent, sections: updatedSections },
-            sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-              isEditing: false,
-              isDirty: false,
-              originalContent: content,
-              currentContent: content,
-              isSaving: false,
-            }),
-          }
-        }),
+      applyAIResult: (sectionId, content) => set((draft) => {
+        if (!draft.courseContent) return
+        const section = findInDraft(draft.courseContent.sections as CourseSection[], sectionId)
+        if (section) {
+          section.content = content
+          section.wordCount = content.trim().split(/\s+/).filter(Boolean).length
+          section.paragraphs = [{ type: 'text', content }]
+        }
+        const s = draft.sectionEditStates.get(sectionId)
+        if (s) {
+          s.isAIProcessing = false
+          s.currentAIOperation = undefined
+          s.isEditing = false
+          s.isDirty = false
+          s.currentContent = content
+          s.originalContent = content
+        }
+      }),
 
-      cancelEditing: (sectionId) =>
-        set((s) => {
-          const existing = s.sectionEditStates.get(sectionId)
-          if (!existing) return s
-          return {
-            sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-              isEditing: false,
-              isDirty: false,
-              currentContent: existing.originalContent,
-            }),
-          }
-        }),
-
-      updateSectionTitle: (sectionId, title) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          const updatedSections = updateSectionTree(
-            s.courseContent.sections,
-            sectionId,
-            (sec) => ({ ...sec, title }),
-          )
-          return { courseContent: { ...s.courseContent, sections: updatedSections } }
-        }),
-
-      setAIProcessing: (sectionId, operation) =>
-        set((s) => ({
-          sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-            isAIProcessing: true,
-            currentAIOperation: operation,
-          }),
-        })),
-
-      applyAIResult: (sectionId, content) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          const updatedSections = updateSectionTree(
-            s.courseContent.sections,
-            sectionId,
-            (sec) => ({
-              ...sec,
-              content,
-              wordCount: content.trim().split(/\s+/).filter(Boolean).length,
-              paragraphs: [{ type: 'text', content }],
-            }),
-          )
-          return {
-            courseContent: { ...s.courseContent, sections: updatedSections },
-            sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-              isAIProcessing: false,
-              currentAIOperation: undefined,
-              isEditing: false,
-              isDirty: false,
-              currentContent: content,
-              originalContent: content,
-            }),
-          }
-        }),
-
-      clearAIOperation: (sectionId) =>
-        set((s) => ({
-          sectionEditStates: patchEditState(s.sectionEditStates, sectionId, {
-            isAIProcessing: false,
-            currentAIOperation: undefined,
-          }),
-        })),
+      clearAIOperation: (sectionId) => set((draft) => {
+        const s = draft.sectionEditStates.get(sectionId)
+        if (s) { s.isAIProcessing = false; s.currentAIOperation = undefined }
+      }),
 
       // ── CRUD ─────────────────────────────────────────────────────────────────
 
       addSection: (afterSectionId) => {
         const newSection = makeNewSection({ level: 1 })
-        set((s) => {
-          if (!s.courseContent) return s
-
-          let newSections: CourseSection[]
+        set((draft) => {
+          if (!draft.courseContent) return
+          const sections = draft.courseContent.sections
           if (afterSectionId) {
-            const idx = s.courseContent.sections.findIndex(
-              (sec) => sec.id === afterSectionId,
-            )
-            if (idx === -1) {
-              newSections = [...s.courseContent.sections, newSection]
-            } else {
-              newSections = [
-                ...s.courseContent.sections.slice(0, idx + 1),
-                newSection,
-                ...s.courseContent.sections.slice(idx + 1),
-              ]
-            }
+            const idx = sections.findIndex((s) => s.id === afterSectionId)
+            if (idx === -1) sections.push(newSection)
+            else sections.splice(idx + 1, 0, newSection)
           } else {
-            newSections = [...s.courseContent.sections, newSection]
+            sections.push(newSection)
           }
-          newSections = newSections.map((sec, i) => ({ ...sec, order: i }))
-
-          const newEditStates = new Map(s.sectionEditStates)
-          newEditStates.set(newSection.id, defaultEditState(newSection))
-
-          const newExpanded = new Set(s.expandedSectionIds)
-          newExpanded.add(newSection.id)
-
-          return {
-            courseContent: { ...s.courseContent, sections: newSections },
-            sectionEditStates: newEditStates,
-            expandedSectionIds: newExpanded,
-            activeSectionId: newSection.id,
-          }
+          sections.forEach((s, i) => { s.order = i })
+          draft.sectionEditStates.set(newSection.id, defaultEditState(newSection))
+          draft.expandedSectionIds.add(newSection.id)
+          draft.activeSectionId = newSection.id
         })
         return newSection.id
       },
@@ -424,166 +328,92 @@ export const useEditorStore = create<EditorStoreState>()(
         const childLevel: 2 | 3 = parent?.level === 1 ? 2 : 3
         const newSubtopic = makeNewSection({ level: childLevel, parentId: parentSectionId })
 
-        set((s) => {
-          if (!s.courseContent) return s
-
-          const newSections = updateSectionTree(
-            s.courseContent.sections,
-            parentSectionId,
-            (p) => ({
-              ...p,
-              children: [
-                ...p.children,
-                { ...newSubtopic, order: p.children.length },
-              ],
-            }),
-          )
-
-          const newEditStates = new Map(s.sectionEditStates)
-          newEditStates.set(newSubtopic.id, defaultEditState(newSubtopic))
-
-          const newExpanded = new Set(s.expandedSectionIds)
-          newExpanded.add(parentSectionId)
-          newExpanded.add(newSubtopic.id)
-
-          return {
-            courseContent: { ...s.courseContent, sections: newSections },
-            sectionEditStates: newEditStates,
-            expandedSectionIds: newExpanded,
-            activeSectionId: newSubtopic.id,
-          }
+        set((draft) => {
+          if (!draft.courseContent) return
+          const parentNode = findInDraft(draft.courseContent.sections as CourseSection[], parentSectionId)
+          if (parentNode) parentNode.children.push({ ...newSubtopic, order: parentNode.children.length })
+          draft.sectionEditStates.set(newSubtopic.id, defaultEditState(newSubtopic))
+          draft.expandedSectionIds.add(parentSectionId)
+          draft.expandedSectionIds.add(newSubtopic.id)
+          draft.activeSectionId = newSubtopic.id
         })
-
         return newSubtopic.id
       },
 
-      moveSubtopicToSection: (subtopicId, targetParentId) =>
-        set((s) => {
-          if (!s.courseContent) return s
+      moveSubtopicToSection: (subtopicId, targetParentId) => set((draft) => {
+        if (!draft.courseContent) return
+        const sections = draft.courseContent.sections as CourseSection[]
 
-          // Find the subtopic in the tree
-          const subtopic = findSection(s.courseContent.sections, subtopicId)
-          if (!subtopic) return s
-
-          const movedSubtopic = { ...subtopic, parentId: targetParentId }
-
-          // Remove from current parent
-          const withoutSubtopic = s.courseContent.sections.map((sec) => ({
-            ...sec,
-            children: sec.children
-              .filter((c) => c.id !== subtopicId)
-              .map((c, i) => ({ ...c, order: i })),
-          }))
-
-          // Add to new parent at end
-          const withNewParent = updateSectionTree(
-            withoutSubtopic,
-            targetParentId,
-            (parent) => ({
-              ...parent,
-              children: [
-                ...parent.children,
-                { ...movedSubtopic, order: parent.children.length },
-              ],
-            }),
-          )
-
-          return { courseContent: { ...s.courseContent, sections: withNewParent } }
-        }),
-
-      deleteSection: (sectionId) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          const target = findSection(s.courseContent.sections, sectionId)
-          if (!target) return s
-
-          const idsToRemove = new Set([
-            sectionId,
-            ...collectDescendantIds(target),
-          ])
-
-          const newSections = removeFromTree(s.courseContent.sections, idsToRemove)
-
-          const newEditStates = new Map(s.sectionEditStates)
-          idsToRemove.forEach((id) => newEditStates.delete(id))
-
-          const newExpanded = new Set(s.expandedSectionIds)
-          idsToRemove.forEach((id) => newExpanded.delete(id))
-
-          const newActiveId =
-            s.activeSectionId && idsToRemove.has(s.activeSectionId)
-              ? newSections[0]?.id ?? null
-              : s.activeSectionId
-
-          return {
-            courseContent: { ...s.courseContent, sections: newSections },
-            sectionEditStates: newEditStates,
-            expandedSectionIds: newExpanded,
-            activeSectionId: newActiveId,
+        // Detach from current parent (only searches top-level children)
+        let movedSubtopic: CourseSection | null = null
+        for (const sec of sections) {
+          const idx = sec.children.findIndex((c) => c.id === subtopicId)
+          if (idx !== -1) {
+            movedSubtopic = { ...current(sec.children[idx]), parentId: targetParentId }
+            sec.children.splice(idx, 1)
+            sec.children.forEach((c, i) => { c.order = i })
+            break
           }
-        }),
+        }
+        if (!movedSubtopic) return
 
-      reorderSections: (newSections) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          return {
-            courseContent: {
-              ...s.courseContent,
-              sections: newSections.map((sec, i) => ({ ...sec, order: i })),
-            },
-          }
-        }),
+        const targetParent = findInDraft(sections, targetParentId)
+        if (targetParent) targetParent.children.push({ ...movedSubtopic, order: targetParent.children.length })
+      }),
 
-      reorderChildren: (parentId, newChildren) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          const updatedSections = updateSectionTree(
-            s.courseContent.sections,
-            parentId,
-            (parent) => ({
-              ...parent,
-              children: newChildren.map((child, i) => ({ ...child, order: i })),
-            }),
-          )
-          return { courseContent: { ...s.courseContent, sections: updatedSections } }
-        }),
+      deleteSection: (sectionId) => set((draft) => {
+        if (!draft.courseContent) return
+        const plainSections = current(draft.courseContent.sections) as CourseSection[]
+        const target = findSection(plainSections, sectionId)
+        if (!target) return
 
-      moveChildBetweenSections: (fromParentId, toParentId, childId, toIndex) =>
-        set((s) => {
-          if (!s.courseContent) return s
-          // Find and detach the child from the source parent
-          let movedChild: CourseSection | null = null
-          const afterDetach = s.courseContent.sections.map((sec) => {
-            if (sec.id !== fromParentId) return sec
-            const child = sec.children.find((c) => c.id === childId)
-            if (!child) return sec
-            movedChild = child
-            return { ...sec, children: sec.children.filter((c) => c.id !== childId) }
-          })
-          if (!movedChild) return s
-          const child = movedChild as CourseSection
-          // Attach to destination parent at the given index with updated parentId
-          const updated = { ...child, parentId: toParentId }
-          const afterInsert = afterDetach.map((sec) => {
-            if (sec.id !== toParentId) return sec
-            const children = [...sec.children]
-            children.splice(toIndex, 0, updated)
-            return { ...sec, children: children.map((c, i) => ({ ...c, order: i })) }
-          })
-          return { courseContent: { ...s.courseContent, sections: afterInsert } }
-        }),
+        const idsToRemove = new Set([sectionId, ...collectDescendantIds(target)])
+        removeFromTreeMut(draft.courseContent.sections as CourseSection[], idsToRemove)
+        idsToRemove.forEach((id) => {
+          draft.sectionEditStates.delete(id)
+          draft.expandedSectionIds.delete(id)
+        })
+        if (draft.activeSectionId && idsToRemove.has(draft.activeSectionId)) {
+          draft.activeSectionId = (draft.courseContent.sections[0] as CourseSection | undefined)?.id ?? null
+        }
+      }),
 
-      openPreview: () => set({ isPreviewOpen: true }),
-      closePreview: () => set({ isPreviewOpen: false }),
+      reorderSections: (newSections) => set((draft) => {
+        if (!draft.courseContent) return
+        draft.courseContent.sections = newSections.map((s, i) => ({ ...s, order: i }))
+      }),
 
-      resetEditor: () =>
-        set({
-          courseContent: null,
-          sectionEditStates: new Map(),
-          activeSectionId: null,
-          isPreviewOpen: false,
-          expandedSectionIds: new Set(),
-        }),
+      reorderChildren: (parentId, newChildren) => set((draft) => {
+        if (!draft.courseContent) return
+        const parent = findInDraft(draft.courseContent.sections as CourseSection[], parentId)
+        if (parent) parent.children = newChildren.map((c, i) => ({ ...c, order: i }))
+      }),
+
+      moveChildBetweenSections: (fromParentId, toParentId, childId, toIndex) => set((draft) => {
+        if (!draft.courseContent) return
+        const sections = draft.courseContent.sections as CourseSection[]
+        const fromParent = findInDraft(sections, fromParentId)
+        if (!fromParent) return
+        const childIdx = fromParent.children.findIndex((c) => c.id === childId)
+        if (childIdx === -1) return
+        const [child] = fromParent.children.splice(childIdx, 1)
+        const movedChild = { ...current(child), parentId: toParentId }
+        const toParent = findInDraft(sections, toParentId)
+        if (!toParent) return
+        toParent.children.splice(toIndex, 0, movedChild)
+        toParent.children.forEach((c, i) => { c.order = i })
+      }),
+
+      openPreview:  () => set((draft) => { draft.isPreviewOpen = true }),
+      closePreview: () => set((draft) => { draft.isPreviewOpen = false }),
+
+      resetEditor: () => set((draft) => {
+        draft.courseContent = null
+        draft.sectionEditStates.clear()
+        draft.activeSectionId = null
+        draft.isPreviewOpen = false
+        draft.expandedSectionIds.clear()
+      }),
 
       getCourseSnapshot: () => {
         const { courseContent, sectionEditStates } = get()
@@ -598,7 +428,7 @@ export const useEditorStore = create<EditorStoreState>()(
         }
         return { ...courseContent, sections: courseContent.sections.map(mergeSection) }
       },
-    }),
+    })),
     { name: 'editor-store' },
   ),
 )

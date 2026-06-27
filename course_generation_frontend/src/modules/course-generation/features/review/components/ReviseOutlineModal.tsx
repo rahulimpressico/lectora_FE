@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { AlertCircle, Loader2, Sparkles, Wand2, X } from 'lucide-react'
 import { useReviseTO } from '../hooks/useReviseTO'
 import { cn } from '@/lib/cn'
+import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
 
 interface ReviseOutlineModalProps {
   onClose: () => void
@@ -15,9 +15,7 @@ export function ReviseOutlineModal({ onClose }: ReviseOutlineModalProps) {
   // Close automatically after a successful revision
   const wasPendingRef = useRef(false)
   useEffect(() => {
-    if (wasPendingRef.current && !isPending && !isError) {
-      onClose()
-    }
+    if (wasPendingRef.current && !isPending && !isError) onClose()
     wasPendingRef.current = isPending
   }, [isPending, isError, onClose])
 
@@ -27,19 +25,18 @@ export function ReviseOutlineModal({ onClose }: ReviseOutlineModalProps) {
     revise(prompt.trim())
   }
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+  return (
+    <DialogContent open={true} onClose={onClose} closeOnInteractOutside={!isPending}>
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_2px_8px_0_rgb(99,102,241,0.3)]">
               <Wand2 size={16} className="text-white" />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-slate-900 leading-tight">
+              <DialogTitle className="text-[15px] font-bold text-slate-900 leading-tight">
                 Ask the Assistant to Revise
-              </h2>
+              </DialogTitle>
               <p className="text-[12px] text-slate-500 mt-0.5">
                 Describe the changes you want — the current outline will be updated
               </p>
@@ -55,7 +52,6 @@ export function ReviseOutlineModal({ onClose }: ReviseOutlineModalProps) {
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-5 space-y-3">
           <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1.5">Examples</p>
@@ -91,7 +87,6 @@ export function ReviseOutlineModal({ onClose }: ReviseOutlineModalProps) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 px-5 pb-5">
           <button
             type="button"
@@ -130,7 +125,6 @@ export function ReviseOutlineModal({ onClose }: ReviseOutlineModalProps) {
           )}
         </div>
       </div>
-    </div>,
-    document.body,
+    </DialogContent>
   )
 }
