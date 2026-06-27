@@ -120,9 +120,14 @@ export function useCourseEditorSession({
   async function handleDownload() {
     if (!courseContent) return
     setIsDownloading(true)
+    debouncedSave.cancel()
     try {
+      // Full tree sync: order, subtopic moves, titles, and in-progress edits
+      // must match the editor before DOCX is rebuilt from shared_state.
       const snapshot = useEditorStore.getState().getCourseSnapshot()
-      if (snapshot) await syncCourseContent(jobId, snapshot)
+      if (snapshot) {
+        await syncCourseContent(jobId, snapshot)
+      }
       await downloadCourseArtifact(jobId)
       await clearDraft(jobId)
       setDraftExists(false)
@@ -144,7 +149,11 @@ export function useCourseEditorSession({
       setSyncingBeforeSave(false)
     }
     resetSaveToAzure()
-    saveToAzure({ jobId, courseTitle: courseContent.courseTitle, courseSlug })
+    saveToAzure({
+      jobId,
+      courseTitle: courseContent.courseTitle,
+      courseSlug,
+    })
   }
 
   /** Cancel any pending debounced draft write (call before modal closes). */

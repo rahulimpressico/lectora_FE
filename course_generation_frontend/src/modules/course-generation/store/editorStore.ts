@@ -44,6 +44,8 @@ interface EditorStoreState {
   deleteSection: (sectionId: string) => void
   reorderSections: (newSections: CourseSection[]) => void
   reorderChildren: (parentId: string, newChildren: CourseSection[]) => void
+  moveSectionByIndex: (from: number, to: number) => void
+  moveChildByIndex: (parentId: string, from: number, to: number) => void
   moveChildBetweenSections: (fromParentId: string, toParentId: string, childId: string, toIndex: number) => void
 
   openPreview: () => void
@@ -77,6 +79,32 @@ function sanitizeSections(sections: CourseSection[]): CourseSection[] {
     ...sanitizeSection(s, i),
     children: s.children.map((c, ci) => sanitizeSection(c, ci)),
   }))
+}
+
+/**
+ * Deduplicate top-level sections by ID.
+ * The backend sometimes emits a "summary" entry (no children) followed by a
+ * "full" entry (with children) for the same section ID. Keep whichever copy
+ * has the most children; if tied keep the last occurrence.
+ */
+function deduplicateSections(sections: CourseSection[]): CourseSection[] {
+  const seen = new Map<string, CourseSection>()
+  for (const s of sections) {
+    const existing = seen.get(s.id)
+    if (!existing || s.children.length >= existing.children.length) {
+      seen.set(s.id, s)
+    }
+  }
+  // Preserve the order of the first occurrence of each id
+  const result: CourseSection[] = []
+  const added = new Set<string>()
+  for (const s of sections) {
+    if (!added.has(s.id)) {
+      result.push(seen.get(s.id)!)
+      added.add(s.id)
+    }
+  }
+  return result
 }
 
 // ─── Pure read helpers ────────────────────────────────────────────────────────
@@ -171,7 +199,7 @@ export const useEditorStore = create<EditorStoreState>()(
 
       // ── Content loading — preserves title & unsaved edits on re-fetch ─────────
       setCourseContent: (content) => set((draft) => {
-        const sanitizedSections = sanitizeSections(content.sections)
+        const sanitizedSections = sanitizeSections(deduplicateSections(content.sections))
         const sanitizedContent = { ...content, sections: sanitizedSections }
         const courseTitle = draft.courseContent?.courseTitle ?? sanitizedContent.courseTitle
 
@@ -380,13 +408,55 @@ export const useEditorStore = create<EditorStoreState>()(
 
       reorderSections: (newSections) => set((draft) => {
         if (!draft.courseContent) return
-        draft.courseContent.sections = newSections.map((s, i) => ({ ...s, order: i }))
+        // Move existing draft proxies one at a time with splice — the only
+        // immer-safe way to reorder. Sort() and array replacement both caused
+        // phantom duplicate entries with immer v11.
+        const arr = draft.courseContent.sections as CourseSection[]
+        for (let to = 0; to < newSections.length; to++) {
+          const from = arr.findIndex(s => s.id === newSections[to].id)
+          if (from !== to) {
+            const [item] = arr.splice(from, 1)
+            arr.splice(to, 0, item)
+          }
+          arr[to].order = to
+        }
       }),
 
       reorderChildren: (parentId, newChildren) => set((draft) => {
         if (!draft.courseContent) return
         const parent = findInDraft(draft.courseContent.sections as CourseSection[], parentId)
-        if (parent) parent.children = newChildren.map((c, i) => ({ ...c, order: i }))
+        if (!parent) return
+        const arr = parent.children as CourseSection[]
+        for (let to = 0; to < newChildren.length; to++) {
+          const from = arr.findIndex(c => c.id === newChildren[to].id)
+          if (from !== to) {
+            const [item] = arr.splice(from, 1)
+            arr.splice(to, 0, item)
+          }
+          arr[to].order = to
+        }
+      }),
+
+      // Pure index-based moves — always correct even when section IDs are duplicated
+      // (duplicate IDs are a known backend data issue; ID-based findIndex breaks on them).
+      moveSectionByIndex: (from, to) => set((draft) => {
+        if (!draft.courseContent) return
+        const arr = draft.courseContent.sections as CourseSection[]
+        if (from < 0 || to < 0 || from >= arr.length || to >= arr.length) return
+        const [item] = arr.splice(from, 1)
+        arr.splice(to, 0, item)
+        for (let i = 0; i < arr.length; i++) arr[i].order = i
+      }),
+
+      moveChildByIndex: (parentId, from, to) => set((draft) => {
+        if (!draft.courseContent) return
+        const parent = findInDraft(draft.courseContent.sections as CourseSection[], parentId)
+        if (!parent) return
+        const arr = parent.children as CourseSection[]
+        if (from < 0 || to < 0 || from >= arr.length || to >= arr.length) return
+        const [item] = arr.splice(from, 1)
+        arr.splice(to, 0, item)
+        for (let i = 0; i < arr.length; i++) arr[i].order = i
       }),
 
       moveChildBetweenSections: (fromParentId, toParentId, childId, toIndex) => set((draft) => {
@@ -420,6 +490,17 @@ export const useEditorStore = create<EditorStoreState>()(
         if (!courseContent) return null
         function mergeSection(section: CourseSection): CourseSection {
           const editState = sectionEditStates.get(section.id)
+          if (editState?.isDirty) {
+            // Normalize paragraphs for dirty sections so heading-type entries
+            // from the original backend payload don't duplicate the section title
+            // in the generated docx (mirrors what saveSection does on explicit save).
+            return {
+              ...section,
+              content: editState.currentContent,
+              paragraphs: [{ type: 'text', content: editState.currentContent }],
+              children: section.children.map(mergeSection),
+            }
+          }
           return {
             ...section,
             content: editState !== undefined ? editState.currentContent : section.content,

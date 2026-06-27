@@ -65,7 +65,7 @@ export const SubTopicsEditor = ({ subTopics, onChange }: SubTopicsEditorProps) =
               className="space-y-2"
             >
               {subTopics.map((st, idx) => (
-                <Draggable key={`st-${idx}`} draggableId={`st-${idx}`} index={idx}>
+                <Draggable key={`st-${idx}-${st}`} draggableId={`st-${idx}-${st}`} index={idx}>
                   {(draggable, snapshot) => (
                     <div
                       ref={draggable.innerRef}

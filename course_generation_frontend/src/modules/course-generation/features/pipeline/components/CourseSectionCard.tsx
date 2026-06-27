@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation } from '@tanstack/react-query'
 import { Droppable, Draggable } from '@hello-pangea/dnd'
@@ -657,7 +658,7 @@ export function CourseSectionCard({
               )}
               {showEditControls && (
                 <>
-                  {!(isL1 && hasChildren) && (
+                  {!(isL1 && hasChildren && !editState.currentContent.trim()) && (
                     <button
                       type="button"
                       onClick={() => startEditing(section.id)}
@@ -901,14 +902,15 @@ export function CourseSectionCard({
                         >
                           {section.children.map((child, childIndex) => (
                             <Draggable
-                              key={child.id}
-                              draggableId={child.id}
+                              key={`${child.id}-${childIndex}`}
+                              draggableId={`${child.id}-${childIndex}`}
                               index={childIndex}
                             >
                               {(draggableProvided, draggableSnapshot) => (
                                 <div
-                                  ref={draggableProvided.innerRef}
+                                  ref={draggableProvided.innerRef as React.Ref<HTMLDivElement>}
                                   {...draggableProvided.draggableProps}
+                                  style={draggableProvided.draggableProps.style as CSSProperties}
                                   className={cn(
                                     'rounded-lg transition-shadow duration-150',
                                     draggableSnapshot.isDragging && 'shadow-lg ring-2 ring-brand-300',

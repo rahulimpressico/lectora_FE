@@ -9,11 +9,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { DragDropContext } from '@hello-pangea/dnd'
+import type { CSSProperties } from 'react'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { X, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useEditorStore } from '@/modules/course-generation/store/editorStore'
 import { clearDraft } from '@/modules/course-generation/store/courseEditorDraft'
+import { updateCourseTitleAPI } from '@/api/editor/api'
 import { useCourseEditorSession } from '@/modules/course-generation/features/pipeline/hooks/useCourseEditorSession'
 import { useCourseEditorDragEnd } from '@/modules/course-generation/features/pipeline/hooks/useCourseEditorDragEnd'
 import { CourseEditorShell } from '@/modules/course-generation/features/pipeline/components/CourseEditorShell'
@@ -95,6 +97,7 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
         session={session}
         contentMode="raw"
         showAzureSave={activeTab === 'editor'}
+        onTitleSave={(t) => { void updateCourseTitleAPI(jobId, t) }}
         topBarCenter={
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 shrink-0">
             {(['editor', 'preview'] as const).map((tab) => (
@@ -148,11 +151,27 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
                 </div>
               </div>
               <DragDropContext onDragEnd={onDragEnd}>
-                <div className="space-y-4 fade-in">
-                  {courseContent?.sections.map((section, idx) => (
-                    <CourseSectionCard key={section.id} section={section} jobId={jobId} depth={0} index={idx} />
-                  ))}
-                </div>
+                <Droppable droppableId="__SECTIONS__" type="SECTION">
+                  {(drop) => (
+                    <div ref={drop.innerRef} {...drop.droppableProps} className="space-y-4 fade-in">
+                      {courseContent?.sections.map((section, idx) => (
+                        <Draggable key={`${section.id}-${idx}`} draggableId={`${section.id}-${idx}`} index={idx}>
+                          {(drag, ds) => (
+                            <div
+                              ref={drag.innerRef as React.Ref<HTMLDivElement>}
+                              {...drag.draggableProps}
+                              style={drag.draggableProps.style as CSSProperties}
+                              className={ds.isDragging ? 'opacity-90 shadow-xl' : ''}
+                            >
+                              <CourseSectionCard section={section} jobId={jobId} depth={0} index={idx} dragHandleProps={drag.dragHandleProps} />
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {drop.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               </DragDropContext>
             </div>
           </div>

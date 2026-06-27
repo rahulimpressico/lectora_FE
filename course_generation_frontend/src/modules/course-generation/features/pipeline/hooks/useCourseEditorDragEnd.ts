@@ -5,8 +5,8 @@ import { useEditorStore } from '../../../store/editorStore'
 /** Shared drag-end handler for course editor DnD (sections + subtopics). */
 export function useCourseEditorDragEnd() {
   const courseContent = useEditorStore((s) => s.courseContent)
-  const reorderSections = useEditorStore((s) => s.reorderSections)
-  const reorderChildren = useEditorStore((s) => s.reorderChildren)
+  const moveSectionByIndex = useEditorStore((s) => s.moveSectionByIndex)
+  const moveChildByIndex = useEditorStore((s) => s.moveChildByIndex)
   const moveChildBetweenSections = useEditorStore((s) => s.moveChildBetweenSections)
 
   return useCallback(
@@ -16,26 +16,21 @@ export function useCourseEditorDragEnd() {
       if (source.droppableId === destination.droppableId && source.index === destination.index) return
 
       if (source.droppableId === '__SECTIONS__' && destination.droppableId === '__SECTIONS__') {
-        const sections = [...courseContent.sections]
-        const [moved] = sections.splice(source.index, 1)
-        sections.splice(destination.index, 0, moved)
-        reorderSections(sections)
+        // Use pure index-based move — never broken by duplicate section IDs.
+        moveSectionByIndex(source.index, destination.index)
       } else if (source.droppableId === destination.droppableId) {
-        const parent = courseContent.sections.find((s) => s.id === source.droppableId)
-        if (!parent) return
-        const children = [...parent.children]
-        const [moved] = children.splice(source.index, 1)
-        children.splice(destination.index, 0, moved)
-        reorderChildren(source.droppableId, children)
+        moveChildByIndex(source.droppableId, source.index, destination.index)
       } else {
+        // draggableId for cross-section move is "${sectionId}-${index}"; extract the real ID.
+        const realId = draggableId.replace(/-\d+$/, '')
         moveChildBetweenSections(
           source.droppableId,
           destination.droppableId,
-          draggableId,
+          realId,
           destination.index,
         )
       }
     },
-    [courseContent, reorderSections, reorderChildren, moveChildBetweenSections],
+    [courseContent, moveSectionByIndex, moveChildByIndex, moveChildBetweenSections],
   )
 }

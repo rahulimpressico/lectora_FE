@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { ArrowLeft, Eye, RotateCcw, Plus } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
 import { useEditorStore } from '../../../store/editorStore'
 import { useCourseStore, clearCourseStorage } from '../../../store/courseStore'
+import { updateCourseTitleAPI } from '@/api/editor/api'
 import { useCourseEditorSession } from '../hooks/useCourseEditorSession'
 import { useCourseEditorDragEnd } from '../hooks/useCourseEditorDragEnd'
 import { CourseEditorShell } from './CourseEditorShell'
@@ -77,7 +79,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
       <CourseEditorShell
         session={session}
-        onTitleSave={(t) => setCourseTitle(t)}
+        onTitleSave={(t) => { setCourseTitle(t); void updateCourseTitleAPI(jobId, t) }}
         topBarLeading={
           <button
             type="button"
@@ -107,9 +109,14 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
             {(p) => (
               <div ref={p.innerRef} {...p.droppableProps} className="space-y-3">
                 {(courseContent?.sections ?? []).map((section, index) => (
-                  <Draggable key={section.id} draggableId={section.id} index={index}>
+                  <Draggable key={`${section.id}-${index}`} draggableId={`${section.id}-${index}`} index={index}>
                     {(dp, ds) => (
-                      <div ref={dp.innerRef} {...dp.draggableProps} className={ds.isDragging ? 'opacity-90 shadow-xl' : ''}>
+                      <div
+                        ref={dp.innerRef as React.Ref<HTMLDivElement>}
+                        {...dp.draggableProps}
+                        style={dp.draggableProps.style as CSSProperties}
+                        className={ds.isDragging ? 'opacity-90 shadow-xl' : ''}
+                      >
                         <CourseSectionCard section={section} jobId={jobId} depth={0} index={index} dragHandleProps={dp.dragHandleProps} />
                       </div>
                     )}
@@ -134,7 +141,11 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
       {/* Preview modal */}
       {isPreviewOpen && courseContent && (
-        <CoursePreviewModal courseContent={courseContent} onClose={closePreview} />
+        <CoursePreviewModal
+          courseContent={courseContent}
+          onClose={closePreview}
+          onDownload={() => { void session.handleDownload() }}
+        />
       )}
     </div>
   )
