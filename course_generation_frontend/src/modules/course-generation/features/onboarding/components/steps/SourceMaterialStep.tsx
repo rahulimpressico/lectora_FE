@@ -9,17 +9,16 @@ import { InlineAzureBrowser } from '../../../upload/components/InlineAzureBrowse
 import { analyzeSource } from '@/api/course-generation/api'
 import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
-import type { ImportanceLevel, IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
+import type { IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
 
 /** Build a deterministic cache key from the current set of analyzable docs. */
-function buildAnalysisCacheKey(docs: Array<{ blobPath: string; sourceRole?: SourceRole; importance?: ImportanceLevel; extractHint?: string }>): string {
+function buildAnalysisCacheKey(docs: Array<{ blobPath: string; sourceRole?: SourceRole; extractHint?: string }>): string {
   return JSON.stringify(
     [...docs]
       .sort((a, b) => a.blobPath.localeCompare(b.blobPath))
       .map((d) => ({
         blobPath: d.blobPath,
         sourceRole: d.sourceRole ?? 'primary_source',
-        importance: d.importance ?? 'core',
         extractHint: d.extractHint ?? '',
       })),
   )
@@ -132,11 +131,10 @@ export const SourceMaterialStep = () => {
     // Compute cache key only from docs that will actually be sent
     const currentCacheKey = buildAnalysisCacheKey(
       analyzableDocs
-        .filter((d) => d.extractHint?.trim() || d.importance)
+        .filter((d) => d.extractHint?.trim())
         .map((d) => ({
           blobPath: d.blobPath as string,
           sourceRole: d.sourceRole,
-          importance: d.importance,
           extractHint: d.extractHint?.trim() || undefined,
         })),
     )
@@ -151,9 +149,7 @@ export const SourceMaterialStep = () => {
     }
 
     // Only send docs that have at least one user-provided metadata field.
-    const docsToAnalyze = analyzableDocs.filter(
-      (d) => d.extractHint?.trim() || d.importance,
-    )
+    const docsToAnalyze = analyzableDocs.filter((d) => d.extractHint?.trim())
 
     // Cache miss: run analyzeSource for all qualifying docs in parallel
     if (docsToAnalyze.length === 0) {
@@ -168,7 +164,6 @@ export const SourceMaterialStep = () => {
         analyzeSource({
           blobPath: d.blobPath as string,
           sourceRole: (d.sourceRole ?? 'primary_source') as SourceRole,
-          importance: (d.importance ?? 'core') as ImportanceLevel,
           extractHint: d.extractHint?.trim() || undefined,
         }),
       ),
@@ -481,10 +476,9 @@ export const SourceMaterialStep = () => {
                   {/* Per-file metadata — only shown once uploaded */}
                   {file.status === "success" && (
                     <div className="border-t border-slate-100 px-4 py-3 bg-slate-50 space-y-3">
-                      {/* Extract hint */}
                       <div className="space-y-1">
                         <label className="block text-xs font-semibold text-slate-600">
-                          What should we extract from this source?
+                          What should we get from this source?
                         </label>
                         <textarea
                           rows={2}
@@ -493,35 +487,6 @@ export const SourceMaterialStep = () => {
                           placeholder="e.g. Focus on regulatory definitions and compliance obligations"
                           className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400/20 transition-all resize-none"
                         />
-                      </div>
-
-                      {/* Importance */}
-                      <div className="space-y-1.5">
-                        <label className="block text-xs font-semibold text-slate-600">
-                          How important is this source?
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {([
-                            { value: 'core',           label: 'Core',                 active: 'bg-indigo-600 text-white border-indigo-600' },
-                            { value: 'supporting',     label: 'Supporting',           active: 'bg-sky-500 text-white border-sky-500' },
-                            { value: 'reference_only', label: 'Reference Only',       active: 'bg-amber-500 text-white border-amber-500' },
-                            { value: 'ignore',         label: 'Ignore unless needed', active: 'bg-slate-400 text-white border-slate-400' },
-                          ] as const).map(({ value, label, active }) => (
-                            <button
-                              key={value}
-                              type="button"
-                              onClick={() => updateRawDocument(file.id, { importance: file.importance === value ? undefined : value })}
-                              className={cn(
-                                'px-3 py-1 text-xs rounded-full border font-medium transition-colors',
-                                file.importance === value
-                                  ? active
-                                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300',
-                              )}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
                       </div>
                     </div>
                   )}

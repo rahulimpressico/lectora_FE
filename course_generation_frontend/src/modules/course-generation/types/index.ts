@@ -54,6 +54,7 @@ export interface SourceAnalysis {
   sourceName: string
   sourceRole: SourceRole
   importance: ImportanceLevel
+  extractHint?: string
   mainTopics: string[]
   recommendedCourseUse: string
   recommendedDepth: string

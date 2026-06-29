@@ -308,9 +308,10 @@ export async function reviseTO(
 
 export interface AnalyzeSourcePayload {
   blobPath: string
-  sourceRole: SourceRole
-  importance: ImportanceLevel
+  sourceRole?: SourceRole
   extractHint?: string
+  /** @deprecated inferred server-side from sourceRole when omitted */
+  importance?: ImportanceLevel
 }
 
 /**

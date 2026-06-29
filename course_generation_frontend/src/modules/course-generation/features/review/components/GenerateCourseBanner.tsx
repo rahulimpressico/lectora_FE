@@ -60,7 +60,6 @@ export const GenerateCourseBanner = () => {
           .map((f) => ({
             blobPath: f.blobPath,
             ...(f.extractHint?.trim() ? { extractHint: f.extractHint.trim() } : {}),
-            ...(f.importance ? { importance: f.importance } : {}),
           })),
         audience: audience || '',
         ...(specialInstructions?.trim() ? { specialInstructions: specialInstructions.trim() } : {}),
