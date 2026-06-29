@@ -137,6 +137,22 @@ export interface SaveToAzureOptions {
   sectionOrder?: string[]
 }
 
+// ─── Alia voice-command intent API ───────────────────────────────────────────
+
+import type { AliaRequest, AliaResponse } from '@/modules/course-generation/types/alia'
+
+export async function callAlia(
+  jobId: string,
+  req: AliaRequest,
+): Promise<AliaResponse> {
+  const { data } = await apiClient.post<AliaResponse>(
+    `/jobs/${jobId}/alia`,
+    req,
+    { timeout: 30_000 },
+  )
+  return data
+}
+
 export async function saveToAzure(
   jobId: string,
   options?: SaveToAzureOptions,

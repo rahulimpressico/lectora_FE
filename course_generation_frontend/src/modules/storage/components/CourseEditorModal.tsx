@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { CSSProperties } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { X, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -23,6 +24,7 @@ import { CoursePreviewPane } from '@/modules/course-generation/features/pipeline
 import { SectionNavigation } from '@/modules/course-generation/features/pipeline/components/SectionNavigation'
 import { CourseSectionCard } from '@/modules/course-generation/features/pipeline/components/CourseSectionCard'
 import { ConfirmLeaveModal } from '@/shared/components/ConfirmLeaveModal'
+import { AIAssistantLabel, AIAssistantOverlay } from '@/modules/course-generation/features/pipeline/components/AIAssistant'
 
 interface CourseEditorModalProps {
   jobId: string
@@ -34,6 +36,7 @@ interface CourseEditorModalProps {
 export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorModalProps) {
   const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor')
   const [confirmLeave, setConfirmLeave] = useState(false)
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false)
 
   const {
     courseContent,
@@ -98,6 +101,11 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
         contentMode="raw"
         showAzureSave={activeTab === 'editor'}
         onTitleSave={(t) => { void updateCourseTitleAPI(jobId, t) }}
+        extraActions={
+          activeTab === 'editor' ? (
+            <AIAssistantLabel onClick={() => setIsAIAssistantOpen(true)} />
+          ) : undefined
+        }
         topBarCenter={
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-0.5 shrink-0">
             {(['editor', 'preview'] as const).map((tab) => (
@@ -187,6 +195,19 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
           </div>
         )}
       </CourseEditorShell>
+
+      <AnimatePresence>
+        {isAIAssistantOpen && (
+          <AIAssistantOverlay
+            onClose={() => setIsAIAssistantOpen(false)}
+            jobId={jobId}
+            session={{
+              handleDownload: session.handleDownload,
+              handleSaveToAzure: session.handleSaveToAzure,
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

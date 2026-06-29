@@ -145,7 +145,14 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
 
       <AnimatePresence>
         {isAIAssistantOpen && (
-          <AIAssistantOverlay onClose={() => setIsAIAssistantOpen(false)} />
+          <AIAssistantOverlay
+            onClose={() => setIsAIAssistantOpen(false)}
+            jobId={jobId}
+            session={{
+              handleDownload: session.handleDownload,
+              handleSaveToAzure: session.handleSaveToAzure,
+            }}
+          />
         )}
       </AnimatePresence>
 
