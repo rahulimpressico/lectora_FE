@@ -203,9 +203,9 @@ export const CoursePreviewPanel = () => {
                 initial="hidden"
                 animate="show"
                 exit="hidden"
-                className="text-white/70 text-sm leading-relaxed mb-5 max-w-lg"
+                className="text-white/70 text-sm leading-relaxed mb-5"
               >
-                {description.length > 160 ? description.slice(0, 160) + '…' : description}
+                {description}
               </motion.p>
             )}
           </AnimatePresence>
@@ -281,7 +281,7 @@ export const CoursePreviewPanel = () => {
                   </h3>
                 </div>
                 <p className="text-sm text-slate-700 leading-relaxed">
-                  {audience.length > 160 ? audience.slice(0, 160) + '…' : audience}
+                  {audience}
                 </p>
                 {wizardData.experienceLevel && (
                   <div className="mt-3">

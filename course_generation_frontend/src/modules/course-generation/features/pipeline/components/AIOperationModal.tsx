@@ -8,6 +8,8 @@ interface AIOperationModalProps {
   currentContent: string
   isProcessing: boolean
   result: string | null
+  /** When set, the modal shows a batch-scope note and the confirm button says "Apply to All N Subtopics". */
+  batchCount?: number
   onConfirm: (userPrompt: string) => void
   onApply: () => void
   onDiscard: () => void
@@ -49,6 +51,7 @@ export function AIOperationModal({
   currentContent,
   isProcessing,
   result,
+  batchCount,
   onConfirm,
   onApply,
   onDiscard,
@@ -56,6 +59,7 @@ export function AIOperationModal({
 }: AIOperationModalProps) {
   const cfg = CONFIG[operation]
   const { Icon } = cfg
+  const isBatchMode = (batchCount ?? 0) > 0
   const [prompt, setPrompt] = useState('')
   const promptRef = useRef<HTMLTextAreaElement>(null)
 
@@ -91,7 +95,11 @@ export function AIOperationModal({
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-bold text-slate-900">{cfg.title}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{cfg.subtitle}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {isBatchMode
+                ? `Will be applied individually to all ${batchCount} subtopics in this section`
+                : cfg.subtitle}
+            </p>
           </div>
           <button
             type="button"
@@ -228,7 +236,7 @@ export function AIOperationModal({
                 ) : (
                   <>
                     <Sparkles size={12} />
-                    {cfg.confirmLabel}
+                    {isBatchMode ? `Apply to All ${batchCount} Subtopics` : cfg.confirmLabel}
                   </>
                 )}
               </button>

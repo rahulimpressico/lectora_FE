@@ -30,7 +30,7 @@ export const ThreePanelHeader = () => {
   const [showFamilyDropdown, setShowFamilyDropdown] = useState(false)
 
   const handleBack = () => {
-    setPhase("wizard-outline-review");
+    setPhase('wizard-outline-review')
   }
 
   const fileCount = rawDocuments.filter((f) => f.status === 'success').length

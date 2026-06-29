@@ -26,17 +26,20 @@ function NavItem({ section, activeSectionId, depth, index }: NavItemProps) {
 
   function handleClick() {
     setActiveSectionId(section.id)
-    if (hasChildren) {
-      if (isExpanded) {
-        collapseSection(section.id)
-      } else {
-        expandSection(section.id)
-      }
+    // Always expand — the chevron button handles collapse so navigating here
+    // never accidentally hides children.
+    expandSection(section.id)
+    const el = document.getElementById(`section-${section.id}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function handleChevronClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (isExpanded) {
+      collapseSection(section.id)
     } else {
       expandSection(section.id)
     }
-    const el = document.getElementById(`section-${section.id}`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
@@ -88,16 +91,21 @@ function NavItem({ section, activeSectionId, depth, index }: NavItemProps) {
           <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-brand-400" title="Knowledge Check" />
         )}
 
-        {/* Expand/collapse chevron for sections with children */}
+        {/* Expand/collapse chevron for sections with children — separate toggle */}
         {hasChildren && depth === 0 && (
-          <ChevronRight
-            size={11}
+          <span
+            role="button"
+            onClick={handleChevronClick}
             className={cn(
-              'shrink-0 transition-transform duration-200',
+              'shrink-0 rounded p-0.5 hover:bg-slate-200 transition-all duration-200',
               isActive ? 'text-brand-500' : 'text-slate-300 group-hover:text-slate-500',
-              isExpanded && 'rotate-90',
             )}
-          />
+          >
+            <ChevronRight
+              size={11}
+              className={cn('transition-transform duration-200', isExpanded && 'rotate-90')}
+            />
+          </span>
         )}
       </button>
 

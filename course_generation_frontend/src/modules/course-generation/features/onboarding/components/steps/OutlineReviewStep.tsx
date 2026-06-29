@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, BookOpen, Clock, RefreshCw } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import { AIGenerationLoader } from '../AIGenerationLoader'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
 import { useWizardNav } from '../WizardNavContext'
-import { cn } from '@/lib/cn'
 import type { JsonObject } from '../../../../types'
 
 // ── Animation variants ─────────────────────────────────────────────────────
@@ -35,20 +35,7 @@ const badgeVariant = {
   show: { opacity: 1, scale: 1, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const } },
 }
 
-const chipVariant = {
-  hidden: { opacity: 0, scale: 0.88 },
-  show: { opacity: 1, scale: 1, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] as const } },
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-const REVISION_CHIPS = [
-  'Make it more practical',
-  'Reduce legal detail',
-  'Add more case studies',
-  'Make sections shorter',
-  'Focus on key concepts',
-]
 
 function getSections(toData: JsonObject): JsonObject[] {
   const sections = toData.sections ?? toData.modules
@@ -81,12 +68,8 @@ export const OutlineReviewStep = () => {
   const setPhase = useCourseStore((s) => s.setPhase)
   const toData = useCourseStore((s) => s.toData)
   const courseTitle = useCourseStore((s) => s.courseTitle)
-  const setCustomToPrompt = useCourseStore((s) => s.setCustomToPrompt)
-  const customToPrompt = useCourseStore((s) => s.customToPrompt)
-
   const generateTO = useGenerateTO()
 
-  const [revisionText, setRevisionText] = useState('')
   const [editNote, setEditNote] = useState<string | null>(null)
 
   const { setConfig } = useWizardNav()
@@ -121,19 +104,6 @@ export const OutlineReviewStep = () => {
 
   const handleRegenerate = () => {
     generateTO.mutate()
-  }
-
-  const handleRegenerateWithFeedback = () => {
-    if (!revisionText.trim()) return
-    const combined = [customToPrompt, `Revision request: ${revisionText.trim()}`]
-      .filter(Boolean)
-      .join('\n\n')
-    setCustomToPrompt(combined)
-    generateTO.mutate()
-  }
-
-  const handleChipClick = (chip: string) => {
-    setRevisionText((prev) => (prev ? `${prev}, ${chip.toLowerCase()}` : chip))
   }
 
   // ── Loading state ──────────────────────────────────────────────────────
@@ -321,67 +291,6 @@ export const OutlineReviewStep = () => {
         )}
       </AnimatePresence>
 
-      {/* Revision request */}
-      <motion.div
-        variants={scaleIn}
-        className="bg-white border border-border rounded-xl p-5 space-y-3"
-        style={{ willChange: 'transform' }}
-      >
-        <p className="text-sm font-medium text-slate-700">Ask the assistant to revise</p>
-
-        {/* Revision chips */}
-        <motion.div
-          variants={staggerContainer}
-          className="flex flex-wrap gap-2"
-        >
-          {REVISION_CHIPS.map((chip, i) => {
-            const isSelected = revisionText.toLowerCase().includes(chip.toLowerCase())
-            return (
-              <motion.button
-                key={chip}
-                type="button"
-                variants={chipVariant}
-                custom={i}
-                onClick={() => handleChipClick(chip)}
-                whileTap={{ scale: 0.94 }}
-                animate={isSelected ? { scale: [1.06, 1] } : { scale: 1 }}
-                transition={isSelected ? { duration: 0.2, ease: [0.22, 1, 0.36, 1] } : { type: 'spring', stiffness: 400, damping: 30 }}
-                className={cn(
-                  'px-3 py-1 text-xs rounded-full border transition-colors',
-                  isSelected
-                    ? 'bg-brand-500 text-white border-brand-500'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600',
-                )}
-                style={{ willChange: 'transform' }}
-              >
-                {chip}
-              </motion.button>
-            )
-          })}
-        </motion.div>
-
-        <textarea
-          rows={3}
-          value={revisionText}
-          onChange={(e) => setRevisionText(e.target.value)}
-          placeholder="Describe how you'd like the outline revised..."
-          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
-        />
-
-        {/* Apply & Regenerate button */}
-        <motion.button
-          type="button"
-          onClick={handleRegenerateWithFeedback}
-          disabled={!revisionText.trim() || generateTO.isPending}
-          whileHover={{ scale: 1.03, y: -1 }}
-          whileTap={{ scale: 0.96 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-brand-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ willChange: 'transform' }}
-        >
-          Apply &amp; Regenerate
-        </motion.button>
-      </motion.div>
     </motion.div>
   )
 }

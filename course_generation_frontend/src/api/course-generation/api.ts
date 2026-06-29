@@ -10,6 +10,9 @@ import type {
   GenerateTOJobAccepted,
   GenerateTOJobPollResponse,
   GenerateTOResponse,
+  ImportanceLevel,
+  SourceAnalysis,
+  SourceRole,
 } from '@/modules/course-generation/types'
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -178,6 +181,8 @@ export interface GenerateLearningObjectivesBody {
   desiredOutcomes?: string
   certificationFocus?: string
   additionalInstructions?: string
+  sourceAnalyses?: SourceAnalysis[]
+  requiredTopics?: string[]
 }
 
 /** AI-generate measurable learning objectives from course metadata. */
@@ -188,6 +193,37 @@ export async function generateLearningObjectives(
     '/documents/generate-learning-objectives',
     body,
     { timeout: 60_000 },
+  )
+  return data
+}
+
+// ─── Course type suggestion ───────────────────────────────────────────────────
+
+export interface SuggestCourseTypeBody {
+  courseTitle?: string
+  courseDescription?: string
+  targetAudience?: string
+  learningObjectives?: string[]
+}
+
+export interface SuggestCourseTypeResult {
+  ruleFamily: string        // e.g. "insurance_ce"
+  ruleFamilyLabel: string   // e.g. "Insurance CE"
+  confidence: number
+  reasoning: string
+}
+
+/**
+ * AI-suggest the best rule family / course type from wizard metadata.
+ * Only call when the user explicitly clicks "Suggested by AI" — never auto-trigger.
+ */
+export async function suggestCourseType(
+  body: SuggestCourseTypeBody,
+): Promise<SuggestCourseTypeResult> {
+  const { data } = await apiClient.post<SuggestCourseTypeResult>(
+    '/documents/suggest-course-type',
+    body,
+    { timeout: 30_000 },
   )
   return data
 }
@@ -217,6 +253,77 @@ export async function suggestOutlineStructure(
     '/documents/suggest-outline-structure',
     body,
     { timeout: 30_000 },
+  )
+  return data
+}
+
+// ─── TO persistence (user edits → backend blob) ──────────────────────────────
+
+export interface SaveTOResponse {
+  blobPath: string
+}
+
+/**
+ * Persist the user-edited Training Outline to the backend blob at `blobPath`.
+ * The backend overwrites the file in FE format so that `GET /documents/load-to`
+ * returns user edits on the next page refresh, regardless of localStorage state.
+ */
+export async function saveTrainingOutline(
+  blobPath: string,
+  to: Record<string, unknown>,
+  rules: Record<string, unknown> | null,
+): Promise<SaveTOResponse> {
+  const { data } = await apiClient.post<SaveTOResponse>(
+    '/documents/save-to',
+    { blobPath, to, ...(rules !== null ? { rules } : {}) },
+    { timeout: 30_000 },
+  )
+  return data
+}
+
+// ─── TO revision ─────────────────────────────────────────────────────────────
+
+export interface ReviseTOResponse {
+  to: Record<string, unknown>
+}
+
+/**
+ * Revise an existing Training Outline in-place using a user-supplied prompt.
+ * Sends the current TO JSON + the user's instruction to the LLM and returns
+ * the revised TO. Does NOT re-run A0 or regenerate from source documents.
+ */
+export async function reviseTO(
+  currentTo: Record<string, unknown>,
+  revisionPrompt: string,
+): Promise<ReviseTOResponse> {
+  const { data } = await apiClient.post<ReviseTOResponse>(
+    '/documents/revise-to',
+    { currentTo, revisionPrompt },
+    { timeout: 5 * 60 * 1_000 },
+  )
+  return data
+}
+
+// ─── Source analysis ───────────────────────────────────────────────────────────
+
+export interface AnalyzeSourcePayload {
+  blobPath: string
+  sourceRole: SourceRole
+  importance: ImportanceLevel
+  extractHint?: string
+}
+
+/**
+ * Extract the TOC from an uploaded document and run LLM source analysis.
+ * Call this for every uploaded source document before POST /documents/generate-to.
+ * Returns a SourceAnalysis object that should be aggregated and passed to
+ * generate-to as `sourceAnalyses`.
+ */
+export async function analyzeSource(payload: AnalyzeSourcePayload): Promise<SourceAnalysis> {
+  const { data } = await apiClient.post<SourceAnalysis>(
+    '/documents/analyze-source',
+    payload,
+    { timeout: 60_000 },
   )
   return data
 }

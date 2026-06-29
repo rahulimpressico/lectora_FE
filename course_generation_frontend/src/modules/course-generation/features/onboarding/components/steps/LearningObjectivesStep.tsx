@@ -213,6 +213,7 @@ const AI_CONTEXT_BULLETS = [
 export const LearningObjectivesStep = () => {
   const wizardData = useCourseStore((s) => s.wizardData)
   const setWizardData = useCourseStore((s) => s.setWizardData)
+  const sourceAnalyses = useCourseStore((s) => s.sourceAnalyses)
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const audience = useCourseStore((s) => s.audience)
   const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
@@ -247,6 +248,9 @@ export const LearningObjectivesStep = () => {
   const handleGenerate = () => {
     setIsGenerating(true)
     setGenerateError(null)
+
+    // Source analyses were computed on the Materials step and cached in the store.
+    // Use them directly — no analyzeSource call here.
     generateLearningObjectives({
       sourceMaterials,
       courseTitle: courseTitle || undefined,
@@ -255,6 +259,8 @@ export const LearningObjectivesStep = () => {
       courseDuration: durationHours != null ? `${durationHours} hour${durationHours !== 1 ? 's' : ''}` : undefined,
       skillLevel: difficultyLevel || wizardData.experienceLevel || undefined,
       targetAudience: audience || undefined,
+      sourceAnalyses: sourceAnalyses.length > 0 ? sourceAnalyses : undefined,
+      requiredTopics: wizardData.requiredTopics?.length > 0 ? wizardData.requiredTopics : undefined,
     })
       .then((result) => {
         setWizardData({ objectives: result.learningObjectives })

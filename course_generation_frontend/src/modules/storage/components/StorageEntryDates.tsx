@@ -1,6 +1,6 @@
 import { Calendar, Clock } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { formatStorageDate, formatStorageDateShort } from '@/utils/formatDate'
+import { formatStorageDate, formatStorageDateShort } from '@/shared/utils/formatDate'
 import type { StorageEntry } from '@/api/storage/api'
 
 interface Props {

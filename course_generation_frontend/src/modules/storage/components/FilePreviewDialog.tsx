@@ -10,7 +10,7 @@ import {
   type StorageEntry,
   type StorageSource,
 } from '@/api/storage/api'
-import { fileExtension } from '@/utils/fileExtension'
+import { fileExtension } from '@/shared/utils/fileExtension'
 import { ArtifactRenderer } from './ArtifactRenderer'
 import { StorageEntryDates } from './StorageEntryDates'
 

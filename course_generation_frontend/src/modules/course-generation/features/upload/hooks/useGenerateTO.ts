@@ -54,7 +54,7 @@ function isCompletedResponse(
  * `statusMessage` reflects the backend's latest `message` field and can drive
  * step labels in the loader.
  */
-export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
+export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
   const qc = useQueryClient()
   const {
     setTOData,
@@ -135,9 +135,8 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
         courseTitle,
       } = useCourseStore.getState()
 
-      const blobPaths = rawDocuments
-        .filter((f) => f.status === 'success' && f.blobPath)
-        .map((f) => f.blobPath as string)
+      const successDocs = rawDocuments.filter((f) => f.status === 'success' && f.blobPath)
+      const blobPaths = successDocs.map((f) => f.blobPath as string)
 
       if (blobPaths.length === 0) throw new Error('No uploaded documents found.')
       if (!audience.trim()) {
@@ -156,6 +155,9 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
 
       // Use raw store values — no silent defaults that would mask missing data.
       const difficulty = difficultyLevel ? difficultyLevel.toLowerCase() : null
+
+      // ── Source analyses computed at LO generation time (stored in courseStore) ─
+      const sourceAnalyses = useCourseStore.getState().sourceAnalyses
 
       const metadataContext = buildCourseMetadataContext({ courseId, courseTitle })
       const effectiveCustomPrompt =
@@ -196,31 +198,11 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'to-summary') {
         // Outline structure
         ...(wizardData.preferredChapters && { preferredChapters: parseInt(wizardData.preferredChapters, 10) || undefined }),
         ...(wizardData.lessonStyle && { lessonStyle: wizardData.lessonStyle }),
+        // Source analysis results — used by A0 to weight TO/LO generation
+        ...(sourceAnalyses.length > 0 && { sourceAnalyses }),
+        // Required topics — mandatory content areas specified by the user
+        ...(wizardData.requiredTopics?.length > 0 && { requiredTopics: wizardData.requiredTopics }),
       }
-
-      console.debug('[useGenerateTO] onboarding state snapshot:', {
-        durationHours,
-        difficultyLevel,
-        calculatedWordCount,
-        audience: audience.trim(),
-        courseTypeHint: courseTypeHint.trim(),
-        experienceLevel: wizardData.experienceLevel,
-        tone: wizardData.tone,
-        depth: wizardData.depth,
-        hasDescription: !!wizardData.description.trim(),
-        hasLearnerOutcomes: !!wizardData.learnerOutcomes.trim(),
-        hasAudienceNotes: !!wizardData.audienceNotes.trim(),
-        hasEmphasis: !!wizardData.emphasis.trim(),
-        hasAvoid: !!wizardData.avoid.trim(),
-        includeScenarios: wizardData.includeScenarios,
-        includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
-        objectivesCount: wizardData.objectives.length,
-        preferredChapters: wizardData.preferredChapters,
-        lessonStyle: wizardData.lessonStyle,
-        blobPathsCount: blobPaths.length,
-        hasCustomPrompt: !!effectiveCustomPrompt,
-      })
-      console.debug('[useGenerateTO] API request body:', body)
 
       return startGenerateTO(body, controller.signal)
     },

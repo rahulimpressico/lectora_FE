@@ -47,6 +47,7 @@ export function UploadPhase() {
   const {
     rawDocuments,
     removeRawDocument,
+    updateRawDocument,
     openPreview,
     courseTopic,
     setCourseTopic,
@@ -473,6 +474,7 @@ export function UploadPhase() {
                           file={file}
                           onRemove={removeRawDocument}
                           onPreview={openPreview}
+                          onUpdate={updateRawDocument}
                         />
                       ))}
                     </div>

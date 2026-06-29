@@ -33,8 +33,8 @@ import {
   type StorageEntry,
   type StorageSource,
 } from '@/api/storage/api'
-import { formatBytes } from '@/utils/formatBytes'
-import { fileExtension } from '@/utils/fileExtension'
+import { formatBytes } from '@/shared/utils/formatBytes'
+import { fileExtension } from '@/shared/utils/fileExtension'
 import { FilePreviewDialog } from './FilePreviewDialog'
 import { StorageDeleteConfirmDialog } from './StorageDeleteConfirmDialog'
 import { StorageEntryDates } from './StorageEntryDates'
