@@ -349,6 +349,7 @@ export const LearningObjectivesStep = () => {
         setWizardData({ objectives: result.learningObjectives })
       })
       .catch((err: unknown) => {
+        console.error('[LearningObjectivesStep] generateLearningObjectives failed:', err)
         setGenerateError(err instanceof Error ? err.message : 'Generation failed. Please try again.')
       })
       .finally(() => {
@@ -529,7 +530,7 @@ export const LearningObjectivesStep = () => {
                     </ul>
                     <motion.button
                       type="button"
-                      onClick={handleGenerate}
+                      onClick={() => handleGenerate()}
                       disabled={isGenerating}
                       className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       whileHover={isGenerating ? {} : { scale: 1.03 }}
