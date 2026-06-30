@@ -8,7 +8,7 @@ import {
 import { ApiClientError } from '@/api/errors'
 import { useCourseStore } from '../../../store/courseStore'
 import { TO_TASKS_QUERY_KEY } from './useToTasks'
-import type { GenerateTOResponse, WorkflowPhase } from '../../../types'
+import type { GenerateTOResponse, GenerateTOStageLog, S1ValidationResult, WorkflowPhase } from '../../../types'
 import type { JsonObject } from '../../../types'
 
 // ── Course metadata context ────────────────────────────────────────────────────
@@ -63,6 +63,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     setGeneratedToBlobPath,
     setCourseTitle,
     setDetectedRuleFamily,
+    setToS1Validation,
   } = useCourseStore()
   const successPhaseRef = useRef(successPhase)
   successPhaseRef.current = successPhase
@@ -88,13 +89,18 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
   // Latest status message from the backend (drives loader step text)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
+  // S1 validation result — available on success (quality scores) or failure (block details)
+  const [s1Validation, setS1Validation] = useState<S1ValidationResult | null>(null)
+
   // ── Result processor ───────────────────────────────────────────────────────
 
   const applyResult = useCallback(
-    ({ to, rules, toBlobPath }: GenerateTOResponse) => {
+    ({ to, rules, toBlobPath, s1Validation: resultS1 }: GenerateTOResponse) => {
       setTOData(to as JsonObject, to as JsonObject)
       setRulesData(rules as JsonObject, rules as JsonObject)
       setGeneratedToBlobPath(toBlobPath ?? null)
+      // Persist S1 validation result so the three-panel view can show a quality badge.
+      if (resultS1) setToS1Validation(resultS1 as S1ValidationResult)
       const existingTitle = useCourseStore.getState().courseTitle
       if (!existingTitle.trim() && typeof to.course_name === 'string' && to.course_name) {
         setCourseTitle(to.course_name as string)
@@ -108,7 +114,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
       useCourseStore.getState().setActiveJobId(null)
       setPhase(successPhaseRef.current)
     },
-    [setTOData, setRulesData, setGeneratedToBlobPath, setCourseTitle, setDetectedRuleFamily, setPhase],
+    [setTOData, setRulesData, setGeneratedToBlobPath, setToS1Validation, setCourseTitle, setDetectedRuleFamily, setPhase],
   )
 
   // ── Phase 1: fire POST → get jobId (or sync result) ───────────────────────
@@ -246,6 +252,8 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     if (poll.message) setStatusMessage(poll.message)
 
     if (poll.status === 'completed') {
+      // Capture S1 validation quality data from a successful run.
+      if (poll.s1Validation) setS1Validation(poll.s1Validation as S1ValidationResult)
       if (poll.to && poll.rules) {
         applyResult({
           to: poll.to as JsonObject,
@@ -258,6 +266,8 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
       setActiveJobId(null)
       void qc.invalidateQueries({ queryKey: TO_TASKS_QUERY_KEY })
     } else if (poll.status === 'failed') {
+      // Capture S1 validation block details when the job fails (S1 blocked).
+      if (poll.s1Validation) setS1Validation(poll.s1Validation as S1ValidationResult)
       setJobError(new Error(poll.error ?? poll.message ?? 'TO generation failed.'))
       setActiveJobId(null)
       void qc.invalidateQueries({ queryKey: TO_TASKS_QUERY_KEY })
@@ -304,6 +314,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     startMutation.reset()
     setJobError(null)
     setStatusMessage(null)
+    setS1Validation(null)
   }
 
   // ── Derived state ──────────────────────────────────────────────────────────
@@ -315,6 +326,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
   const error =
     jobError ??
     (startMutation.error instanceof Error ? startMutation.error : null)
+  const stageLogs: GenerateTOStageLog[] = (pollQuery.data?.logs ?? []) as GenerateTOStageLog[]
 
   return {
     isPending,
@@ -327,5 +339,14 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     statusMessage,
     /** jobId being polled, or null when idle */
     activeJobId,
+    /** Raw backend TO-generation logs (includes stage ids like A0/S1/A1). */
+    stageLogs,
+    /**
+     * S1 validation result.
+     * - On success: quality scores from the completed A1-phase validation.
+     * - On failure (S1 blocked): block details with issue list and retry prompt.
+     * - null while in-progress or not yet started.
+     */
+    s1Validation,
   }
 }

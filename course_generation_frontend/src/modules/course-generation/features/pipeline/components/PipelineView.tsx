@@ -219,16 +219,13 @@ function ActivityLogPanel({
 }
 
 // ── Stage messages ──────────────────────────────────────────────────
+// Rotating status messages shown in the GenerationConsole while each
+// visible stage is active.  S1 is folded into A2 so no messages needed.
 const STAGE_MESSAGES: Record<string, string[]> = {
   A1: [
-    "Analyzing your study guide…",
-    "Extracting sections and key concepts…",
-    "Building your enriched course outline…",
-  ],
-  S1: [
-    "Reviewing course structure…",
-    "Checking compliance and quality standards…",
-    "Validating all sections meet requirements…",
+    "Interpreting the reviewed Training Outline…",
+    "Building the enriched course structure…",
+    "Mapping sections and learning objectives…",
   ],
   A2: [
     "Writing course content for each lesson…",
@@ -237,8 +234,8 @@ const STAGE_MESSAGES: Record<string, string[]> = {
   ],
   S2: [
     "Reviewing generated content for accuracy…",
-    "Checking lesson depth and coverage…",
-    "Ensuring quality standards are met…",
+    "Checking lesson depth and compliance…",
+    "Ensuring all quality standards are met…",
   ],
   FINALIZATION: [
     "Assembling your course…",
@@ -274,11 +271,9 @@ function useRotatingMessage(activeStageId: string | null): string {
 }
 
 const STAGE_LABEL_MAP: Record<string, string> = {
-  A0: "Classification",
-  A1: "Analysis",
-  S1: "Validation",
-  A2: "Content Writing",
-  S2: "Quality Review",
+  A1: "Preparing Final Outline",
+  A2: "Generating Content",
+  S2: "Validating Content",
   FINALIZATION: "Assembly",
   EXPORT: "Export",
 };

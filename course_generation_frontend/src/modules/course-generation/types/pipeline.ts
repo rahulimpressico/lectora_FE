@@ -1,9 +1,9 @@
 // ─── Pipeline Stage IDs ────────────────────────────────────────────────────────
-// A1/S1/A2/S2 map directly to backend PipelineStep values.
+// A1/A2/S2 map directly to backend PipelineStep values.
+// S1 ran during TO generation (before Three Panel View) and is not shown here.
 // FINALIZATION / EXPORT are virtual front-end-only stages.
 export type PipelineStageId =
   | 'A1'
-  | 'S1'
   | 'A2'
   | 'S2'
   | 'FINALIZATION'

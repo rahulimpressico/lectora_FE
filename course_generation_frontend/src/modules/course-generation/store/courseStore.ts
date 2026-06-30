@@ -3,6 +3,7 @@ import { devtools, persist } from 'zustand/middleware'
 import { deepSet, deepGet } from '../utils/deepUpdate'
 import { calcWordCount, WORDS_PER_CREDIT_HOUR } from '../utils/courseConfig'
 import type {
+  S1ValidationResult,
   SourceAnalysis,
   UploadedFile,
   WorkflowPhase,
@@ -96,6 +97,14 @@ interface CourseState {
    */
   sourceAnalysesCacheKey: string | null
 
+  // ── S1 validation result (TO generation) ─────────────────────────────────────
+  /**
+   * S1 validation result from the most recent TO-generation run.
+   * Persisted so the three-panel view can show a quality badge after navigation.
+   * Cleared on reset.
+   */
+  toS1Validation: S1ValidationResult | null
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
@@ -128,6 +137,7 @@ interface CourseState {
 
   setWizardData: (patch: Partial<WizardData>) => void
   setSourceAnalyses: (analyses: SourceAnalysis[], cacheKey?: string) => void
+  setToS1Validation: (result: S1ValidationResult | null) => void
 
   setToDocument: (file: UploadedFile | null) => void
   setActiveJob: (job: JobResponse | null) => void
@@ -442,6 +452,7 @@ const initialState = {
   calculatedWordCount:  null as number | null,
   sourceAnalyses:            [] as SourceAnalysis[],
   sourceAnalysesCacheKey:    null as string | null,
+  toS1Validation:            null as S1ValidationResult | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -466,6 +477,8 @@ export const useCourseStore = create<CourseState>()(
           set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
 
         setSourceAnalyses: (analyses, cacheKey) => set({ sourceAnalyses: analyses, sourceAnalysesCacheKey: cacheKey ?? null }),
+
+        setToS1Validation: (result) => set({ toS1Validation: result }),
 
         setDurationHours: (hours) =>
           set((s) => {
@@ -636,6 +649,7 @@ export const useCourseStore = create<CourseState>()(
             durationHours:      null,
             difficultyLevel:    null,
             calculatedWordCount: null,
+            toS1Validation:     null,
           }),
       }),
       {

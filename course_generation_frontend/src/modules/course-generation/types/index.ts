@@ -92,6 +92,60 @@ export interface ParsedTO {
   modules: TOModule[]
 }
 
+// ─── S1 Validation types ─────────────────────────────────────────────────────
+export interface S1ValidationIssue {
+  severity: 'blocker' | 'critical' | 'warning' | 'info'
+  field?: string | null
+  message: string
+  section?: string | null
+}
+
+export interface S1Recommendation {
+  priority: 'high' | 'medium' | 'low'
+  action: string
+  rationale?: string
+}
+
+export interface S1MissingTopic {
+  topic: string
+  reason: string
+  suggested_placement?: string | null
+}
+
+export interface S1DependencyIssue {
+  section: string
+  depends_on: string
+  issue: string
+}
+
+/**
+ * Rich S1 validation result — returned by the backend as `s1Validation` in poll
+ * responses (completed jobs) and in failed poll responses (S1 blocked after retries).
+ */
+export interface S1ValidationResult {
+  summary: string
+  overall_score: number
+  coverage_score: number
+  sequence_score: number
+  relevance_score: number
+  completeness_score: number
+  confidence: number
+  status: 'PASS' | 'FAIL'
+  issues: S1ValidationIssue[]
+  recommendations: S1Recommendation[]
+  missing_topics: S1MissingTopic[]
+  duplicates: string[]
+  dependency_issues?: S1DependencyIssue[]
+  retry_required: boolean
+  retry_prompt: string
+  /** Number of blocker-severity issues. */
+  blockers?: number
+  /** Number of critical-severity issues. */
+  criticals?: number
+  /** Number of warning-severity issues. */
+  warnings?: number
+}
+
 // ─── Generate TO API response ─────────────────────────────────────────────────
 export interface GenerateTOResponse {
   to: JsonObject
@@ -99,6 +153,8 @@ export interface GenerateTOResponse {
   /** Blob path of the saved generated-TO JSON file. Pass as timedOutline.blobPath
    *  in POST /jobs so the pipeline reuses this TO instead of re-generating it. */
   toBlobPath?: string
+  /** S1 validation result for the generated TO — present on successful completion. */
+  s1Validation?: S1ValidationResult | JsonObject
 }
 
 /** HTTP 202 from POST /documents/generate-to (async mode). */
@@ -107,6 +163,15 @@ export interface GenerateTOJobAccepted {
   status: string
   message: string
   pollUrl: string
+}
+
+/** A single log entry from the generate-to polling response. */
+export interface GenerateTOStageLog {
+  id: number
+  level: string
+  message: string
+  stage?: string | null
+  ts?: number
 }
 
 /** GET /documents/generate-to/jobs/{jobId} */
@@ -118,6 +183,14 @@ export interface GenerateTOJobPollResponse {
   to?: JsonObject
   rules?: JsonObject
   toBlobPath?: string
+  /**
+   * S1 validation result.
+   * - On `completed`: full a1-phase validation (PASS result with scores).
+   * - On `failed` (S1 blocked): partial to-only validation with the block details.
+   */
+  s1Validation?: S1ValidationResult | JsonObject
+  /** Backend stage logs — used by TOGenerationLoader to track A0 / S1 / A1 progress. */
+  logs?: GenerateTOStageLog[]
 }
 
 // ─── Rule pack ────────────────────────────────────────────────────────────────
