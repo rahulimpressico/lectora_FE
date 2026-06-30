@@ -86,8 +86,8 @@ export async function syncCourseContent(
   jobId: string,
   content: CourseContent,
 ): Promise<SyncCourseResponse> {
-  const { data } = await apiClient.put<SyncCourseResponse>(
-    `/jobs/${jobId}/course`,
+  const { data } = await apiClient.post<SyncCourseResponse>(
+    `/jobs/${jobId}/course/sync`,
     content,
     { timeout: LONG_JOB_TIMEOUT_MS },
   )

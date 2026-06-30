@@ -260,8 +260,6 @@ export interface GenerateCoursePayload {
   sourceFileSpecs?: SourceFileSpec[]
   /** Target audience — mandatory, drives content calibration throughout the pipeline. */
   audience: string
-  /** Optional special instructions from the user, injected into A2 generation prompts. */
-  specialInstructions?: string
   /** Onboarding wizard fields forwarded to A2 for dynamic prompt construction. */
   courseConfig?: {
     /** User-provided title — single source of truth, never overwritten by LLM. */

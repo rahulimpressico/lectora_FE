@@ -71,8 +71,6 @@ interface CourseState {
 
   /** Target audience for the course — mandatory before generating a TO or course. */
   audience: string
-  /** Optional special instructions the user provides before final course generation. */
-  specialInstructions: string
   /** Course title — initialized from TO generation, editable by user. */
   courseTitle: string
   /** Rule family key detected by A0 (e.g. "insurance_ce"). Editable by user. */
@@ -112,7 +110,6 @@ interface CourseState {
   setCustomToPrompt: (prompt: string) => void
   setCourseTypeHint: (hint: string) => void
   setAudience: (audience: string) => void
-  setSpecialInstructions: (instructions: string) => void
   setDetectedRuleFamily: (family: string) => void
   setDurationHours: (hours: number | null) => void
   setDifficultyLevel: (level: string | null) => void
@@ -443,7 +440,6 @@ const initialState = {
   audience:             '',
   courseId:             '',
   courseTitle:          '',
-  specialInstructions:  '',
   detectedRuleFamily:   '',
   toDocument:           null as UploadedFile | null,
   wizardData:           { ...DEFAULT_WIZARD_DATA } as WizardData,
@@ -468,7 +464,6 @@ export const useCourseStore = create<CourseState>()(
         setCustomToPrompt: (prompt) => set({ customToPrompt: prompt }),
         setCourseTypeHint: (hint) => set({ courseTypeHint: hint }),
         setAudience: (audience) => set({ audience }),
-        setSpecialInstructions: (instructions) => set({ specialInstructions: instructions }),
         setDetectedRuleFamily: (family) => set({ detectedRuleFamily: family }),
         setCourseId: (courseId) => set({ courseId }),
         setCourseTitle: (courseTitle) => set({ courseTitle }),
@@ -679,7 +674,6 @@ export const useCourseStore = create<CourseState>()(
             uploadFolder:        s.uploadFolder,
             customToPrompt:      s.customToPrompt,
             detectedRuleFamily:  s.detectedRuleFamily,
-            specialInstructions: s.specialInstructions,
             wizardData:          s.wizardData,
             // Uploaded source documents (metadata only — no File object)
             rawDocuments:        persistedDocs,
