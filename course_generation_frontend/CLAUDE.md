@@ -51,13 +51,13 @@ All active UI lives under `src/modules/course-generation/`. The module is self-c
 ```
 src/modules/course-generation/
 ├── features/
-│   ├── onboarding/    ← welcome screen + 7-step wizard
+│   ├── onboarding/    ← welcome screen + 8-step wizard
 │   ├── upload/        ← file drop, Azure browser, TO generation
 │   ├── review/        ← three-panel editor + rules editor
 │   └── pipeline/      ← SSE pipeline monitor + course editor
 ├── pages/             ← CourseGenerationPage (phase router)
 ├── shared/components/ ← RecursiveJsonEditor, InlineEditField
-├── store/             ← courseStore, editorStore, pipelineStore, useBrowserHistory
+├── store/             ← courseStore, editorStore, pipelineStore, useBrowserHistory, courseEditorDraft
 ├── types/             ← index, pipeline, editor, wizard
 ├── utils/
 └── config/
@@ -80,7 +80,7 @@ Each feature owns its components and hooks internally — import from the featur
 
 | Phase | Component | Description |
 |---|---|---|
-| `upload` | `UploadPhase` (`features/upload/`) | Drop `.docx` files (parsed client-side with `mammoth`), or pick from Azure via `InlineAzureBrowser`. "Generate TO" calls `/api/documents/generate-to`. |
+| `upload` | `UploadPhase` (`features/upload/`) | Drop `.docx` files (parsed client-side with `mammoth`), or pick from Azure via `InlineAzureBrowser`. "Generate TO" calls `/api/documents/generate-to`. If S1 validation blocks the generated outline after all backend retries, `S1BlockedPanel` is shown with quality scores, blocker issues, and recommendations. |
 
 **Shared phases**
 
@@ -88,7 +88,9 @@ Each feature owns its components and hooks internally — import from the featur
 |---|---|---|
 | `three-panel` | `ThreePanelPhase` (`features/review/`) | Three resizable panels: `DocViewerPanel` (`.docx` HTML preview), `TOPanel` (TO JSON via `RecursiveJsonEditor`), `RulesEditorPanel` (card-based rules editor). `GenerateCourseBanner` submits `POST /api/jobs` and advances to `pipeline`. |
 | `pipeline` | `PipelineView` (`features/pipeline/`) | Live SSE monitoring (`GET /api/jobs/{jobId}/events`). Advances to `course-editor` on `COMPLETED`. |
-| `course-editor` | `CourseEditorView` (`features/pipeline/`) | Section-based editing with AI toolbar (`POST /api/jobs/{jobId}/ai`). Export uses `exportCourseToDocx` (client-side `.docx` via the `docx` package). |
+| `course-editor` | `CourseEditorView` (`features/pipeline/`) | Section-based editing with drag-and-drop reorder (`@hello-pangea/dnd`), AI toolbar (`POST /api/jobs/{jobId}/ai`), and inline title editing. Session managed by `useCourseEditorSession`; DnD by `useCourseEditorDragEnd`. Export syncs the full tree to the backend first (`syncCourseContent`), then downloads the DOCX. |
+
+**Course editor session** (`features/pipeline/hooks/useCourseEditorSession`): manages the full lifecycle of the course editor — loads content from an IndexedDB draft first (via `store/courseEditorDraft.ts`, key `lectora:course-draft:{jobId}`, backed by `idb-keyval`), falls back to the API if no draft exists, debounce-saves to IndexedDB on every edit (400 ms), and calls `syncCourseContent` before Save to Azure or Download to push the full tree to the backend. Handles expired-job 404s via an `onExpiredJob` callback. `useCourseEditorDragEnd` handles `@hello-pangea/dnd` `DropResult` for section reorder, same-section child reorder, and cross-section child moves (strips the index suffix from `draggableId` to recover real IDs).
 
 **Browser history** (`store/useBrowserHistory.ts`): syncs the phase-based navigation with the browser History API so Back/Forward buttons work across all phases. On phase change it calls `pushState`; on `popstate` it calls `setPhase`, guarding against restoring `pipeline`/`course-editor` without an active job ID (falls back to `three-panel`).
 
@@ -100,7 +102,7 @@ Each feature owns its components and hooks internally — import from the featur
 
 - **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job IDs, blob paths, course configuration (`audience`, `courseTitle`, `detectedRuleFamily`, `specialInstructions`, `courseTopic`, `difficultyLevel`, `durationHours`, `courseTypeHint`), and `wizardData` (`WizardData`). Uses `devtools` + `persist`; `partialize` has three modes: (a) `three-panel` — persists full TO/rules JSON + metadata; (b) active job — persists `{ activeJobId, phase }`; (c) otherwise — persists wizard/welcome state with `wizardData` so the wizard survives refresh. `audience` is mandatory — `useGenerateTO` throws if empty.
 - **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. No persist. Log entries capped at 400; backend log IDs deduplicated via `_maxSeenBackendLogId`.
-- **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state. No persist. Section tree mutations use recursive `updateSectionTree`.
+- **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state. No persist. Uses Zustand `immer` middleware (with `enableMapSet`). Section mutations: `addSection`/`addSubtopic` (return new ID), `moveSectionByIndex`, `moveChildByIndex`, `moveChildBetweenSections`, `moveSubtopicToSection`. `getCourseSnapshot()` merges all in-progress textarea edits into a `CourseContent` value for sync. `deduplicateSections` handles backend duplicate section IDs (keeps the copy with the most children).
 - **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`.
 
 Dirty-tracking in `courseStore`: `modifiedTOPaths` and `modifiedRulesPaths` are `Set<string>` of dot-joined paths. `updateTOField`/`updateRulesField` add paths; `resetTOField`/`resetRulesField` remove them and restore original values via `deepGet`/`deepSet` (`utils/deepUpdate.ts`).
@@ -138,10 +140,10 @@ All modules under `src/api/`:
 
 - `client.ts` — shared Axios instance (120 s timeout, error-normalisation interceptor). Always import this; never create ad-hoc instances.
 - `errors.ts` — `ApiClientError` (preserves HTTP status), `isExpiredJobError()`.
-- `course-generation/api.ts` — `uploadDocument`, `generateTO` (async-poll fallback: 202 → polls `GET /documents/generate-to/jobs/{jobId}` every 1 s up to 15 min). `useGenerateTO` (`features/upload/hooks/`) forwards all populated `wizardData` fields to `POST /documents/generate-to` (experience level, learner outcomes, objectives, tone, depth, scenarios/knowledge-check flags, etc.) so A0 can use them for prompt construction.
+- `course-generation/api.ts` — `uploadDocument`, `generateTO` (async-poll fallback: 202 → polls `GET /documents/generate-to/jobs/{jobId}` every 1 s up to 15 min), `saveTrainingOutline` (`POST /documents/save-to` — persists the user-edited TO JSON to backend blob so edits survive page refresh independently of localStorage). `useGenerateTO` (`features/upload/hooks/`) forwards all populated `wizardData` fields to `POST /documents/generate-to` so A0 can use them for prompt construction.
 - `jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`. `GenerateCoursePayload` (sent by `GenerateCourseBanner`) carries: an optional `courseConfig` field forwarding `wizardData` for A2 dynamic prompt construction; an optional `sourceFileSpecs` array (`SourceFileSpec[]`) with per-file blob path, extract hint, and `ImportanceLevel` so A2 can build a chunk index and apply per-file guidance. Both `generateTO` and `createJob` receive wizard data so it influences the full pipeline (A0 → A2).
 - `pipeline/sse.ts` — `PipelineSSEClient`.
-- `editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure` (`POST /jobs/{jobId}/artifacts/save-to-azure`). Download handles binary blob (local → browser download) and JSON `{ url }` (prod → signed blob URL).
+- `editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure` (`POST /jobs/{jobId}/artifacts/save-to-azure`), `syncCourseContent` (bulk-sync full course tree before download/save), `deleteSectionAPI` (`DELETE /jobs/{jobId}/sections/{sectionId}`), `persistSectionOrder` (`PATCH /jobs/{jobId}/sections/reorder` — sends depth-first flat ID list via `buildFlatSectionOrder`), `updateCourseTitleAPI` (`PATCH /jobs/{jobId}/course`). Download handles binary blob (local → browser download) and JSON `{ url }` (prod → signed blob URL).
 - `storage/api.ts` — `browseStorage(prefix, source)` (`source`: `'uploads'` | `'artifacts'`), download, delete.
 - `settings/api.ts` — settings persistence.
 
@@ -154,7 +156,7 @@ Hooks use **TanStack Query**: `staleTime: 60_000`, `retry: 2` for queries / `0` 
 ### Types (`src/modules/course-generation/types/`)
 
 - `index.ts` — `WorkflowPhase`, file upload (`UploadedFile` with `sourceRole`, `importance`, `documentId`, `ingestionStatus` fields), `SourceAnalysis`, `SourceFileSpec`, `SourceRole`, `ImportanceLevel`, `IngestionStatus`, TO, job, `GenerateCoursePayload` (with `courseConfig` and `sourceFileSpecs`), API response types; re-exports `pipeline.ts`, `editor.ts`, `wizard.ts`.
-- `pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`.
+- `pipeline.ts` — `PipelineStageId`, `PipelineStageState`, `PipelineOverview`, `StageBlocker`, `SSEPipelineEvent`, and S1 rich validation types: `S1ValidationIssue`, `S1Recommendation`, `S1MissingTopic`, `S1DependencyIssue`, `S1ValidationResult` (scores + issues + recommendations, returned in poll responses when S1 blocks).
 - `editor.ts` — `CourseContent`, `CourseSection`, `SectionEditState`, AI operation types.
 - `wizard.ts` — `WizardData`, `DEFAULT_WIZARD_DATA`.
 

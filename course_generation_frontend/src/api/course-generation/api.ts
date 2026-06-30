@@ -183,6 +183,8 @@ export interface GenerateLearningObjectivesBody {
   additionalInstructions?: string
   sourceAnalyses?: SourceAnalysis[]
   requiredTopics?: string[]
+  regenerationPrompt?: string
+  currentObjectives?: string[]
 }
 
 /** AI-generate measurable learning objectives from course metadata. */
@@ -224,6 +226,30 @@ export async function suggestCourseType(
     '/documents/suggest-course-type',
     body,
     { timeout: 30_000 },
+  )
+  return data
+}
+
+// ─── Required topics suggestion ───────────────────────────────────────────────
+
+export interface SuggestRequiredTopicsBody {
+  courseTitle?: string
+  courseDescription?: string
+  courseType?: string
+  courseDuration?: string
+  targetAudience?: string
+  skillLevel?: string
+  learnerOutcomes?: string
+}
+
+/** AI-suggest required topics from course metadata. */
+export async function suggestRequiredTopics(
+  body: SuggestRequiredTopicsBody,
+): Promise<{ requiredTopics: string[] }> {
+  const { data } = await apiClient.post<{ requiredTopics: string[] }>(
+    '/documents/suggest-required-topics',
+    body,
+    { timeout: 60_000 },
   )
   return data
 }
