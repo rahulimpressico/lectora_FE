@@ -256,14 +256,28 @@ export interface SuggestRequiredTopicsBody {
   learnerOutcomes?: string
 }
 
+export interface RTValidationIssue {
+  type: string
+  message: string
+  affectedTopics: string[]
+  expectedAction: string
+}
+
+export interface SuggestRequiredTopicsResult {
+  requiredTopics: string[]
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: RTValidationIssue[]
+}
+
 /** AI-suggest required topics from course metadata. */
 export async function suggestRequiredTopics(
   body: SuggestRequiredTopicsBody,
-): Promise<{ requiredTopics: string[] }> {
-  const { data } = await apiClient.post<{ requiredTopics: string[] }>(
+): Promise<SuggestRequiredTopicsResult> {
+  const { data } = await apiClient.post<SuggestRequiredTopicsResult>(
     '/documents/suggest-required-topics',
     body,
-    { timeout: 60_000 },
+    { timeout: 90_000 },
   )
   return data
 }
