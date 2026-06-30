@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List, X } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useWizardNav } from '../WizardNavContext'
 import { generateLearningObjectives } from '@/api/course-generation/api'
+import type { LOValidationIssue } from '@/api/course-generation/api'
 import { cn } from '@/lib/cn'
 import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
 
@@ -281,6 +282,37 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenera
   )
 }
 
+// ─── Pipeline Status Badge ────────────────────────────────────────────────────
+
+interface LOPipelineStatus {
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: LOValidationIssue[]
+}
+
+function PipelineStatusBadge({ status }: { status: LOPipelineStatus }) {
+  if (status.validationPassed) {
+    const label = status.repairAttempts === 0
+      ? 'Validated'
+      : `Validated · ${status.repairAttempts} repair${status.repairAttempts !== 1 ? 's' : ''}`
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+        <CheckCircle2 className="w-3 h-3" />
+        {label}
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 shrink-0"
+      title="AI could not fully resolve all quality issues after repair attempts. Review and edit objectives as needed."
+    >
+      <AlertTriangle className="w-3 h-3" />
+      Best available
+    </span>
+  )
+}
+
 // ─── Main Step ────────────────────────────────────────────────────────────────
 
 const AI_CONTEXT_BULLETS = [
@@ -308,6 +340,7 @@ export const LearningObjectivesStep = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false)
+  const [pipelineStatus, setPipelineStatus] = useState<LOPipelineStatus | null>(null)
 
   const sourceMaterials = rawDocuments
     .filter((d) => d.status === 'success' && d.blobPath)
@@ -329,6 +362,7 @@ export const LearningObjectivesStep = () => {
   const handleGenerate = (regenerationPrompt?: string) => {
     setIsGenerating(true)
     setGenerateError(null)
+    setPipelineStatus(null)
 
     // Source analyses were computed on the Materials step and cached in the store.
     // Use them directly — no analyzeSource call here.
@@ -347,6 +381,11 @@ export const LearningObjectivesStep = () => {
     })
       .then((result) => {
         setWizardData({ objectives: result.learningObjectives })
+        setPipelineStatus({
+          validationPassed: result.validationPassed,
+          repairAttempts: result.repairAttempts,
+          finalIssues: result.finalIssues,
+        })
       })
       .catch((err: unknown) => {
         console.error('[LearningObjectivesStep] generateLearningObjectives failed:', err)
@@ -564,11 +603,12 @@ export const LearningObjectivesStep = () => {
                     exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
                     style={{ willChange: 'transform' }}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-slate-700">
                         {objectives.length} objective{objectives.length !== 1 ? 's' : ''} generated
                         <span className="ml-2 text-xs text-slate-400 font-normal">Click any to edit inline</span>
                       </p>
+                      {pipelineStatus && <PipelineStatusBadge status={pipelineStatus} />}
                     </div>
                     <EditableObjectivesList
                       objectives={objectives}
@@ -576,6 +616,24 @@ export const LearningObjectivesStep = () => {
                       onRegenerate={() => setIsRegenerateModalOpen(true)}
                       isRegenerating={isGenerating}
                     />
+                    {pipelineStatus && !pipelineStatus.validationPassed && pipelineStatus.finalIssues.length > 0 && (
+                      <motion.div
+                        className="px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200"
+                        variants={fadeIn}
+                        initial="hidden"
+                        animate="show"
+                      >
+                        <p className="text-xs font-semibold text-amber-800 mb-1.5">
+                          {pipelineStatus.finalIssues.length} quality issue{pipelineStatus.finalIssues.length !== 1 ? 's' : ''} remain after {pipelineStatus.repairAttempts} repair attempt{pipelineStatus.repairAttempts !== 1 ? 's' : ''}:
+                        </p>
+                        <ul className="space-y-1 mb-2">
+                          {pipelineStatus.finalIssues.map((issue, i) => (
+                            <li key={i} className="text-xs text-amber-700">• {issue.message}</li>
+                          ))}
+                        </ul>
+                        <p className="text-xs text-amber-600">Edit the objectives above to resolve these, or regenerate with additional instructions.</p>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

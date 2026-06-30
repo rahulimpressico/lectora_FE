@@ -187,11 +187,25 @@ export interface GenerateLearningObjectivesBody {
   currentObjectives?: string[]
 }
 
+export interface LOValidationIssue {
+  type: string
+  message: string
+  affected_objectives: string[]
+  expected_action: string
+}
+
+export interface GenerateLearningObjectivesResponse {
+  learningObjectives: string[]
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: LOValidationIssue[]
+}
+
 /** AI-generate measurable learning objectives from course metadata. */
 export async function generateLearningObjectives(
   body: GenerateLearningObjectivesBody,
-): Promise<{ learningObjectives: string[] }> {
-  const { data } = await apiClient.post<{ learningObjectives: string[] }>(
+): Promise<GenerateLearningObjectivesResponse> {
+  const { data } = await apiClient.post<GenerateLearningObjectivesResponse>(
     '/documents/generate-learning-objectives',
     body,
     { timeout: 60_000 },
