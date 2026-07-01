@@ -42,16 +42,19 @@ interface RegeneratePromptModalProps {
   onClose: () => void
 }
 
-function RegeneratePromptModal({ open, onConfirm, onClose }: RegeneratePromptModalProps) {
+interface RegeneratePromptModalFormProps {
+  onConfirm: (prompt: string) => void
+  onClose: () => void
+}
+
+function RegeneratePromptModalForm({ onConfirm, onClose }: RegeneratePromptModalFormProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    if (open) {
-      setValue('')
-      setTimeout(() => textareaRef.current?.focus(), 80)
-    }
-  }, [open])
+    const timeoutId = window.setTimeout(() => textareaRef.current?.focus(), 80)
+    return () => window.clearTimeout(timeoutId)
+  }, [])
 
   const handleSubmit = () => {
     onConfirm(value.trim())
@@ -59,56 +62,62 @@ function RegeneratePromptModal({ open, onConfirm, onClose }: RegeneratePromptMod
   }
 
   return (
+    <motion.div
+      className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
+      initial={{ opacity: 0, scale: 0.95, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <DialogTitle className="text-base font-bold text-slate-900">Regenerate Required Topics</DialogTitle>
+          <p className="text-xs text-slate-500 mt-0.5">Optionally guide the AI — leave blank to regenerate as-is.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <textarea
+        ref={textareaRef}
+        rows={4}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit() }}
+        placeholder="e.g. Add more compliance topics, remove beginner concepts, focus on regulatory requirements..."
+        className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
+      />
+
+      <div className="flex items-center gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Regenerate
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+function RegeneratePromptModal({ open, onConfirm, onClose }: RegeneratePromptModalProps) {
+  return (
     <DialogContent open={open} onClose={onClose}>
-      <motion.div
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
-        initial={{ opacity: 0, scale: 0.95, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <DialogTitle className="text-base font-bold text-slate-900">Regenerate Required Topics</DialogTitle>
-            <p className="text-xs text-slate-500 mt-0.5">Optionally guide the AI — leave blank to regenerate as-is.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <textarea
-          ref={textareaRef}
-          rows={4}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit() }}
-          placeholder="e.g. Add more compliance topics, remove beginner concepts, focus on regulatory requirements..."
-          className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
-        />
-
-        <div className="flex items-center gap-2 justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Regenerate
-          </button>
-        </div>
-      </motion.div>
+      {open ? <RegeneratePromptModalForm onConfirm={onConfirm} onClose={onClose} /> : null}
     </DialogContent>
   )
 }
@@ -286,7 +295,8 @@ export const RequiredTopicsStep = () => {
     }
     if (!hasSufficientData) return
     autoGeneratedRef.current = true
-    generate(true)
+    const timeoutId = window.setTimeout(() => generate(true), 0)
+    return () => window.clearTimeout(timeoutId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
