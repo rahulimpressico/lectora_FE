@@ -1,13 +1,13 @@
 import type { ChangeEvent, DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, Loader2, Sparkles, Upload, Wand2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles, Upload, Wand2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
 import { useFileUpload } from '../../../upload/hooks/useFileUpload'
 import { useWizardNav } from '../WizardNavContext'
 import { AIGenerationLoader } from '../AIGenerationLoader'
-import { formatBytes } from '@/utils/formatBytes'
+import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
 import type { WizardData } from '../../../../types/wizard'
 import { suggestOutlineStructure } from '@/api/course-generation/api'
@@ -82,11 +82,15 @@ export const OutlinePreferenceStep = () => {
   const setWizardData = useCourseStore((s) => s.setWizardData)
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
+  const toData = useCourseStore((s) => s.toData)
+  const setPhase = useCourseStore((s) => s.setPhase)
 
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
   const { enqueueFiles } = useFileUpload()
   const generateTO = useGenerateTO('wizard-outline-review')
+
+  const hasExistingTO = toData != null
 
   const outlineMode = wizardData.outlineMode ?? 'generate'
   const preferredChapters = wizardData.preferredChapters
@@ -108,22 +112,32 @@ export const OutlinePreferenceStep = () => {
 
   useEffect(() => {
     if (outlineMode === 'generate') {
-      setConfig({
-        backPhase: 'wizard-direction',
-        backLabel: 'Back',
-        nextLabel: generateTO.isPending ? 'Generating...' : 'Generate Outline',
-        isNextLoading: generateTO.isPending,
-        isNextDisabled: generateTO.isPending,
-        onNext: () => {
-          if (!generateTO.isPending) {
-            // Build the composite prompt from the latest wizard state so the
-            // closure is never stale — wizardData and audience are in deps.
-            const composite = buildCompositePrompt(wizardData, audience)
-            setCustomToPrompt(composite)
-            generateTO.mutate()
-          }
-        },
-      })
+      if (hasExistingTO && !generateTO.isPending) {
+        // TO already generated — skip API, go straight to review
+        setConfig({
+          backPhase: 'wizard-direction',
+          backLabel: 'Back',
+          nextLabel: 'View Outline',
+          isNextLoading: false,
+          isNextDisabled: false,
+          onNext: () => setPhase('wizard-outline-review'),
+        })
+      } else {
+        setConfig({
+          backPhase: 'wizard-direction',
+          backLabel: 'Back',
+          nextLabel: generateTO.isPending ? 'Generating...' : 'Generate Outline',
+          isNextLoading: generateTO.isPending,
+          isNextDisabled: generateTO.isPending,
+          onNext: () => {
+            if (!generateTO.isPending) {
+              const composite = buildCompositePrompt(wizardData, audience)
+              setCustomToPrompt(composite)
+              generateTO.mutate()
+            }
+          },
+        })
+      }
     } else {
       const hasOutlineFile = outlineFiles.some((f) => f.status === 'success')
       setConfig({
@@ -134,7 +148,7 @@ export const OutlinePreferenceStep = () => {
         isNextDisabled: !hasOutlineFile,
       })
     }
-  }, [outlineMode, generateTO.isPending, outlineFiles, wizardData, audience, setConfig, setCustomToPrompt, generateTO])
+  }, [outlineMode, hasExistingTO, generateTO.isPending, outlineFiles, wizardData, audience, setConfig, setCustomToPrompt, setPhase, generateTO])
 
   const handleSuggestStructure = () => {
     setIsSuggesting(true)
@@ -394,16 +408,43 @@ export const OutlinePreferenceStep = () => {
 
             {/* Generate info card */}
             <motion.div
-              className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3"
+              className={hasExistingTO ? 'bg-emerald-50 border border-emerald-200 rounded-xl p-5 space-y-3' : 'bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3'}
               variants={fadeIn}
             >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-brand-500" />
-                <p className="text-sm font-semibold text-slate-800">Ready to create your timed outline?</p>
-              </div>
-              <p className="text-xs text-slate-500">
-                The assistant will analyze your source materials and build a structured course outline based on all the details you've provided.
-              </p>
+              {hasExistingTO ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <p className="text-sm font-semibold text-slate-800">Outline already generated</p>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Click <strong>View Outline</strong> to review your existing outline, or regenerate it below if you've changed your settings.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const composite = buildCompositePrompt(wizardData, audience)
+                      setCustomToPrompt(composite)
+                      generateTO.mutate()
+                    }}
+                    disabled={generateTO.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Regenerate Outline
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-brand-500" />
+                    <p className="text-sm font-semibold text-slate-800">Ready to create your timed outline?</p>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    The assistant will analyze your source materials and build a structured course outline based on all the details you've provided.
+                  </p>
+                </>
+              )}
 
               {generateTO.isError && (
                 <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

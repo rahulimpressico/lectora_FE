@@ -1,31 +1,27 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Wand2, FileText, ScanText, BookOpen, Check, Loader2, X } from 'lucide-react'
+import { Wand2, Bot, Check, Loader2, ShieldCheck, X, RefreshCw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
 
-/**
- * Real A0 phases. UI advances by elapsed time but stays on the AI step
- * for most of the wait — that is where the server actually spends time.
- */
-const STEPS = [
+const STAGES = [
   {
-    icon: FileText,
-    label: 'Processing document',
-    desc: 'Reading and parsing your uploaded DOCX file',
-    untilSec: 8,
+    id: 'A0',
+    icon: Bot,
+    label: 'A0 Agent',
+    desc: 'Reading source docs and drafting the initial Topic Outline',
   },
   {
-    icon: ScanText,
-    label: 'Analysing content',
-    desc: 'Detecting sections, headings, and learning objectives',
-    untilSec: 20,
+    id: 'S1',
+    icon: ShieldCheck,
+    label: 'S1 Validator',
+    desc: 'AI validating requirement alignment and learning progression',
   },
   {
-    icon: BookOpen,
-    label: 'Generating Training Outline',
-    desc: 'AI is classifying your course and building the outline',
-    untilSec: Infinity,
+    id: 'A1',
+    icon: Bot,
+    label: 'A1 Agent',
+    desc: 'Finalizing TO structure for review in Three Panel View',
   },
 ] as const
 
@@ -37,24 +33,108 @@ function formatElapsed(seconds: number): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
-function activeStepIndex(elapsedSec: number): number {
-  for (let i = 0; i < STEPS.length; i++) {
-    if (elapsedSec < STEPS[i].untilSec) return i
-  }
-  return STEPS.length - 1
+type StageId = (typeof STAGES)[number]['id']
+
+type StageLog = {
+  id?: number
+  level?: string
+  message?: string
+  stage?: string | null
 }
 
-function progressPercent(elapsedSec: number): number {
-  return Math.min(90, Math.round(12 + elapsedSec * 1.15))
+function stageIndex(stageId: StageId): number {
+  return STAGES.findIndex((s) => s.id === stageId)
+}
+
+/** Count how many times S1 has retried (messages that say "retrying S1 validation only"). */
+function countS1Retries(logs: StageLog[]): number {
+  return logs.filter(
+    (l) => (l.stage === 'S1') && (l.message ?? '').toLowerCase().includes('retrying s1'),
+  ).length
+}
+
+function getStageStatusMap(stageLogs: StageLog[]): Record<StageId, StepStatus> {
+  const statuses: Record<StageId, StepStatus> = {
+    A0: 'pending',
+    A1: 'pending',
+    S1: 'pending',
+  }
+
+  if (stageLogs.length === 0) {
+    statuses.A0 = 'active'
+    return statuses
+  }
+
+  let latestSeenStage: StageId | null = null
+
+  for (const log of stageLogs) {
+    const stage = (log.stage ?? '') as StageId
+    if (!stage || !STAGES.some((s) => s.id === stage)) continue
+    latestSeenStage = stage
+
+    const msg = (log.message ?? '').toLowerCase()
+    const level = (log.level ?? '').toLowerCase()
+    const isDone =
+      level === 'success' ||
+      msg.includes('complete') ||
+      msg.includes('passed') ||
+      msg.includes('ready')
+    const isFailed = level === 'error' || msg.includes('failed') || msg.includes('blocked')
+
+    if (isDone) {
+      statuses[stage] = 'done'
+      continue
+    }
+    if (!isFailed && statuses[stage] !== 'done') {
+      statuses[stage] = 'active'
+    }
+  }
+
+  // Keep only one active stage: the latest one.
+  if (latestSeenStage) {
+    for (const stage of STAGES) {
+      if (stage.id !== latestSeenStage && statuses[stage.id] === 'active') {
+        statuses[stage.id] = 'pending'
+      }
+    }
+    if (statuses[latestSeenStage] === 'pending') {
+      statuses[latestSeenStage] = 'active'
+    }
+  }
+
+  // Ensure visual progression remains monotonic.
+  let highestDone = -1
+  for (const stage of STAGES) {
+    if (statuses[stage.id] === 'done') highestDone = Math.max(highestDone, stageIndex(stage.id))
+  }
+  if (highestDone >= 0) {
+    for (const stage of STAGES) {
+      if (stageIndex(stage.id) < highestDone && statuses[stage.id] !== 'done') {
+        statuses[stage.id] = 'done'
+      }
+    }
+  }
+
+  return statuses
+}
+
+function progressPercent(stageStatuses: Record<StageId, StepStatus>): number {
+  const done = STAGES.filter((s) => stageStatuses[s.id] === 'done').length
+  const hasActive = STAGES.some((s) => stageStatuses[s.id] === 'active')
+  const base = (done / STAGES.length) * 100
+  const activeBoost = hasActive ? (100 / STAGES.length) * 0.45 : 0
+  return Math.round(Math.min(96, Math.max(8, base + activeBoost)))
 }
 
 interface TOGenerationLoaderProps {
   onCancel?: () => void
   /** Real-time status message from the backend — shown below the active step. */
   statusMessage?: string | null
+  /** Raw backend logs from generate-to polling response. */
+  stageLogs?: StageLog[]
 }
 
-export function TOGenerationLoader({ onCancel, statusMessage }: TOGenerationLoaderProps) {
+export function TOGenerationLoader({ onCancel, statusMessage, stageLogs = [] }: TOGenerationLoaderProps) {
   const [elapsedSec, setElapsedSec] = useState(0)
 
   useEffect(() => {
@@ -70,9 +150,10 @@ export function TOGenerationLoader({ onCancel, statusMessage }: TOGenerationLoad
     }
   }, [])
 
-  const activeStep = activeStepIndex(elapsedSec)
-  const progress = progressPercent(elapsedSec)
+  const stageStatuses = getStageStatusMap(stageLogs)
+  const progress = progressPercent(stageStatuses)
   const isLongWait = elapsedSec >= 45
+  const s1RetryCount = countS1Retries(stageLogs)
 
   return createPortal(
     <>
@@ -157,20 +238,19 @@ export function TOGenerationLoader({ onCancel, statusMessage }: TOGenerationLoad
               <p className="mt-1.5 text-sm text-slate-500 text-center leading-relaxed max-w-xs relative">
                 Please wait — do not close this tab.
                 <br />
-                <span className="text-indigo-500 font-medium">AI agents are analyzing your content.</span>
+                <span className="text-indigo-500 font-medium">Running A0 → S1 → A1 TO pipeline.</span>
               </p>
             </div>
 
             {/* Steps */}
             <div className="px-5 py-4 space-y-1.5">
-              {STEPS.map((step, idx) => {
-                const status: StepStatus =
-                  idx < activeStep ? 'done' : idx === activeStep ? 'active' : 'pending'
+              {STAGES.map((step) => {
+                const status: StepStatus = stageStatuses[step.id]
                 const Icon = step.icon
 
                 return (
                   <motion.div
-                    key={idx}
+                    key={step.id}
                     initial={false}
                     animate={{
                       opacity: status === 'pending' ? 0.35 : 1,
@@ -203,16 +283,25 @@ export function TOGenerationLoader({ onCancel, statusMessage }: TOGenerationLoad
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p
-                        className={cn(
-                          'text-[13px] font-semibold leading-tight',
-                          status === 'done' && 'text-emerald-700',
-                          status === 'active' && 'text-indigo-700',
-                          status === 'pending' && 'text-slate-500',
+                      <div className="flex items-center gap-2">
+                        <p
+                          className={cn(
+                            'text-[13px] font-semibold leading-tight',
+                            status === 'done' && 'text-emerald-700',
+                            status === 'active' && 'text-indigo-700',
+                            status === 'pending' && 'text-slate-500',
+                          )}
+                        >
+                          {step.label}
+                        </p>
+                        {/* S1 retry badge — shown when S1 is actively retrying validation */}
+                        {step.id === 'S1' && s1RetryCount > 0 && status === 'active' && (
+                          <span className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 shrink-0">
+                            <RefreshCw size={8} className="animate-spin" />
+                            Retry {s1RetryCount}
+                          </span>
                         )}
-                      >
-                        {step.label}
-                      </p>
+                      </div>
                       <AnimatePresence>
                         {status === 'active' && (
                           <motion.div
@@ -222,7 +311,9 @@ export function TOGenerationLoader({ onCancel, statusMessage }: TOGenerationLoad
                             className="overflow-hidden"
                           >
                             <p className="text-[11px] text-indigo-400/90 mt-0.5 leading-snug">
-                              {step.desc}
+                              {step.id === 'S1' && s1RetryCount > 0
+                                ? 'Re-validating outline (reusing cached A0 output, no doc re-read)…'
+                                : step.desc}
                             </p>
                             {statusMessage && (
                               <p className="text-[10px] text-indigo-300 mt-0.5 leading-snug truncate" title={statusMessage}>

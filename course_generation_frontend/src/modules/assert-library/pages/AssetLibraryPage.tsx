@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useState } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
   Code2,
@@ -66,6 +66,7 @@ const CATEGORIES: CategoryConfig[] = [
 ]
 
 export function AssetLibraryPage() {
+  const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
   const [modalJobId, setModalJobId] = useState<string | null>(null)
   const [modalCourseSlug, setModalCourseSlug] = useState<string | undefined>(undefined)
@@ -100,26 +101,33 @@ export function AssetLibraryPage() {
     setModalJobId(result.jobId)
   }, [])
 
-  const categoryCounts = useQueries({
-    queries: CATEGORIES.map((item) => ({
-      queryKey: ['asset-category-count', item.key] as const,
-      queryFn: () => browseStorageCategory(item.key, ''),
-      staleTime: 30_000,
-      retry: false,
-    })),
+  // Only fetch the selected category (same query key as StorageExplorer — deduped).
+  const { data: activeBrowseData } = useQuery({
+    queryKey: ['storage-browse', active.source, active.key, ''] as const,
+    queryFn: ({ signal }) => browseStorageCategory(active.key, '', signal),
+    staleTime: 30_000,
+    retry: false,
   })
 
   const countByKey = useMemo(() => {
-    const map = new Map<StorageCategory, { folders: number; files: number }>()
-    CATEGORIES.forEach((item, idx) => {
-      const data = categoryCounts[idx]?.data as BrowseResponse | undefined
-      map.set(item.key, {
-        folders: data?.totalFolders ?? 0,
-        files: data?.totalFiles ?? 0,
-      })
-    })
+    const map = new Map<StorageCategory, { folders: number; files: number } | null>()
+    for (const item of CATEGORIES) {
+      const data =
+        item.key === active.key
+          ? activeBrowseData
+          : queryClient.getQueryData<BrowseResponse>([
+              'storage-browse',
+              item.source,
+              item.key,
+              '',
+            ])
+      map.set(
+        item.key,
+        data ? { folders: data.totalFolders, files: data.totalFiles } : null,
+      )
+    }
     return map
-  }, [categoryCounts])
+  }, [active.key, activeBrowseData, queryClient])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -141,7 +149,7 @@ export function AssetLibraryPage() {
           {CATEGORIES.map((item) => {
             const Icon = item.icon
             const isActive = item.key === active.key
-            const counts = countByKey.get(item.key) ?? { folders: 0, files: 0 }
+            const counts = countByKey.get(item.key)
             return (
               <button
                 key={item.key}
@@ -197,7 +205,13 @@ export function AssetLibraryPage() {
                         : 'bg-slate-50 text-slate-600',
                     ].join(' ')}
                   >
-                    <span>{counts.folders} folders</span>
+                    {counts ? (
+                      <span>{counts.folders} folders · {counts.files} files</span>
+                    ) : (
+                      <span className={isActive ? 'text-white/80' : 'text-slate-400'}>
+                        Open to browse
+                      </span>
+                    )}
                   </div>
                   <span
                     className={[

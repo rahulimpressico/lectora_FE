@@ -12,42 +12,44 @@ export interface PipelineStageConfig {
   estimatedDurationSec: number
 }
 
-// Source of truth for visible pipeline stages and their metadata.
-// A0 / SECTION_MAPPER / KC_PLANNER are internal and folded into adjacent stages.
+/**
+ * Visible pipeline stages for the Generate Course screen.
+ *
+ * TO generation (A0 → S1 TO-only phase) already ran before the Three Panel
+ * View, so those stages are NOT shown here.  The Generate Course pipeline
+ * shows only the content-generation stages: A1 → A2 → S2.
+ *
+ * Internal backend stages that run but are NOT shown as separate steps:
+ *   A0             → folded into A1  (classification re-run)
+ *   S1             → folded into A2  (structure gate between A1 and A2)
+ *   SECTION_MAPPER → folded into A2  (runs between S1 and A2)
+ *   KC_PLANNER     → folded into A2  (runs between S1 and A2)
+ */
 export const PIPELINE_STAGE_CONFIGS: PipelineStageConfig[] = [
   {
     id: 'A1',
     backendId: 'A1',
-    label: 'Knowledge Extraction',
-    shortLabel: 'Extract',
-    description: 'Analyzing your document and building an enriched course outline',
+    label: 'Preparing Final Outline',
+    shortLabel: 'Outline',
+    description: 'Interpreting the reviewed Training Outline and building the enriched course structure',
     isGate: false,
     estimatedDurationSec: 90,
   },
   {
-    id: 'S1',
-    backendId: 'S1',
-    label: 'Structure Review',
-    shortLabel: 'Review',
-    description: 'Validating course structure against quality and compliance standards',
-    isGate: true,
-    estimatedDurationSec: 25,
-  },
-  {
     id: 'A2',
     backendId: 'A2',
-    label: 'Content Generation',
-    shortLabel: 'Generate',
-    description: 'AI is writing comprehensive content for every lesson',
+    label: 'Generating Course Content',
+    shortLabel: 'Content',
+    description: 'AI is writing comprehensive content for every lesson and knowledge check',
     isGate: false,
     estimatedDurationSec: 240,
   },
   {
     id: 'S2',
     backendId: 'S2',
-    label: 'Quality Assurance',
-    shortLabel: 'QA',
-    description: 'Reviewing generated content for accuracy, tone, and completeness',
+    label: 'Validating Generated Content',
+    shortLabel: 'Validate',
+    description: 'Reviewing generated content for accuracy, tone, compliance, and completeness',
     isGate: true,
     estimatedDurationSec: 30,
   },
@@ -73,23 +75,26 @@ export const PIPELINE_STAGE_CONFIGS: PipelineStageConfig[] = [
 
 export const BACKEND_STAGE_TO_PIPELINE_ID: Record<string, PipelineStageId> = {
   A1: 'A1',
-  S1: 'S1',
   A2: 'A2',
   S2: 'S2',
   A6: 'FINALIZATION',
 }
 
 /**
- * Internal backend stages that are NOT shown as standalone frontend stages.
- * Instead, while they are PROCESSING, their corresponding visible stage is
- * promoted to 'processing' so the UI always shows meaningful progress:
+ * Internal / hidden backend stages folded into adjacent visible stages.
+ * While any of these stages is PROCESSING the mapped visible stage is
+ * promoted to 'processing' so the timeline always shows meaningful progress.
  *
- *   A0             → folds into A1  (document analysis runs before A1)
- *   SECTION_MAPPER → folds into A2  (runs between S1 and A2)
- *   KC_PLANNER     → folds into A2  (runs between S1 and A2)
+ *   A0             → A1  (classification re-run before A1)
+ *   S1             → A2  (structure gate; already ran during TO generation,
+ *                          but may run again in the main pipeline — fold into
+ *                          A2 so the user sees a clean A1 → A2 → S2 flow)
+ *   SECTION_MAPPER → A2  (runs between S1 and A2)
+ *   KC_PLANNER     → A2  (runs between S1 and A2)
  */
 export const INTERNAL_STAGE_FOLD_MAP: Record<string, PipelineStageId> = {
   A0: 'A1',
+  S1: 'A2',
   SECTION_MAPPER: 'A2',
   KC_PLANNER: 'A2',
 }

@@ -10,6 +10,9 @@ import type {
   GenerateTOJobAccepted,
   GenerateTOJobPollResponse,
   GenerateTOResponse,
+  ImportanceLevel,
+  SourceAnalysis,
+  SourceRole,
 } from '@/modules/course-generation/types'
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -178,13 +181,31 @@ export interface GenerateLearningObjectivesBody {
   desiredOutcomes?: string
   certificationFocus?: string
   additionalInstructions?: string
+  sourceAnalyses?: SourceAnalysis[]
+  requiredTopics?: string[]
+  regenerationPrompt?: string
+  currentObjectives?: string[]
+}
+
+export interface LOValidationIssue {
+  type: string
+  message: string
+  affected_objectives: string[]
+  expected_action: string
+}
+
+export interface GenerateLearningObjectivesResponse {
+  learningObjectives: string[]
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: LOValidationIssue[]
 }
 
 /** AI-generate measurable learning objectives from course metadata. */
 export async function generateLearningObjectives(
   body: GenerateLearningObjectivesBody,
-): Promise<{ learningObjectives: string[] }> {
-  const { data } = await apiClient.post<{ learningObjectives: string[] }>(
+): Promise<GenerateLearningObjectivesResponse> {
+  const { data } = await apiClient.post<GenerateLearningObjectivesResponse>(
     '/documents/generate-learning-objectives',
     body,
     { timeout: 60_000 },
@@ -223,6 +244,44 @@ export async function suggestCourseType(
   return data
 }
 
+// ─── Required topics suggestion ───────────────────────────────────────────────
+
+export interface SuggestRequiredTopicsBody {
+  courseTitle?: string
+  courseDescription?: string
+  courseType?: string
+  courseDuration?: string
+  targetAudience?: string
+  skillLevel?: string
+  learnerOutcomes?: string
+}
+
+export interface RTValidationIssue {
+  type: string
+  message: string
+  affectedTopics: string[]
+  expectedAction: string
+}
+
+export interface SuggestRequiredTopicsResult {
+  requiredTopics: string[]
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: RTValidationIssue[]
+}
+
+/** AI-suggest required topics from course metadata. */
+export async function suggestRequiredTopics(
+  body: SuggestRequiredTopicsBody,
+): Promise<SuggestRequiredTopicsResult> {
+  const { data } = await apiClient.post<SuggestRequiredTopicsResult>(
+    '/documents/suggest-required-topics',
+    body,
+    { timeout: 90_000 },
+  )
+  return data
+}
+
 // ─── Outline structure suggestion ─────────────────────────────────────────────
 
 export interface SuggestOutlineStructureBody {
@@ -248,6 +307,78 @@ export async function suggestOutlineStructure(
     '/documents/suggest-outline-structure',
     body,
     { timeout: 30_000 },
+  )
+  return data
+}
+
+// ─── TO persistence (user edits → backend blob) ──────────────────────────────
+
+export interface SaveTOResponse {
+  blobPath: string
+}
+
+/**
+ * Persist the user-edited Training Outline to the backend blob at `blobPath`.
+ * The backend overwrites the file in FE format so that `GET /documents/load-to`
+ * returns user edits on the next page refresh, regardless of localStorage state.
+ */
+export async function saveTrainingOutline(
+  blobPath: string,
+  to: Record<string, unknown>,
+  rules: Record<string, unknown> | null,
+): Promise<SaveTOResponse> {
+  const { data } = await apiClient.post<SaveTOResponse>(
+    '/documents/save-to',
+    { blobPath, to, ...(rules !== null ? { rules } : {}) },
+    { timeout: 30_000 },
+  )
+  return data
+}
+
+// ─── TO revision ─────────────────────────────────────────────────────────────
+
+export interface ReviseTOResponse {
+  to: Record<string, unknown>
+}
+
+/**
+ * Revise an existing Training Outline in-place using a user-supplied prompt.
+ * Sends the current TO JSON + the user's instruction to the LLM and returns
+ * the revised TO. Does NOT re-run A0 or regenerate from source documents.
+ */
+export async function reviseTO(
+  currentTo: Record<string, unknown>,
+  revisionPrompt: string,
+): Promise<ReviseTOResponse> {
+  const { data } = await apiClient.post<ReviseTOResponse>(
+    '/documents/revise-to',
+    { currentTo, revisionPrompt },
+    { timeout: 5 * 60 * 1_000 },
+  )
+  return data
+}
+
+// ─── Source analysis ───────────────────────────────────────────────────────────
+
+export interface AnalyzeSourcePayload {
+  blobPath: string
+  sourceRole?: SourceRole
+  extractHint?: string
+  /** @deprecated inferred server-side from sourceRole when omitted */
+  importance?: ImportanceLevel
+}
+
+/**
+ * Extract the TOC from an uploaded document and run LLM source analysis.
+ * Call this for every uploaded source document before POST /documents/generate-to.
+ * Returns a SourceAnalysis object that should be aggregated and passed to
+ * generate-to as `sourceAnalyses`.
+ */
+export async function analyzeSource(payload: AnalyzeSourcePayload): Promise<SourceAnalysis> {
+  const { data } = await apiClient.post<SourceAnalysis>(
+    '/documents/analyze-source',
+    payload,
+    { timeout: 60_000 },
   )
   return data
 }

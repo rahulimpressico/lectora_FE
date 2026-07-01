@@ -95,8 +95,8 @@ export const AudienceStep = () => {
     setConfig({
       backPhase: 'wizard-basics',
       backLabel: 'Back',
-      nextPhase: 'wizard-materials',
-      nextLabel: 'Next: Source Material',
+      nextPhase: 'wizard-required-topics',
+      nextLabel: 'Next: Required Topics',
       isNextDisabled: !audience.trim() || !experienceLevel,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

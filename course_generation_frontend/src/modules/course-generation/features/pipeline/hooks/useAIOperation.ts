@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEditorStore } from '../../../store/editorStore'
-import { performAIOperation } from '@/api/editor/api'
+import { performAIOperation, saveSectionContent } from '@/api/editor/api'
 import type { AIOperationType } from '../../../types/editor'
 
 /**
@@ -11,7 +11,7 @@ export function useAIOperation(jobId: string) {
   const { setAIProcessing, applyAIResult, clearAIOperation } = useEditorStore()
 
   const mutation = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       sectionId,
       operation,
       content,
@@ -23,6 +23,13 @@ export function useAIOperation(jobId: string) {
       userPrompt?: string
     }) => {
       setAIProcessing(sectionId, operation)
+      // Sync the current section content before the AI operation so the
+      // backend works from the latest edited state (critical for regenerate).
+      try {
+        await saveSectionContent(jobId, sectionId, content)
+      } catch {
+        // Non-fatal — proceed with the AI call using the inline content param
+      }
       return performAIOperation({ jobId, sectionId, operation, content, userPrompt })
     },
 

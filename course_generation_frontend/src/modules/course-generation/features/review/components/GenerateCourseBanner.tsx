@@ -1,11 +1,9 @@
-import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { useCourseStore } from '../../../store/courseStore'
 import { createJob } from '@/api/jobs/api'
 import { extractErrorMessage, isFileNotFoundError } from '../../../utils/jobErrorUtils'
-import { SpecialInstructionsModal } from './SpecialInstructionsModal'
 
 export const GenerateCourseBanner = () => {
   const {
@@ -20,13 +18,10 @@ export const GenerateCourseBanner = () => {
     courseTitle,
     detectedRuleFamily,
     wizardData,
-    setSpecialInstructions,
     setPhase,
     setActiveJobId,
     updateRawDocument,
   } = useCourseStore()
-
-  const [showInstructionsModal, setShowInstructionsModal] = useState(false)
 
   if (phase !== 'three-panel') return null
 
@@ -42,7 +37,7 @@ export const GenerateCourseBanner = () => {
   const timedOutlineBlobPath = timedOutlineFile?.blobPath ?? generatedToBlobPath ?? undefined
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
-    mutationFn: (specialInstructions?: string) =>
+    mutationFn: () =>
       createJob({
         courseTitle:
           courseTitle ||
@@ -60,10 +55,8 @@ export const GenerateCourseBanner = () => {
           .map((f) => ({
             blobPath: f.blobPath,
             ...(f.extractHint?.trim() ? { extractHint: f.extractHint.trim() } : {}),
-            ...(f.importance ? { importance: f.importance } : {}),
           })),
         audience: audience || '',
-        ...(specialInstructions?.trim() ? { specialInstructions: specialInstructions.trim() } : {}),
         courseConfig: {
           // Title and description: user-provided values are the single source of truth.
           ...(courseTitle.trim() ? { courseTitle: courseTitle.trim() } : {}),
@@ -162,7 +155,7 @@ export const GenerateCourseBanner = () => {
             icon={isPending ? undefined : <Sparkles size={14} />}
             disabled={!canGenerate || isPending}
             loading={isPending}
-            onClick={() => setShowInstructionsModal(true)}
+            onClick={() => startGeneration()}
           >
             {isPending ? (
               <>
@@ -176,16 +169,6 @@ export const GenerateCourseBanner = () => {
         </div>
       </div>
 
-      {showInstructionsModal && (
-        <SpecialInstructionsModal
-          onCancel={() => setShowInstructionsModal(false)}
-          onConfirm={(instructions) => {
-            setShowInstructionsModal(false)
-            if (instructions.trim()) setSpecialInstructions(instructions)
-            startGeneration(instructions.trim() || undefined)
-          }}
-        />
-      )}
     </div>
   )
 }

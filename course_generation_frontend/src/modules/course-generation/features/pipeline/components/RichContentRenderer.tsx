@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   AlertCircle,
   AlertTriangle,
@@ -11,21 +13,35 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import type { ReactNode } from 'react'
+import type { Components } from 'react-markdown'
 import type { BodyParagraph } from '../../../types/editor'
 
-// ── Inline parser: **bold**, *italic* ────────────────────────────────────────
-function parseInline(text: string): ReactNode {
-  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
-  return tokens.map((token, i) => {
-    if (token.startsWith('**') && token.endsWith('**') && token.length > 4) {
-      return <strong key={i} className="font-semibold text-slate-900">{token.slice(2, -2)}</strong>
-    }
-    if (token.startsWith('*') && token.endsWith('*') && token.length > 2) {
-      return <em key={i}>{token.slice(1, -1)}</em>
-    }
-    return token
-  })
+const REMARK_PLUGINS = [remarkGfm]
+
+// Shared component overrides for styled inline elements
+const INLINE_OVERRIDES: Components = {
+  p: ({ children }) => <>{children}</>,
+  strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
+  del: ({ children }) => <del className="text-slate-400">{children}</del>,
+  code: ({ children }) => (
+    <code className="text-[12px] font-mono bg-slate-100 px-1 rounded text-slate-700">{children}</code>
+  ),
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline hover:text-brand-800">
+      {children}
+    </a>
+  ),
+}
+
+// Renders markdown inline (bold, italic, code, links, del) — no block wrappers.
+// Replaces the old hand-rolled parseInline() regex split.
+function MarkdownInline({ children }: { children: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={INLINE_OVERRIDES}>
+      {children}
+    </ReactMarkdown>
+  )
 }
 
 // ── Extract letter prefix from option text e.g. "A) Some text" → ['A', 'Some text'] ──
@@ -79,7 +95,7 @@ function KnowledgeCheckBlock({
       <div className="px-4 pt-4 pb-4 bg-white">
         {/* Question */}
         <p className="text-[13.5px] font-medium text-slate-800 leading-[1.78] mb-4">
-          {parseInline(question)}
+          <MarkdownInline>{question}</MarkdownInline>
         </p>
 
         {/* Options */}
@@ -124,7 +140,7 @@ function KnowledgeCheckBlock({
                         : 'text-slate-700',
                     )}
                   >
-                    {parseInline(text)}
+                    <MarkdownInline>{text}</MarkdownInline>
                   </span>
 
                   {/* Correct indicator */}
@@ -163,7 +179,7 @@ function KnowledgeCheckBlock({
               Explanation
             </p>
             <p className="text-[12.5px] text-emerald-900 leading-relaxed">
-              {parseInline(explanation)}
+              <MarkdownInline>{explanation}</MarkdownInline>
             </p>
           </div>
         )}
@@ -261,7 +277,7 @@ function CalloutBlock({ label, content }: { label?: string; content: string }) {
           {displayLabel}
         </p>
         <p className={cn('text-[13px] leading-[1.78]', textColor)}>
-          {parseInline(content)}
+          <MarkdownInline>{content}</MarkdownInline>
         </p>
       </div>
     </div>
@@ -274,7 +290,7 @@ function CalloutBlock({ label, content }: { label?: string; content: string }) {
 function TextBlock({ content }: { content: string }) {
   return (
     <p className="text-[13.5px] text-slate-700 leading-[1.82] tracking-[0.008em]">
-      {parseInline(content)}
+      <MarkdownInline>{content}</MarkdownInline>
     </p>
   )
 }
@@ -284,7 +300,7 @@ function HeadingBlock({ content, level }: { content: string; level: 3 | 4 }) {
     level === 3
       ? 'text-[13.5px] font-semibold text-slate-800 pt-1'
       : 'text-[13px] font-semibold text-slate-700 pt-0.5'
-  return <p className={cls}>{parseInline(content)}</p>
+  return <p className={cls}><MarkdownInline>{content}</MarkdownInline></p>
 }
 
 function BulletList({ items }: { items: string[] }) {
@@ -293,7 +309,7 @@ function BulletList({ items }: { items: string[] }) {
       {items.map((item, i) => (
         <li key={i} className="flex items-start gap-2.5">
           <span className="shrink-0 mt-[8px] w-1.5 h-1.5 rounded-full bg-brand-400" />
-          <span className="text-[13.5px] text-slate-700 leading-[1.82]">{parseInline(item)}</span>
+          <span className="text-[13.5px] text-slate-700 leading-[1.82]"><MarkdownInline>{item}</MarkdownInline></span>
         </li>
       ))}
     </ul>
@@ -308,7 +324,7 @@ function NumberedList({ items }: { items: string[] }) {
           <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-[10px] font-bold mt-0.5 select-none">
             {i + 1}
           </span>
-          <span className="text-[13.5px] text-slate-700 leading-[1.82]">{parseInline(item)}</span>
+          <span className="text-[13.5px] text-slate-700 leading-[1.82]"><MarkdownInline>{item}</MarkdownInline></span>
         </li>
       ))}
     </ol>
@@ -321,7 +337,7 @@ function SubBulletList({ items }: { items: string[] }) {
       {items.map((item, i) => (
         <li key={i} className="flex items-start gap-2">
           <span className="shrink-0 mt-[9px] w-1 h-1 rounded-full bg-slate-400" />
-          <span className="text-[13px] text-slate-600 leading-[1.82]">{parseInline(item)}</span>
+          <span className="text-[13px] text-slate-600 leading-[1.82]"><MarkdownInline>{item}</MarkdownInline></span>
         </li>
       ))}
     </ul>
@@ -366,7 +382,7 @@ function TableBlock({
               <tr key={ri} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors">
                 {row.map((cell, ci) => (
                   <td key={ci} className={cn('px-4 py-2.5 leading-relaxed', ci === 0 && 'font-medium text-slate-800')}>
-                    {parseInline(cell)}
+                    <MarkdownInline>{cell}</MarkdownInline>
                   </td>
                 ))}
               </tr>
@@ -379,19 +395,31 @@ function TableBlock({
 }
 
 // ── Plain-text fallback (for edited/dirty content) ───────────────────────────
+// Uses react-markdown so **bold**, *italic*, `code`, ~~del~~ and links are
+// rendered without the old hand-rolled regex split.
 function PlainTextRenderer({ text }: { text: string }) {
   return (
-    <>
-      {text.split('\n').map((line, i) =>
-        line.trim() ? (
-          <p key={i} className="text-[13.5px] text-slate-700 leading-[1.82] tracking-[0.008em]">
-            {parseInline(line)}
-          </p>
-        ) : (
-          <br key={i} />
+    <ReactMarkdown
+      remarkPlugins={REMARK_PLUGINS}
+      components={{
+        p: ({ children }) => (
+          <p className="text-[13.5px] text-slate-700 leading-[1.82] tracking-[0.008em]">{children}</p>
         ),
-      )}
-    </>
+        strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+        em: ({ children }) => <em>{children}</em>,
+        del: ({ children }) => <del className="text-slate-400">{children}</del>,
+        code: ({ children }) => (
+          <code className="text-[12px] font-mono bg-slate-100 px-1 rounded text-slate-700">{children}</code>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline hover:text-brand-800">
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
   )
 }
 

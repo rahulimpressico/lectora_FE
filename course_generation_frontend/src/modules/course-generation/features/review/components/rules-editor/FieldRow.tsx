@@ -1,11 +1,13 @@
 import { RotateCcw } from 'lucide-react'
 import { formatKeyLabel } from '../../../../utils/deepUpdate'
 import { getTooltip, isStringArray, isNumberPair } from './helpers'
-import { StringEditor } from './editors/StringEditor'
-import { NumberEditor } from './editors/NumberEditor'
-import { BooleanEditor } from './editors/BooleanEditor'
-import { StringArrayEditor } from './editors/StringArrayEditor'
-import { NumberPairEditor } from './editors/NumberPairEditor'
+import {
+  StringEditor,
+  NumberEditor,
+  BooleanEditor,
+  StringArrayEditor,
+  NumberPairEditor,
+} from '@/shared/form/PrimitiveFieldEditors'
 import { JsonFallbackEditor } from './editors/JsonFallbackEditor'
 import type { JsonValue } from '../../../../types'
 
@@ -19,12 +21,12 @@ interface FieldRowProps {
 }
 
 const resolveEditor = (value: JsonValue, path: string[], onUpdate: (p: string[], v: JsonValue) => void) => {
-  if (value === null || value === undefined) return <StringEditor value="" path={path} onUpdate={onUpdate} />
-  if (typeof value === 'string')  return <StringEditor  value={value} path={path} onUpdate={onUpdate} />
-  if (typeof value === 'number')  return <NumberEditor  value={value} path={path} onUpdate={onUpdate} />
-  if (typeof value === 'boolean') return <BooleanEditor value={value} path={path} onUpdate={onUpdate} />
-  if (isNumberPair(value))   return <NumberPairEditor   value={value} path={path} onUpdate={onUpdate} />
-  if (isStringArray(value))  return <StringArrayEditor  value={value} path={path} onUpdate={onUpdate} />
+  if (value === null || value === undefined) return <StringEditor value="" path={path} onChange={onUpdate} />
+  if (typeof value === 'string')  return <StringEditor  value={value} path={path} onChange={onUpdate} />
+  if (typeof value === 'number')  return <NumberEditor  value={value} path={path} onChange={onUpdate} />
+  if (typeof value === 'boolean') return <BooleanEditor value={value} path={path} onChange={onUpdate} />
+  if (isNumberPair(value))   return <NumberPairEditor   value={value} path={path} onChange={onUpdate} />
+  if (isStringArray(value))  return <StringArrayEditor  value={value} path={path} onChange={onUpdate} />
   return <JsonFallbackEditor value={value} path={path} onUpdate={onUpdate} />
 }
 

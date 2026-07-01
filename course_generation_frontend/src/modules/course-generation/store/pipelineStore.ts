@@ -174,8 +174,11 @@ export const usePipelineStore = create<PipelineStoreState>()(
             },
           )
 
-          // Fold internal backend stages the same way syncFromSSEEvent does
+          // Fold internal backend stages the same way syncFromSSEEvent does.
+          // S1 folds into A2 — it ran during TO generation and is not a
+          // visible stage in the Generate Course screen.
           const a0Status = backendMap.get('A0')?.status?.toUpperCase()
+          const s1Status = backendMap.get('S1')?.status?.toUpperCase()
           const sectionMapperStatus = backendMap.get('SECTION_MAPPER')?.status?.toUpperCase()
           const kcPlannerStatus = backendMap.get('KC_PLANNER')?.status?.toUpperCase()
 
@@ -185,7 +188,7 @@ export const usePipelineStore = create<PipelineStoreState>()(
             if (
               s.id === 'A2' &&
               s.status === 'pending' &&
-              (sectionMapperStatus === 'PROCESSING' || kcPlannerStatus === 'PROCESSING')
+              (s1Status === 'PROCESSING' || sectionMapperStatus === 'PROCESSING' || kcPlannerStatus === 'PROCESSING')
             )
               return { ...s, status: 'processing' as PipelineStageStatus }
             return s
@@ -354,24 +357,31 @@ export const usePipelineStore = create<PipelineStoreState>()(
           )
 
           // ── Fold internal backend stages into adjacent visible stages ──────
-          // A0, SECTION_MAPPER, KC_PLANNER are not mapped to any visible
-          // frontend stage.  When they are PROCESSING we promote the
-          // immediately-following visible stage so the timeline and
-          // GenerationConsole always show meaningful progress.
+          // A0, S1, SECTION_MAPPER, KC_PLANNER are not shown as standalone
+          // frontend stages.  When they are PROCESSING we promote the
+          // mapped visible stage so the timeline always shows progress:
+          //   A0             → A1 (classification runs before A1)
+          //   S1             → A2 (structure gate; folded into A2 since
+          //                        TO was already reviewed in Three Panel View)
+          //   SECTION_MAPPER → A2
+          //   KC_PLANNER     → A2
           const a0Status = backendMap.get('A0')?.status?.toUpperCase()
+          const s1Status = backendMap.get('S1')?.status?.toUpperCase()
           const sectionMapperStatus = backendMap.get('SECTION_MAPPER')?.status?.toUpperCase()
           const kcPlannerStatus = backendMap.get('KC_PLANNER')?.status?.toUpperCase()
 
           const internalA1Active = a0Status === 'PROCESSING'
           const internalA2Active =
-            sectionMapperStatus === 'PROCESSING' || kcPlannerStatus === 'PROCESSING'
+            s1Status === 'PROCESSING' ||
+            sectionMapperStatus === 'PROCESSING' ||
+            kcPlannerStatus === 'PROCESSING'
 
           const foldedStages = updatedStages.map((s): PipelineStageState => {
             // A0 folds into A1: while A0 runs, show A1 as 'processing'
             if (s.id === 'A1' && s.status === 'pending' && internalA1Active) {
               return { ...s, status: 'processing' as PipelineStageStatus }
             }
-            // SECTION_MAPPER / KC_PLANNER fold into A2: show A2 as 'processing'
+            // S1 / SECTION_MAPPER / KC_PLANNER fold into A2: show A2 as 'processing'
             if (s.id === 'A2' && s.status === 'pending' && internalA2Active) {
               return { ...s, status: 'processing' as PipelineStageStatus }
             }

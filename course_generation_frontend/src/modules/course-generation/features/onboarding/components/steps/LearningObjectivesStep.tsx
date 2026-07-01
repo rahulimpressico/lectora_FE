@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List, X } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useWizardNav } from '../WizardNavContext'
 import { generateLearningObjectives } from '@/api/course-generation/api'
+import type { LOValidationIssue } from '@/api/course-generation/api'
 import { cn } from '@/lib/cn'
+import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
 
 function parseNaturalLanguageObjectives(text: string): string[] {
   const trimmed = text.trim()
@@ -64,6 +66,85 @@ const objectiveRowVariant = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 400, damping: 30 } },
   exit: { opacity: 0, x: -16, height: 0, transition: { type: 'spring' as const, stiffness: 400, damping: 30 } },
+}
+
+// ─── Regenerate Prompt Modal ──────────────────────────────────────────────────
+
+interface RegeneratePromptModalProps {
+  open: boolean
+  onConfirm: (prompt: string) => void
+  onClose: () => void
+}
+
+function RegeneratePromptModal({ open, onConfirm, onClose }: RegeneratePromptModalProps) {
+  const [value, setValue] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (open) {
+      setValue('')
+      setTimeout(() => textareaRef.current?.focus(), 80)
+    }
+  }, [open])
+
+  const handleSubmit = () => {
+    onConfirm(value.trim())
+    onClose()
+  }
+
+  return (
+    <DialogContent open={open} onClose={onClose}>
+      <motion.div
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4"
+        initial={{ opacity: 0, scale: 0.95, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <DialogTitle className="text-base font-bold text-slate-900">Regenerate Learning Objectives</DialogTitle>
+            <p className="text-xs text-slate-500 mt-0.5">Optionally guide the AI — leave blank to regenerate as-is.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <textarea
+          ref={textareaRef}
+          rows={4}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit() }}
+          placeholder="e.g. Make it more advanced, focus on practical skills, add security concepts..."
+          className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 transition-all resize-none"
+        />
+
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Regenerate
+          </button>
+        </div>
+      </motion.div>
+    </DialogContent>
+  )
 }
 
 // ─── Editable Objectives List ─────────────────────────────────────────────────
@@ -201,6 +282,37 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenera
   )
 }
 
+// ─── Pipeline Status Badge ────────────────────────────────────────────────────
+
+interface LOPipelineStatus {
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: LOValidationIssue[]
+}
+
+function PipelineStatusBadge({ status }: { status: LOPipelineStatus }) {
+  if (status.validationPassed) {
+    const label = status.repairAttempts === 0
+      ? 'Validated'
+      : `Validated · ${status.repairAttempts} repair${status.repairAttempts !== 1 ? 's' : ''}`
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+        <CheckCircle2 className="w-3 h-3" />
+        {label}
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 shrink-0"
+      title="AI could not fully resolve all quality issues after repair attempts. Review and edit objectives as needed."
+    >
+      <AlertTriangle className="w-3 h-3" />
+      Best available
+    </span>
+  )
+}
+
 // ─── Main Step ────────────────────────────────────────────────────────────────
 
 const AI_CONTEXT_BULLETS = [
@@ -213,6 +325,7 @@ const AI_CONTEXT_BULLETS = [
 export const LearningObjectivesStep = () => {
   const wizardData = useCourseStore((s) => s.wizardData)
   const setWizardData = useCourseStore((s) => s.setWizardData)
+  const sourceAnalyses = useCourseStore((s) => s.sourceAnalyses)
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const audience = useCourseStore((s) => s.audience)
   const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
@@ -226,6 +339,8 @@ export const LearningObjectivesStep = () => {
   const [naturalText, setNaturalText] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false)
+  const [pipelineStatus, setPipelineStatus] = useState<LOPipelineStatus | null>(null)
 
   const sourceMaterials = rawDocuments
     .filter((d) => d.status === 'success' && d.blobPath)
@@ -244,9 +359,13 @@ export const LearningObjectivesStep = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectivesMode, objectives.length])
 
-  const handleGenerate = () => {
+  const handleGenerate = (regenerationPrompt?: string) => {
     setIsGenerating(true)
     setGenerateError(null)
+    setPipelineStatus(null)
+
+    // Source analyses were computed on the Materials step and cached in the store.
+    // Use them directly — no analyzeSource call here.
     generateLearningObjectives({
       sourceMaterials,
       courseTitle: courseTitle || undefined,
@@ -255,11 +374,21 @@ export const LearningObjectivesStep = () => {
       courseDuration: durationHours != null ? `${durationHours} hour${durationHours !== 1 ? 's' : ''}` : undefined,
       skillLevel: difficultyLevel || wizardData.experienceLevel || undefined,
       targetAudience: audience || undefined,
+      sourceAnalyses: sourceAnalyses.length > 0 ? sourceAnalyses : undefined,
+      requiredTopics: wizardData.requiredTopics?.length > 0 ? wizardData.requiredTopics : undefined,
+      regenerationPrompt: regenerationPrompt?.trim() || undefined,
+      currentObjectives: regenerationPrompt && objectives.length > 0 ? objectives : undefined,
     })
       .then((result) => {
         setWizardData({ objectives: result.learningObjectives })
+        setPipelineStatus({
+          validationPassed: result.validationPassed,
+          repairAttempts: result.repairAttempts,
+          finalIssues: result.finalIssues,
+        })
       })
       .catch((err: unknown) => {
+        console.error('[LearningObjectivesStep] generateLearningObjectives failed:', err)
         setGenerateError(err instanceof Error ? err.message : 'Generation failed. Please try again.')
       })
       .finally(() => {
@@ -268,6 +397,7 @@ export const LearningObjectivesStep = () => {
   }
 
   return (
+    <>
     <motion.div
       className="space-y-5 sm:space-y-6"
       variants={staggerContainer}
@@ -439,7 +569,7 @@ export const LearningObjectivesStep = () => {
                     </ul>
                     <motion.button
                       type="button"
-                      onClick={handleGenerate}
+                      onClick={() => handleGenerate()}
                       disabled={isGenerating}
                       className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       whileHover={isGenerating ? {} : { scale: 1.03 }}
@@ -473,18 +603,37 @@ export const LearningObjectivesStep = () => {
                     exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
                     style={{ willChange: 'transform' }}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-slate-700">
                         {objectives.length} objective{objectives.length !== 1 ? 's' : ''} generated
                         <span className="ml-2 text-xs text-slate-400 font-normal">Click any to edit inline</span>
                       </p>
+                      {pipelineStatus && <PipelineStatusBadge status={pipelineStatus} />}
                     </div>
                     <EditableObjectivesList
                       objectives={objectives}
                       onChange={(next) => setWizardData({ objectives: next })}
-                      onRegenerate={handleGenerate}
+                      onRegenerate={() => setIsRegenerateModalOpen(true)}
                       isRegenerating={isGenerating}
                     />
+                    {pipelineStatus && !pipelineStatus.validationPassed && pipelineStatus.finalIssues.length > 0 && (
+                      <motion.div
+                        className="px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200"
+                        variants={fadeIn}
+                        initial="hidden"
+                        animate="show"
+                      >
+                        <p className="text-xs font-semibold text-amber-800 mb-1.5">
+                          {pipelineStatus.finalIssues.length} quality issue{pipelineStatus.finalIssues.length !== 1 ? 's' : ''} remain after {pipelineStatus.repairAttempts} repair attempt{pipelineStatus.repairAttempts !== 1 ? 's' : ''}:
+                        </p>
+                        <ul className="space-y-1 mb-2">
+                          {pipelineStatus.finalIssues.map((issue, i) => (
+                            <li key={i} className="text-xs text-amber-700">• {issue.message}</li>
+                          ))}
+                        </ul>
+                        <p className="text-xs text-amber-600">Edit the objectives above to resolve these, or regenerate with additional instructions.</p>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -492,5 +641,12 @@ export const LearningObjectivesStep = () => {
           )}
         </AnimatePresence>
     </motion.div>
+
+    <RegeneratePromptModal
+      open={isRegenerateModalOpen}
+      onClose={() => setIsRegenerateModalOpen(false)}
+      onConfirm={(prompt) => handleGenerate(prompt || undefined)}
+    />
+    </>
   )
 }

@@ -1,5 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
+import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
 
 interface StorageDeleteConfirmDialogProps {
   open: boolean
@@ -18,8 +19,6 @@ export function StorageDeleteConfirmDialog({
   onConfirm,
   onCancel,
 }: StorageDeleteConfirmDialogProps) {
-  if (!open) return null
-
   const items = [
     ...folderNames.map((n) => ({ label: `${n}/`, kind: 'folder' as const })),
     ...fileNames.map((n) => ({ label: n, kind: 'file' as const })),
@@ -29,62 +28,48 @@ export function StorageDeleteConfirmDialog({
   const more = count - preview.length
 
   return (
-    <>
-      <div
-        aria-hidden
-        className="fixed inset-0 z-[110] bg-slate-900/45 backdrop-blur-[4px]"
-        onClick={loading ? undefined : onCancel}
-      />
-      <div
-        className="fixed inset-0 z-[111] flex items-center justify-center p-4 pointer-events-none"
-        role="alertdialog"
-        aria-modal
-        aria-labelledby="delete-dialog-title"
-      >
-        <div className="pointer-events-auto w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden">
-          <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-100">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 ring-1 ring-red-100">
-              <AlertTriangle size={18} className="text-red-600" />
-            </div>
-            <div className="flex-1 min-w-0 pt-0.5">
-              <h2 id="delete-dialog-title" className="text-sm font-bold text-slate-900">
-                Delete {count} item{count !== 1 ? 's' : ''}?
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Files and folders will be removed from storage. This cannot be undone.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={loading}
-              className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
-            >
-              <X size={16} />
-            </button>
+    <DialogContent open={open} onClose={onCancel} closeOnInteractOutside={!loading}>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden">
+        <div className="flex items-start gap-3 px-5 py-4 border-b border-slate-100">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 ring-1 ring-red-100">
+            <AlertTriangle size={18} className="text-red-600" />
           </div>
-
-          <ul className="max-h-40 overflow-y-auto px-5 py-3 text-xs text-slate-600 space-y-1 bg-slate-50/80">
-            {preview.map((item) => (
-              <li key={item.label} className="truncate font-mono">
-                {item.kind === 'folder' ? `[folder] ${item.label}` : item.label}
-              </li>
-            ))}
-            {more > 0 && (
-              <li className="text-slate-400 italic">…and {more} more</li>
-            )}
-          </ul>
-
-          <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">
-            <Button variant="secondary" size="sm" onClick={onCancel} disabled={loading}>
-              Cancel
-            </Button>
-            <Button variant="danger" size="sm" onClick={onConfirm} loading={loading}>
-              Delete
-            </Button>
+          <div className="flex-1 min-w-0 pt-0.5">
+            <DialogTitle className="text-sm font-bold text-slate-900">
+              Delete {count} item{count !== 1 ? 's' : ''}?
+            </DialogTitle>
+            <p className="text-xs text-slate-500 mt-1">
+              Files and folders will be removed from storage. This cannot be undone.
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <ul className="max-h-40 overflow-y-auto px-5 py-3 text-xs text-slate-600 space-y-1 bg-slate-50/80">
+          {preview.map((item) => (
+            <li key={item.label} className="truncate font-mono">
+              {item.kind === 'folder' ? `[folder] ${item.label}` : item.label}
+            </li>
+          ))}
+          {more > 0 && <li className="text-slate-400 italic">…and {more} more</li>}
+        </ul>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-slate-100">
+          <Button variant="secondary" size="sm" onClick={onCancel} disabled={loading}>
+            Cancel
+          </Button>
+          <Button variant="danger" size="sm" onClick={onConfirm} loading={loading}>
+            Delete
+          </Button>
         </div>
       </div>
-    </>
+    </DialogContent>
   )
 }

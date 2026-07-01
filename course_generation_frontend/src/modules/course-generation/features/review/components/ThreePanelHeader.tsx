@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil, ShieldCheck } from 'lucide-react'
 import { useCourseStore } from '../../../store/courseStore'
+import { cn } from '@/lib/cn'
 
 const RULE_FAMILY_LABELS: Record<string, string> = {
   insurance_ce: 'Insurance CE',
@@ -23,6 +24,7 @@ export const ThreePanelHeader = () => {
     setCourseTitle,
     detectedRuleFamily,
     setDetectedRuleFamily,
+    toS1Validation,
   } = useCourseStore()
 
   const [editingTitle, setEditingTitle] = useState(false)
@@ -101,6 +103,32 @@ export const ThreePanelHeader = () => {
           )}
         </p>
       </div>
+
+      {/* S1 validation quality badge */}
+      {toS1Validation && toS1Validation.overall_score > 0 && (
+        <div
+          className={cn(
+            'hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 ring-1 shrink-0',
+            toS1Validation.status === 'PASS'
+              ? 'bg-emerald-50 ring-emerald-200/80'
+              : 'bg-amber-50 ring-amber-200/80',
+          )}
+          title={`S1 Validation: ${toS1Validation.summary || toS1Validation.status}`}
+        >
+          <ShieldCheck
+            size={11}
+            className={toS1Validation.status === 'PASS' ? 'text-emerald-500' : 'text-amber-500'}
+          />
+          <span
+            className={cn(
+              'text-[11px] font-semibold',
+              toS1Validation.status === 'PASS' ? 'text-emerald-700' : 'text-amber-700',
+            )}
+          >
+            S1 {Math.round(toS1Validation.overall_score)}%
+          </span>
+        </div>
+      )}
 
       {detectedRuleFamily && (
         <div className="relative shrink-0">

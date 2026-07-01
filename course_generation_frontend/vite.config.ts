@@ -5,6 +5,10 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    // Pre-bundle deps added after dev server first started (avoids 504 Outdated Optimize Dep)
+    include: ['use-debounce', 'idb-keyval'],
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

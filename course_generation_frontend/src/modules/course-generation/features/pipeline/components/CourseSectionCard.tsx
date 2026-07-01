@@ -1,6 +1,10 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
+import type { CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Reorder, useDragControls, AnimatePresence, motion } from 'framer-motion'
+import { Droppable, Draggable } from '@hello-pangea/dnd'
+import type { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   ChevronDown,
   ChevronRight,
@@ -17,11 +21,13 @@ import {
   Trash2,
   Plus,
   Layers,
+  Sparkles,
+  XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useEditorStore } from '../../../store/editorStore'
 import { useAIOperation } from '../hooks/useAIOperation'
-import { performAIOperation, saveSectionContent } from '@/api/editor/api'
+import { performAIOperation } from '@/api/editor/api'
 import { AIToolbar } from './AIToolbar'
 import { AIOperationModal } from './AIOperationModal'
 import { RichContentRenderer } from './RichContentRenderer'
@@ -32,42 +38,7 @@ interface CourseSectionCardProps {
   jobId: string
   depth: number
   index: number
-  onDragHandlePointerDown?: (e: React.PointerEvent) => void
-}
-
-// ── Child drag wrapper ────────────────────────────────────────────────────────
-function DraggableChildItem({
-  child,
-  childIndex,
-  jobId,
-}: {
-  child: CourseSection
-  childIndex: number
-  jobId: string
-}) {
-  const dragControls = useDragControls()
-  return (
-    // as="div" is required — default "li" inside a "div" group breaks layout measurement
-    <Reorder.Item
-      as="div"
-      value={child.id}
-      dragListener={false}
-      dragControls={dragControls}
-      style={{ position: 'relative' }}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.15 }}
-    >
-      <CourseSectionCard
-        section={child}
-        jobId={jobId}
-        depth={1}
-        index={childIndex}
-        onDragHandlePointerDown={(e) => dragControls.start(e)}
-      />
-    </Reorder.Item>
-  )
+  dragHandleProps?: DraggableProvidedDragHandleProps | null
 }
 
 export function CourseSectionCard({
@@ -75,7 +46,7 @@ export function CourseSectionCard({
   jobId,
   depth,
   index,
-  onDragHandlePointerDown,
+  dragHandleProps,
 }: CourseSectionCardProps) {
   const {
     sectionEditStates,
@@ -91,9 +62,11 @@ export function CourseSectionCard({
     updateSectionTitle,
     setAIProcessing,
     clearAIOperation,
+    applyAIResult,
     addSubtopic,
+    moveSubtopicToSection,
     deleteSection,
-    reorderChildren,
+    courseContent,
   } = useEditorStore()
 
   const editState = sectionEditStates.get(section.id)
@@ -103,13 +76,24 @@ export function CourseSectionCard({
 
   const { triggerOperation, error: aiOperationError } = useAIOperation(jobId)
 
-  const [isSavingToBackend, setIsSavingToBackend] = useState(false)
   const [modalOp, setModalOp] = useState<'rewrite' | 'improve_tone' | null>(null)
   const [modalResult, setModalResult] = useState<string | null>(null)
   const [isTitleEditing, setIsTitleEditing] = useState(false)
   const [titleValue, setTitleValue] = useState(section.title)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isMoveMenuOpen, setIsMoveMenuOpen] = useState(false)
+  const [moveMenuPos, setMoveMenuPos] = useState<{ top: number; right: number } | null>(null)
+  const [moveFocusIndex, setMoveFocusIndex] = useState(-1)
+  const moveButtonRef = useRef<HTMLButtonElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
+
+  // Available parent sections for "Move to Section" — all L1 sections except self/current parent
+  const availableParents = useMemo(
+    () => (courseContent?.sections ?? []).filter(
+      (s) => s.level === 1 && s.id !== section.parentId && s.id !== section.id,
+    ),
+    [courseContent?.sections, section.parentId, section.id],
+  )
 
   const [undoContent, setUndoContent] = useState<string | null>(null)
   const [showUndoBanner, setShowUndoBanner] = useState(false)
@@ -117,34 +101,37 @@ export function CourseSectionCard({
   const wasProcessingRef = useRef(false)
   const isModalOpRef = useRef(false)
 
-  // ── Child DnD state ───────────────────────────────────────────────────────
-  const childIds = useMemo(
-    () => section.children.map((c) => c.id),
-    [section.children],
-  )
-  const [localChildIds, setLocalChildIds] = useState<string[]>(childIds)
-  const childById = useMemo(() => {
-    const m = new Map<string, CourseSection>()
-    section.children.forEach((c) => m.set(c.id, c))
-    return m
-  }, [section.children])
-
-  // Sync localChildIds only when the set of child IDs changes (add/delete),
-  // not on every content update.
-  const childIdsKey = childIds.join(',')
+  // Batch AI state — tracks progress when an operation is applied to all children
+  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number } | null>(null)
+  const batchCancelledRef = useRef(false)
+  const isMountedRef = useRef(true)
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocalChildIds(childIds)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childIdsKey])
+    isMountedRef.current = true
+    return () => { isMountedRef.current = false }
+  }, [])
 
-  function handleChildReorder(newIds: string[]) {
-    setLocalChildIds(newIds)
-    const reordered = newIds
-      .map((id) => childById.get(id))
-      .filter(Boolean) as CourseSection[]
-    reorderChildren(section.id, reordered)
-  }
+
+  // Computed early so modalMutation and the render path share the same value.
+  const hasChildren = section.children.length > 0
+  const isL1 = depth === 0
+
+  // For L1 sections with children but little/no direct content, build combined text
+  // from all subsections so AI operations have real material to work with.
+  const combinedChildrenContent =
+    isL1 && hasChildren
+      ? section.children
+          .map((child) => {
+            const childState = sectionEditStates.get(child.id)
+            const text = (childState?.currentContent || child.content).trim()
+            return text ? `${child.title}\n${text}` : ''
+          })
+          .filter(Boolean)
+          .join('\n\n')
+      : ''
+  const aiContent =
+    isL1 && hasChildren && !(editState?.currentContent ?? '').trim()
+      ? combinedChildrenContent
+      : (editState?.currentContent ?? '')
 
   const modalMutation = useMutation({
     mutationFn: ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
@@ -154,7 +141,7 @@ export function CourseSectionCard({
         jobId,
         sectionId: section.id,
         operation: op,
-        content: editState?.currentContent ?? '',
+        content: aiContent,
         userPrompt,
       })
     },
@@ -169,17 +156,16 @@ export function CourseSectionCard({
     },
   })
 
-  async function handleSave() {
+  function handleSave() {
     const content = editState?.currentContent ?? ''
-    setIsSavingToBackend(true)
-    try {
-      await saveSectionContent(jobId, section.id, content, section.sectionType)
-    } catch {
-      // Network error — still update local state
-    } finally {
-      setIsSavingToBackend(false)
-    }
     saveSection(section.id, content)
+  }
+
+  function commitTitle(newTitle: string) {
+    const saved = newTitle.trim() || section.title
+    updateSectionTitle(section.id, saved)
+    setTitleValue(saved)
+    setIsTitleEditing(false)
   }
 
   // Auto-focus textarea when editing starts
@@ -212,13 +198,21 @@ export function CourseSectionCard({
     if (!isTitleEditing) setTitleValue(section.title)
   }, [section.title, isTitleEditing])
 
+  // Close move menu on Escape
+  useEffect(() => {
+    if (!isMoveMenuOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsMoveMenuOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isMoveMenuOpen])
+
   // Cmd+S / Ctrl+S to save
   useEffect(() => {
     if (!editState?.isEditing) return
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        void handleSave()
+        handleSave()
       }
     }
     document.addEventListener('keydown', handleKeyDown)
@@ -248,21 +242,64 @@ export function CourseSectionCard({
 
   if (!editState) return null
 
+  // Applies an AI operation to every child individually, sequentially.
+  const handleBatchAITrigger = useCallback(
+    async (op: AIOperationType, userPrompt?: string) => {
+      const children = section.children
+      if (children.length === 0) return
+      batchCancelledRef.current = false
+      setBatchProgress({ total: children.length, done: 0 })
+      expandSection(section.id)
+
+      for (let i = 0; i < children.length; i++) {
+        if (batchCancelledRef.current || !isMountedRef.current) break
+        const child = children[i]
+        const childState = sectionEditStates.get(child.id)
+        const childContent = childState?.currentContent ?? child.content
+        setAIProcessing(child.id, op)
+        try {
+          const result = await performAIOperation({
+            jobId,
+            sectionId: child.id,
+            operation: op,
+            content: childContent,
+            userPrompt,
+          })
+          if (isMountedRef.current) {
+            applyAIResult(child.id, result.content)
+          }
+        } catch {
+          if (isMountedRef.current) clearAIOperation(child.id)
+        }
+        if (isMountedRef.current) setBatchProgress({ total: children.length, done: i + 1 })
+      }
+      if (isMountedRef.current) setBatchProgress(null)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [section.children, section.id, jobId, sectionEditStates],
+  )
+
+  const isBatchProcessing = batchProgress !== null
+
   const handleAITrigger = (op: AIOperationType, content: string) => {
+    if (isL1 && hasChildren) {
+      void handleBatchAITrigger(op)
+      return
+    }
     setUndoContent(content)
     setPrevWordCount(content.trim().split(/\s+/).filter(Boolean).length)
     setShowUndoBanner(false)
     triggerOperation({ sectionId: section.id, operation: op, content })
   }
 
-  const hasChildren = section.children.length > 0
-  const isL1 = depth === 0
   const isEditing = editState.isEditing
   const isAIProcessing = editState.isAIProcessing
   const sectionLabel = isL1 ? `Section ${index + 1}` : null
-  // Show Edit/AI only on sections that actually have content to work with.
-  // L1 container headers (no content, only children) stay clean.
-  const showEditControls = editState.currentContent.trim().length > 0 || isEditing || !isL1
+  // Show AI/Edit controls when the section has its own content, is actively being
+  // edited, is a non-L1 (subsections always show), or is an L1 with children
+  // (so the whole-section AI feature is reachable from the parent card).
+  const showEditControls =
+    editState.currentContent.trim().length > 0 || isEditing || !isL1 || hasChildren
 
   return (
     <div
@@ -354,7 +391,7 @@ export function CourseSectionCard({
         {/* Drag handle */}
         <div
           className="flex items-center self-start pt-0.5 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors touch-none shrink-0"
-          onPointerDown={onDragHandlePointerDown}
+          {...(dragHandleProps ?? {})}
           title="Drag to reorder"
           onClick={(e) => e.stopPropagation()}
         >
@@ -376,39 +413,63 @@ export function CourseSectionCard({
         {/* Title + meta */}
         <div className="flex-1 min-w-0">
           {isTitleEditing ? (
-            <input
-              ref={titleInputRef}
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  updateSectionTitle(section.id, titleValue.trim() || section.title)
-                  setIsTitleEditing(false)
-                }
-                if (e.key === 'Escape') {
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    commitTitle(titleValue)
+                  }
+                  if (e.key === 'Escape') {
+                    setTitleValue(section.title)
+                    setIsTitleEditing(false)
+                  }
+                }}
+                onBlur={() => {
+                  commitTitle(titleValue)
+                }}
+                className={cn(
+                  'flex-1 min-w-0 text-slate-900 leading-snug bg-white border border-brand-300 rounded px-1.5 py-0.5 outline-none ring-2 ring-brand-200',
+                  isL1 ? 'text-base font-bold' : 'text-sm font-semibold',
+                )}
+              />
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  // Use mousedown so it fires before the input's onBlur
+                  e.preventDefault()
+                  commitTitle(titleValue)
+                }}
+                className="shrink-0 flex items-center justify-center h-6 w-6 rounded bg-brand-600 text-white hover:bg-brand-700 transition-colors"
+                title="Save title (Enter)"
+              >
+                <Check size={11} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
                   setTitleValue(section.title)
                   setIsTitleEditing(false)
-                }
-              }}
-              onBlur={() => {
-                updateSectionTitle(section.id, titleValue.trim() || section.title)
-                setIsTitleEditing(false)
-              }}
-              className={cn(
-                'w-full text-slate-900 leading-snug bg-white border border-brand-300 rounded px-1.5 py-0.5 outline-none ring-2 ring-brand-200',
-                isL1 ? 'text-base font-bold' : 'text-sm font-semibold',
-              )}
-            />
+                }}
+                className="shrink-0 flex items-center justify-center h-6 w-6 rounded border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors"
+                title="Cancel (Esc)"
+              >
+                <X size={11} />
+              </button>
+            </div>
           ) : (
             <h3
-              onDoubleClick={(e) => {
+              onClick={(e) => {
                 e.stopPropagation()
                 setIsTitleEditing(true)
               }}
-              title="Double-click to edit title"
+              title="Click to edit title"
               className={cn(
-                'text-slate-900 leading-snug cursor-text group/title flex items-center gap-1.5',
+                'text-slate-900 leading-snug cursor-pointer group/title flex items-center gap-1.5',
                 isL1 ? 'text-base font-bold hover:text-brand-700' : 'text-sm font-semibold hover:text-brand-700',
                 'transition-colors',
               )}
@@ -416,7 +477,7 @@ export function CourseSectionCard({
               {section.title}
               <Pencil
                 size={10}
-                className="shrink-0 text-slate-300 opacity-0 group-hover/title:opacity-100 transition-opacity"
+                className="shrink-0 text-slate-400 opacity-0 group-hover/title:opacity-100 transition-opacity"
               />
             </h3>
           )}
@@ -461,32 +522,157 @@ export function CourseSectionCard({
         >
           {!isEditing && (
             <>
-              {/* Delete subtopic (non-L1) */}
+              {/* Delete + Move buttons (non-L1 only) */}
               {!isL1 && (
-                <button
-                  type="button"
-                  onClick={() => deleteSection(section.id)}
-                  className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-all opacity-0 group-hover/card:opacity-100"
-                  title="Delete subtopic"
-                >
-                  <Trash2 size={11} />
-                </button>
-              )}
-              {showEditControls && (
                 <>
                   <button
                     type="button"
-                    onClick={() => startEditing(section.id)}
-                    disabled={isAIProcessing}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    onClick={() => deleteSection(section.id)}
+                    className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg border border-transparent hover:border-red-100 transition-all opacity-0 group-hover/card:opacity-100"
+                    title="Delete subtopic"
                   >
-                    <Pencil size={11} />
-                    Edit
+                    <Trash2 size={11} />
                   </button>
+                  {/* Move to Section — only when other parent sections exist */}
+                  {availableParents.length > 0 && (
+                    <div className="relative">
+                      <button
+                        ref={moveButtonRef}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!isMoveMenuOpen && moveButtonRef.current) {
+                            const rect = moveButtonRef.current.getBoundingClientRect()
+                            const MENU_HEIGHT = Math.min(availableParents.length * 36 + 48, 208)
+                            const fitsBelow = rect.bottom + 4 + MENU_HEIGHT < window.innerHeight
+                            setMoveMenuPos({
+                              top: fitsBelow ? rect.bottom + 4 : rect.top - MENU_HEIGHT - 4,
+                              right: window.innerWidth - rect.right,
+                            })
+                            setMoveFocusIndex(-1)
+                          }
+                          setIsMoveMenuOpen((o) => !o)
+                        }}
+                        className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg border border-transparent hover:border-brand-100 transition-all opacity-0 group-hover/card:opacity-100"
+                        title="Move to another section"
+                      >
+                        <GripVertical size={11} />
+                      </button>
+                      {createPortal(
+                        <>
+                          {isMoveMenuOpen && (
+                            <div
+                              className="fixed inset-0 z-[998]"
+                              onClick={() => setIsMoveMenuOpen(false)}
+                            />
+                          )}
+                          <AnimatePresence>
+                            {isMoveMenuOpen && moveMenuPos && (
+                              <motion.div
+                                key="move-menu"
+                                initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                                transition={{ duration: 0.13, ease: [0.22, 1, 0.36, 1] }}
+                                className="fixed z-[999] w-52 bg-white border border-slate-200/80 rounded-xl shadow-xl overflow-hidden"
+                                style={{ top: moveMenuPos.top, right: moveMenuPos.right }}
+                                onClick={(e) => e.stopPropagation()}
+                                role="menu"
+                                aria-orientation="vertical"
+                                aria-label="Move subtopic to section"
+                              >
+                                {/* Header */}
+                                <div className="px-3 pt-2.5 pb-2 border-b border-slate-100">
+                                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                    Move to section
+                                  </p>
+                                </div>
+                                {/* Section list */}
+                                <div
+                                  className="overflow-y-auto overscroll-contain py-1"
+                                  style={{ maxHeight: '160px' }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'ArrowDown') {
+                                      e.preventDefault()
+                                      setMoveFocusIndex((i) => Math.min(i + 1, availableParents.length - 1))
+                                    } else if (e.key === 'ArrowUp') {
+                                      e.preventDefault()
+                                      setMoveFocusIndex((i) => Math.max(i - 1, 0))
+                                    } else if (e.key === 'Enter' && moveFocusIndex >= 0) {
+                                      const parent = availableParents[moveFocusIndex]
+                                      if (parent) {
+                                        setIsMoveMenuOpen(false)
+                                        moveSubtopicToSection(section.id, parent.id)
+                                      }
+                                    }
+                                  }}
+                                >
+                                  {availableParents.map((parent, i) => {
+                                    const sectionNum = (courseContent?.sections ?? []).findIndex(
+                                      (s) => s.id === parent.id,
+                                    ) + 1
+                                    const isFocused = moveFocusIndex === i
+                                    return (
+                                      <button
+                                        key={parent.id}
+                                        type="button"
+                                        role="menuitem"
+                                        tabIndex={0}
+                                        className={cn(
+                                          'w-full text-left flex items-center gap-2.5 px-3 py-2 text-xs transition-colors outline-none',
+                                          isFocused
+                                            ? 'bg-brand-50 text-brand-700'
+                                            : 'text-slate-700 hover:bg-slate-50',
+                                        )}
+                                        onMouseEnter={() => setMoveFocusIndex(i)}
+                                        onMouseLeave={() => setMoveFocusIndex(-1)}
+                                        onClick={() => {
+                                          setIsMoveMenuOpen(false)
+                                          moveSubtopicToSection(section.id, parent.id)
+                                        }}
+                                      >
+                                        <span className={cn(
+                                          'shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors',
+                                          isFocused
+                                            ? 'bg-brand-100 text-brand-700'
+                                            : 'bg-slate-100 text-slate-500',
+                                        )}>
+                                          {sectionNum}
+                                        </span>
+                                        <span className="truncate font-medium leading-snug">
+                                          {parent.title}
+                                        </span>
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </>,
+                        document.body,
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {showEditControls && (
+                <>
+                  {!(isL1 && hasChildren && !editState.currentContent.trim()) && (
+                    <button
+                      type="button"
+                      onClick={() => startEditing(section.id)}
+                      disabled={isAIProcessing || isBatchProcessing}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    >
+                      <Pencil size={11} />
+                      Edit
+                    </button>
+                  )}
                   <AIToolbar
                     sectionId={section.id}
-                    content={editState.currentContent}
-                    isProcessing={isAIProcessing}
+                    content={aiContent}
+                    isProcessing={isAIProcessing || isBatchProcessing}
                     currentOperation={editState.currentAIOperation}
                     onTrigger={handleAITrigger}
                     onOpenModal={(op) => {
@@ -503,12 +689,11 @@ export function CourseSectionCard({
             <>
               <button
                 type="button"
-                onClick={() => { void handleSave() }}
-                disabled={isSavingToBackend}
+                onClick={handleSave}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors shadow-sm"
               >
                 <Check size={11} />
-                {isSavingToBackend ? 'Saving…' : 'Save'}
+                Save
               </button>
               <button
                 type="button"
@@ -528,12 +713,20 @@ export function CourseSectionCard({
         <AIOperationModal
           operation={modalOp}
           sectionTitle={section.title}
-          currentContent={editState.currentContent}
+          currentContent={aiContent}
           isProcessing={isAIProcessing}
           result={modalResult}
+          batchCount={isL1 && hasChildren ? section.children.length : undefined}
           onConfirm={(userPrompt) => {
             setModalResult(null)
-            modalMutation.mutate({ op: modalOp as AIOperationType, userPrompt })
+            if (isL1 && hasChildren) {
+              // Batch mode: close the modal immediately and process each child
+              isModalOpRef.current = false
+              setModalOp(null)
+              void handleBatchAITrigger(modalOp as AIOperationType, userPrompt)
+            } else {
+              modalMutation.mutate({ op: modalOp as AIOperationType, userPrompt })
+            }
           }}
           onApply={() => {
             if (modalResult) {
@@ -572,6 +765,29 @@ export function CourseSectionCard({
               {/* Divider before content */}
               {(section.content || isEditing || section.sectionType === 'learning-objectives') && (
                 <div className="border-t border-slate-100 mb-3" />
+              )}
+
+              {/* Batch AI progress banner */}
+              {isBatchProcessing && batchProgress && (
+                <div className="flex items-center justify-between gap-3 mb-3 px-3 py-2 rounded-lg bg-brand-50 border border-brand-100 text-xs">
+                  <div className="flex items-center gap-2 text-brand-700">
+                    <Sparkles size={12} className="animate-pulse" />
+                    <span className="font-medium">
+                      Processing subtopic {batchProgress.done + 1} of {batchProgress.total} with AI…
+                    </span>
+                    <span className="text-brand-400 tabular-nums">
+                      ({batchProgress.done}/{batchProgress.total} done)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { batchCancelledRef.current = true }}
+                    className="flex items-center gap-1 text-brand-500 hover:text-brand-700 font-medium transition-colors"
+                  >
+                    <XCircle size={12} />
+                    Cancel
+                  </button>
+                </div>
               )}
 
               {/* Undo banner */}
@@ -672,30 +888,49 @@ export function CourseSectionCard({
                     </p>
                   )}
 
-                  {/* Draggable children — AnimatePresence wraps group, not inside it */}
+                  {/* Draggable children via @hello-pangea/dnd */}
                   {hasChildren && (
-                    <AnimatePresence initial={false} mode="popLayout">
-                      <Reorder.Group
-                        axis="y"
-                        values={localChildIds}
-                        onReorder={handleChildReorder}
-                        as="div"
-                        className="space-y-2"
-                      >
-                        {localChildIds.map((cid, childIndex) => {
-                          const child = childById.get(cid)
-                          if (!child) return null
-                          return (
-                            <DraggableChildItem
-                              key={cid}
-                              child={child}
-                              childIndex={childIndex}
-                              jobId={jobId}
-                            />
-                          )
-                        })}
-                      </Reorder.Group>
-                    </AnimatePresence>
+                    <Droppable droppableId={section.id} type="CHILD">
+                      {(droppableProvided, droppableSnapshot) => (
+                        <div
+                          ref={droppableProvided.innerRef}
+                          {...droppableProvided.droppableProps}
+                          className={cn(
+                            'space-y-2 rounded-lg transition-colors duration-150',
+                            droppableSnapshot.isDraggingOver && 'bg-brand-50/50',
+                          )}
+                        >
+                          {section.children.map((child, childIndex) => (
+                            <Draggable
+                              key={`${child.id}-${childIndex}`}
+                              draggableId={`${child.id}-${childIndex}`}
+                              index={childIndex}
+                            >
+                              {(draggableProvided, draggableSnapshot) => (
+                                <div
+                                  ref={draggableProvided.innerRef as React.Ref<HTMLDivElement>}
+                                  {...draggableProvided.draggableProps}
+                                  style={draggableProvided.draggableProps.style as CSSProperties}
+                                  className={cn(
+                                    'rounded-lg transition-shadow duration-150',
+                                    draggableSnapshot.isDragging && 'shadow-lg ring-2 ring-brand-300',
+                                  )}
+                                >
+                                  <CourseSectionCard
+                                    section={child}
+                                    jobId={jobId}
+                                    depth={1}
+                                    index={childIndex}
+                                    dragHandleProps={draggableProvided.dragHandleProps}
+                                  />
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {droppableProvided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
                   )}
 
                   {/* Add subtopic button */}

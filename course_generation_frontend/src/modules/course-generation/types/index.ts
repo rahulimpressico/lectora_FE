@@ -7,13 +7,14 @@ export type JsonArray = JsonValue[]
 // ─── Workflow ──────────────────────────────────────────────────────────────────
 export type WorkflowPhase =
   | 'welcome'              // wizard welcome screen
-  | 'wizard-basics'        // wizard step 1: course basics
-  | 'wizard-audience'      // wizard step 2: audience
-  | 'wizard-materials'     // wizard step 3: source materials
-  | 'wizard-objectives'    // wizard step 4: learning objectives
-  | 'wizard-direction'     // wizard step 5: course direction
-  | 'wizard-outline-pref'  // wizard step 6: outline preference
-  | 'wizard-outline-review'// wizard step 7: outline review
+  | 'wizard-basics'          // wizard step 1: course basics
+  | 'wizard-required-topics' // wizard step 2: required topics
+  | 'wizard-audience'        // wizard step 3: audience
+  | 'wizard-materials'       // wizard step 4: source materials
+  | 'wizard-objectives'      // wizard step 5: learning objectives
+  | 'wizard-direction'       // wizard step 6: course direction
+  | 'wizard-outline-pref'    // wizard step 7: outline preference
+  | 'wizard-outline-review'  // wizard step 8: outline review
   | 'upload'               // file drop + A0 TO generation
   | 'three-panel'          // review TO / rules, trigger generation
   | 'pipeline'             // A1→S1→A2→S2 processing view
@@ -27,6 +28,8 @@ export type * from './wizard'
 export type UploadStatus = 'idle' | 'uploading' | 'success' | 'error' | 'parsing'
 export type UploadedFileType = 'docx' | 'pdf' | 'json'
 export type IngestionStatus = 'pending' | 'processing' | 'indexed' | 'parsed' | 'failed'
+export type SourceRole = 'primary_source' | 'supporting_source' | 'reference_only'
+export type ImportanceLevel = 'core' | 'supporting' | 'reference_only' | 'ignore'
 
 export interface UploadedFile {
   id: string
@@ -40,9 +43,23 @@ export interface UploadedFile {
   blobPath?: string
   source?: 'system' | 'azure'
   extractHint?: string
-  importance?: 'high' | 'medium' | 'low'
+  sourceRole?: SourceRole
+  importance?: ImportanceLevel
   documentId?: string
   ingestionStatus?: IngestionStatus
+}
+
+// ─── Source analysis ───────────────────────────────────────────────────────────
+export interface SourceAnalysis {
+  sourceName: string
+  sourceRole: SourceRole
+  importance: ImportanceLevel
+  extractHint?: string
+  mainTopics: string[]
+  recommendedCourseUse: string
+  recommendedDepth: string
+  supportsLearningObjectives: string[]
+  ignoreOrReduce: string[]
 }
 
 // ─── Training Outline (TO) ────────────────────────────────────────────────────
@@ -75,6 +92,60 @@ export interface ParsedTO {
   modules: TOModule[]
 }
 
+// ─── S1 Validation types ─────────────────────────────────────────────────────
+export interface S1ValidationIssue {
+  severity: 'blocker' | 'critical' | 'warning' | 'info'
+  field?: string | null
+  message: string
+  section?: string | null
+}
+
+export interface S1Recommendation {
+  priority: 'high' | 'medium' | 'low'
+  action: string
+  rationale?: string
+}
+
+export interface S1MissingTopic {
+  topic: string
+  reason: string
+  suggested_placement?: string | null
+}
+
+export interface S1DependencyIssue {
+  section: string
+  depends_on: string
+  issue: string
+}
+
+/**
+ * Rich S1 validation result — returned by the backend as `s1Validation` in poll
+ * responses (completed jobs) and in failed poll responses (S1 blocked after retries).
+ */
+export interface S1ValidationResult {
+  summary: string
+  overall_score: number
+  coverage_score: number
+  sequence_score: number
+  relevance_score: number
+  completeness_score: number
+  confidence: number
+  status: 'PASS' | 'FAIL'
+  issues: S1ValidationIssue[]
+  recommendations: S1Recommendation[]
+  missing_topics: S1MissingTopic[]
+  duplicates: string[]
+  dependency_issues?: S1DependencyIssue[]
+  retry_required: boolean
+  retry_prompt: string
+  /** Number of blocker-severity issues. */
+  blockers?: number
+  /** Number of critical-severity issues. */
+  criticals?: number
+  /** Number of warning-severity issues. */
+  warnings?: number
+}
+
 // ─── Generate TO API response ─────────────────────────────────────────────────
 export interface GenerateTOResponse {
   to: JsonObject
@@ -82,6 +153,8 @@ export interface GenerateTOResponse {
   /** Blob path of the saved generated-TO JSON file. Pass as timedOutline.blobPath
    *  in POST /jobs so the pipeline reuses this TO instead of re-generating it. */
   toBlobPath?: string
+  /** S1 validation result for the generated TO — present on successful completion. */
+  s1Validation?: S1ValidationResult | JsonObject
 }
 
 /** HTTP 202 from POST /documents/generate-to (async mode). */
@@ -90,6 +163,15 @@ export interface GenerateTOJobAccepted {
   status: string
   message: string
   pollUrl: string
+}
+
+/** A single log entry from the generate-to polling response. */
+export interface GenerateTOStageLog {
+  id: number
+  level: string
+  message: string
+  stage?: string | null
+  ts?: number
 }
 
 /** GET /documents/generate-to/jobs/{jobId} */
@@ -101,6 +183,14 @@ export interface GenerateTOJobPollResponse {
   to?: JsonObject
   rules?: JsonObject
   toBlobPath?: string
+  /**
+   * S1 validation result.
+   * - On `completed`: full a1-phase validation (PASS result with scores).
+   * - On `failed` (S1 blocked): partial to-only validation with the block details.
+   */
+  s1Validation?: S1ValidationResult | JsonObject
+  /** Backend stage logs — used by TOGenerationLoader to track A0 / S1 / A1 progress. */
+  logs?: GenerateTOStageLog[]
 }
 
 // ─── Rule pack ────────────────────────────────────────────────────────────────
@@ -152,7 +242,7 @@ export interface JobDetail {
 export interface SourceFileSpec {
   blobPath: string
   extractHint?: string
-  importance?: 'high' | 'medium' | 'low'
+  importance?: ImportanceLevel
 }
 
 export interface GenerateCoursePayload {
@@ -170,8 +260,6 @@ export interface GenerateCoursePayload {
   sourceFileSpecs?: SourceFileSpec[]
   /** Target audience — mandatory, drives content calibration throughout the pipeline. */
   audience: string
-  /** Optional special instructions from the user, injected into A2 generation prompts. */
-  specialInstructions?: string
   /** Onboarding wizard fields forwarded to A2 for dynamic prompt construction. */
   courseConfig?: {
     /** User-provided title — single source of truth, never overwritten by LLM. */

@@ -3,6 +3,8 @@ import { devtools, persist } from 'zustand/middleware'
 import { deepSet, deepGet } from '../utils/deepUpdate'
 import { calcWordCount, WORDS_PER_CREDIT_HOUR } from '../utils/courseConfig'
 import type {
+  S1ValidationResult,
+  SourceAnalysis,
   UploadedFile,
   WorkflowPhase,
   JsonObject,
@@ -69,8 +71,6 @@ interface CourseState {
 
   /** Target audience for the course — mandatory before generating a TO or course. */
   audience: string
-  /** Optional special instructions the user provides before final course generation. */
-  specialInstructions: string
   /** Course title — initialized from TO generation, editable by user. */
   courseTitle: string
   /** Rule family key detected by A0 (e.g. "insurance_ce"). Editable by user. */
@@ -80,6 +80,29 @@ interface CourseState {
   /** Structured data collected by the Course Setup Wizard steps. */
   wizardData: WizardData
 
+  // ── Source analysis ──────────────────────────────────────────────────────────
+  /**
+   * Per-document source analysis results computed when the user clicks
+   * "Next: Objectives" on the Materials step.
+   * Persisted to localStorage so they survive page refresh.
+   * Passed to POST /documents/generate-to as sourceAnalyses.
+   */
+  sourceAnalyses: SourceAnalysis[]
+  /**
+   * Cache key for the current sourceAnalyses — a sorted JSON string of each
+   * document's {blobPath, sourceRole, importance}. Used to skip re-calling
+   * the analyze-source API when the user navigates back and forward.
+   */
+  sourceAnalysesCacheKey: string | null
+
+  // ── S1 validation result (TO generation) ─────────────────────────────────────
+  /**
+   * S1 validation result from the most recent TO-generation run.
+   * Persisted so the three-panel view can show a quality badge after navigation.
+   * Cleared on reset.
+   */
+  toS1Validation: S1ValidationResult | null
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
@@ -87,7 +110,6 @@ interface CourseState {
   setCustomToPrompt: (prompt: string) => void
   setCourseTypeHint: (hint: string) => void
   setAudience: (audience: string) => void
-  setSpecialInstructions: (instructions: string) => void
   setDetectedRuleFamily: (family: string) => void
   setDurationHours: (hours: number | null) => void
   setDifficultyLevel: (level: string | null) => void
@@ -111,6 +133,8 @@ interface CourseState {
   resetRulesField: (path: string[]) => void
 
   setWizardData: (patch: Partial<WizardData>) => void
+  setSourceAnalyses: (analyses: SourceAnalysis[], cacheKey?: string) => void
+  setToS1Validation: (result: S1ValidationResult | null) => void
 
   setToDocument: (file: UploadedFile | null) => void
   setActiveJob: (job: JobResponse | null) => void
@@ -416,13 +440,15 @@ const initialState = {
   audience:             '',
   courseId:             '',
   courseTitle:          '',
-  specialInstructions:  '',
   detectedRuleFamily:   '',
   toDocument:           null as UploadedFile | null,
   wizardData:           { ...DEFAULT_WIZARD_DATA } as WizardData,
   durationHours:        null as number | null,
   difficultyLevel:      null as string | null,
   calculatedWordCount:  null as number | null,
+  sourceAnalyses:            [] as SourceAnalysis[],
+  sourceAnalysesCacheKey:    null as string | null,
+  toS1Validation:            null as S1ValidationResult | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -438,13 +464,16 @@ export const useCourseStore = create<CourseState>()(
         setCustomToPrompt: (prompt) => set({ customToPrompt: prompt }),
         setCourseTypeHint: (hint) => set({ courseTypeHint: hint }),
         setAudience: (audience) => set({ audience }),
-        setSpecialInstructions: (instructions) => set({ specialInstructions: instructions }),
         setDetectedRuleFamily: (family) => set({ detectedRuleFamily: family }),
         setCourseId: (courseId) => set({ courseId }),
         setCourseTitle: (courseTitle) => set({ courseTitle }),
 
         setWizardData: (patch) =>
           set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
+
+        setSourceAnalyses: (analyses, cacheKey) => set({ sourceAnalyses: analyses, sourceAnalysesCacheKey: cacheKey ?? null }),
+
+        setToS1Validation: (result) => set({ toS1Validation: result }),
 
         setDurationHours: (hours) =>
           set((s) => {
@@ -615,6 +644,7 @@ export const useCourseStore = create<CourseState>()(
             durationHours:      null,
             difficultyLevel:    null,
             calculatedWordCount: null,
+            toS1Validation:     null,
           }),
       }),
       {
@@ -644,7 +674,6 @@ export const useCourseStore = create<CourseState>()(
             uploadFolder:        s.uploadFolder,
             customToPrompt:      s.customToPrompt,
             detectedRuleFamily:  s.detectedRuleFamily,
-            specialInstructions: s.specialInstructions,
             wizardData:          s.wizardData,
             // Uploaded source documents (metadata only — no File object)
             rawDocuments:        persistedDocs,
@@ -654,6 +683,9 @@ export const useCourseStore = create<CourseState>()(
             rulesData:           s.rulesData,
             rulesOriginal:       s.rulesOriginal,
             generatedToBlobPath: s.generatedToBlobPath,
+            // Source analysis results (computed at Materials step Next time)
+            sourceAnalyses:           s.sourceAnalyses,
+            sourceAnalysesCacheKey:   s.sourceAnalysesCacheKey,
           }
 
           // Pipeline / editor: also include the active job ID so SSE can
