@@ -20,21 +20,20 @@ export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => 
     toData,
     toOriginal,
     setTOData,
-    courseTopic,
     difficultyLevel,
-    setCourseTopic,
     setDifficultyLevel,
+    courseTypeHint,
   } = useCourseStore()
 
   const [currentStep, setCurrentStep] = useState(0)
 
-  // Deep-copy TO JSON and seed topic / difficulty from the store if absent
   const [localTO, setLocalTO] = useState<JsonObject>(() => {
     const copy = JSON.parse(JSON.stringify(toData ?? {})) as JsonObject
-    const hasTopicKey = 'topic' in copy || 'course_topic' in copy || 'subject' in copy
-    if (!hasTopicKey && courseTopic) copy.topic = courseTopic
     const hasDiffKey = 'difficulty' in copy || 'difficulty_level' in copy
     if (!hasDiffKey && difficultyLevel) copy.difficulty = difficultyLevel
+    if (courseTypeHint.trim()) copy.course_type = courseTypeHint.trim()
+    delete copy.topic
+    delete copy.category
     return copy
   })
 
@@ -59,10 +58,6 @@ export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => 
     if (isLastStep) {
       setTOData(localTO, toOriginal ?? localTO)
 
-      const topicKey = detectKey(localTO, 'topic', 'course_topic', 'subject')
-      const topicVal = getStr(localTO, topicKey)
-      if (topicVal) setCourseTopic(topicVal)
-
       const diffKey = detectKey(localTO, 'difficulty', 'difficulty_level')
       const diffVal = getStr(localTO, diffKey)
       if (diffVal) setDifficultyLevel(diffVal)
@@ -71,7 +66,7 @@ export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => 
     } else {
       setCurrentStep((s) => s + 1)
     }
-  }, [isLastStep, localTO, toOriginal, setTOData, setCourseTopic, setDifficultyLevel, onClose])
+  }, [isLastStep, localTO, toOriginal, setTOData, setDifficultyLevel, onClose])
 
   const handleBack = useCallback(() => {
     if (isFirstStep) {

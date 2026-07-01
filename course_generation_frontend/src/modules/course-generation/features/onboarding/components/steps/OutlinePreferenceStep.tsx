@@ -1,6 +1,6 @@
 import type { ChangeEvent, DragEvent } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles, Upload, Wand2, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AlertCircle, CheckCircle2, FileJson, Loader2, RefreshCw, Sparkles, Upload, Wand2, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
@@ -9,7 +9,7 @@ import { useWizardNav } from '../WizardNavContext'
 import { AIGenerationLoader } from '../AIGenerationLoader'
 import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
-import type { WizardData } from '../../../../types/wizard'
+import type { JsonObject } from '../../../../types'
 import { suggestOutlineStructure } from '@/api/course-generation/api'
 
 // ---------------------------------------------------------------------------
@@ -50,40 +50,17 @@ const fileItemVariant = {
 
 // ---------------------------------------------------------------------------
 
-function buildCompositePrompt(data: WizardData, audience: string): string {
-  const parts: string[] = []
-
-  if (data.description) parts.push(`Course description: ${data.description}`)
-  if (audience) parts.push(`Target audience: ${audience}`)
-  if (data.audienceNotes) parts.push(`Audience notes: ${data.audienceNotes}`)
-  if (data.experienceLevel) parts.push(`Learner experience level: ${data.experienceLevel}`)
-  if (data.learnerOutcomes) parts.push(`Learner outcomes: ${data.learnerOutcomes}`)
-  if (data.objectives.length > 0) {
-    parts.push(`Learning objectives:\n${data.objectives.map((o) => `- ${o}`).join('\n')}`)
-  }
-  if (data.tone) parts.push(`Desired tone: ${data.tone}`)
-  if (data.depth) parts.push(`Course depth: ${data.depth}`)
-  if (data.emphasis) parts.push(`Emphasize: ${data.emphasis}`)
-  if (data.avoid) parts.push(`Avoid: ${data.avoid}`)
-  if (!data.includeScenarios) parts.push('Do not include scenarios or examples.')
-  if (!data.includeKnowledgeChecks) parts.push('Do not include knowledge checks.')
-  if (data.sourceNotes) parts.push(`Source notes: ${data.sourceNotes}`)
-  if (data.lessonStyle === 'short') parts.push('Lesson style: short, focused sections.')
-  if (data.lessonStyle === 'detailed') parts.push('Lesson style: detailed, comprehensive chapters.')
-  if (data.preferredChapters) parts.push(`Preferred number of chapters: ${data.preferredChapters}`)
-
-  return parts.join('\n\n')
-}
-
 export const OutlinePreferenceStep = () => {
-  const setCustomToPrompt = useCourseStore((s) => s.setCustomToPrompt)
   const audience = useCourseStore((s) => s.audience)
   const wizardData = useCourseStore((s) => s.wizardData)
   const setWizardData = useCourseStore((s) => s.setWizardData)
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
   const toData = useCourseStore((s) => s.toData)
+  const setTOData = useCourseStore((s) => s.setTOData)
   const setPhase = useCourseStore((s) => s.setPhase)
+  const durationHours = useCourseStore((s) => s.durationHours)
+  const difficultyLevel = useCourseStore((s) => s.difficultyLevel)
 
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
@@ -101,8 +78,39 @@ export const OutlinePreferenceStep = () => {
 
   // Snapshot the IDs already in the store when this step mounts so we can
   // distinguish outline files uploaded here from source files added in step 3.
-  const priorDocIds = useRef<Set<string>>(new Set(rawDocuments.map((f) => f.id)))
-  const outlineFiles = rawDocuments.filter((f) => !priorDocIds.current.has(f.id))
+  const [priorDocIds] = useState(() => new Set(rawDocuments.map((f) => f.id)))
+  const outlineFiles = rawDocuments.filter((f) => !priorDocIds.has(f.id))
+
+  // ── Case 3: client-side JSON parsing ──────────────────────────────────────
+  const [parsedJsonTO, setParsedJsonTO] = useState<JsonObject | null>(null)
+  const [jsonParseError, setJsonParseError] = useState<string | null>(null)
+
+  const readJsonFiles = useCallback((files: FileList | File[]) => {
+    for (const file of Array.from(files)) {
+      if (file.name.toLowerCase().endsWith('.json')) {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const text = e.target?.result as string
+            const parsed = JSON.parse(text) as unknown
+            if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+              throw new Error('JSON must be an object, not an array or primitive value.')
+            }
+            setParsedJsonTO(parsed as JsonObject)
+            setJsonParseError(null)
+          } catch (err) {
+            setParsedJsonTO(null)
+            setJsonParseError(err instanceof Error ? err.message : 'Invalid JSON file.')
+          }
+        }
+        reader.onerror = () => {
+          setParsedJsonTO(null)
+          setJsonParseError('Failed to read the JSON file.')
+        }
+        reader.readAsText(file)
+      }
+    }
+  }, [])
 
   const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestReasoning, setSuggestReasoning] = useState<string | null>(null)
@@ -123,32 +131,79 @@ export const OutlinePreferenceStep = () => {
           onNext: () => setPhase('wizard-outline-review'),
         })
       } else {
+        // Case 1: generate from source — duration + difficulty required
+        const canGenerate = !generateTO.isPending && !!durationHours && !!difficultyLevel
         setConfig({
           backPhase: 'wizard-direction',
           backLabel: 'Back',
           nextLabel: generateTO.isPending ? 'Generating...' : 'Generate Outline',
           isNextLoading: generateTO.isPending,
-          isNextDisabled: generateTO.isPending,
+          isNextDisabled: !canGenerate,
           onNext: () => {
-            if (!generateTO.isPending) {
-              const composite = buildCompositePrompt(wizardData, audience)
-              setCustomToPrompt(composite)
+            if (canGenerate) {
               generateTO.mutate()
             }
           },
         })
       }
     } else {
-      const hasOutlineFile = outlineFiles.some((f) => f.status === 'success')
-      setConfig({
-        backPhase: 'wizard-direction',
-        backLabel: 'Back',
-        nextPhase: 'wizard-outline-review',
-        nextLabel: 'Review Outline',
-        isNextDisabled: !hasOutlineFile,
-      })
+      // Upload mode — determine which sub-case applies based on file type
+      const jsonOutlineFile = outlineFiles.find(
+        (f) => f.status === 'success' && f.name.toLowerCase().endsWith('.json'),
+      )
+      const docOutlineFile = outlineFiles.find(
+        (f) =>
+          f.status === 'success' &&
+          (f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.pdf')),
+      )
+
+      if (jsonOutlineFile) {
+        // Case 3: JSON upload — load parsed content client-side, no LLM call
+        const canLoad = !!parsedJsonTO && !jsonParseError
+        setConfig({
+          backPhase: 'wizard-direction',
+          backLabel: 'Back',
+          nextLabel: 'Load Outline',
+          isNextDisabled: !canLoad,
+          onNext: canLoad
+            ? () => {
+                setTOData(parsedJsonTO, parsedJsonTO)
+                setPhase('wizard-outline-review')
+              }
+            : undefined,
+        })
+      } else if (docOutlineFile) {
+        // Case 2: DOCX/PDF upload — extract TO via API using GENERATE_TO_PROMPT
+        setConfig({
+          backPhase: 'wizard-direction',
+          backLabel: 'Back',
+          nextLabel: generateTO.isPending ? 'Extracting...' : 'Extract Outline',
+          isNextLoading: generateTO.isPending,
+          isNextDisabled: generateTO.isPending,
+          onNext: () => {
+            if (!generateTO.isPending && docOutlineFile.blobPath) {
+              generateTO.mutate({
+                outlineBlobPaths: [docOutlineFile.blobPath],
+                useStaticPrompt: true,
+              })
+            }
+          },
+        })
+      } else {
+        // No valid outline file yet
+        setConfig({
+          backPhase: 'wizard-direction',
+          backLabel: 'Back',
+          nextLabel: 'Review Outline',
+          isNextDisabled: true,
+        })
+      }
     }
-  }, [outlineMode, hasExistingTO, generateTO.isPending, outlineFiles, wizardData, audience, setConfig, setCustomToPrompt, setPhase, generateTO])
+  }, [
+    outlineMode, hasExistingTO, generateTO.isPending, outlineFiles, wizardData, audience,
+    setConfig, setPhase, generateTO, durationHours, difficultyLevel,
+    parsedJsonTO, jsonParseError, setTOData,
+  ])
 
   const handleSuggestStructure = () => {
     setIsSuggesting(true)
@@ -188,11 +243,17 @@ export const OutlinePreferenceStep = () => {
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    if (e.dataTransfer.files.length > 0) void enqueueFiles(e.dataTransfer.files)
+    if (e.dataTransfer.files.length > 0) {
+      readJsonFiles(e.dataTransfer.files)
+      void enqueueFiles(e.dataTransfer.files)
+    }
   }
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) void enqueueFiles(e.target.files)
+    if (e.target.files && e.target.files.length > 0) {
+      readJsonFiles(e.target.files)
+      void enqueueFiles(e.target.files)
+    }
     e.target.value = ''
   }
 
@@ -422,11 +483,7 @@ export const OutlinePreferenceStep = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={() => {
-                      const composite = buildCompositePrompt(wizardData, audience)
-                      setCustomToPrompt(composite)
-                      generateTO.mutate()
-                    }}
+                    onClick={() => generateTO.mutate()}
                     disabled={generateTO.isPending}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -501,34 +558,72 @@ export const OutlinePreferenceStep = () => {
             {outlineFiles.length > 0 && (
               <div className="space-y-2">
                 <AnimatePresence initial={false}>
-                  {outlineFiles.map((file) => (
-                    <motion.div
-                      key={file.id}
-                      variants={fileItemVariant}
-                      initial="hidden"
-                      animate="show"
-                      exit="exit"
-                      layout
-                      style={{ willChange: 'transform' }}
-                      className="flex items-center gap-3 p-3 bg-white border border-border rounded-xl"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
-                        <p className="text-xs text-slate-400">{formatBytes(file.sizeBytes)}</p>
-                      </div>
-                      <motion.button
-                        type="button"
-                        onClick={() => removeRawDocument(file.id)}
-                        whileHover={{ scale: 1.15 }}
-                        whileTap={{ scale: 0.9 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                        className="shrink-0 p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
+                  {outlineFiles.map((file) => {
+                    const isJson = file.name.toLowerCase().endsWith('.json')
+                    return (
+                      <motion.div
+                        key={file.id}
+                        variants={fileItemVariant}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                        layout
+                        style={{ willChange: 'transform' }}
+                        className="flex items-center gap-3 p-3 bg-white border border-border rounded-xl"
                       >
-                        <X className="w-4 h-4" />
-                      </motion.button>
-                    </motion.div>
-                  ))}
+                        {isJson && (
+                          <FileJson className="w-4 h-4 shrink-0 text-indigo-400" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{file.name}</p>
+                          <p className="text-xs text-slate-400">{formatBytes(file.sizeBytes)}</p>
+                        </div>
+                        <motion.button
+                          type="button"
+                          onClick={() => removeRawDocument(file.id)}
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                          className="shrink-0 p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
+                        >
+                          <X className="w-4 h-4" />
+                        </motion.button>
+                      </motion.div>
+                    )
+                  })}
                 </AnimatePresence>
+
+                {/* JSON parse error */}
+                {jsonParseError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{jsonParseError}</span>
+                  </div>
+                )}
+
+                {/* JSON parsed successfully */}
+                {parsedJsonTO && !jsonParseError && outlineFiles.some((f) => f.name.toLowerCase().endsWith('.json')) && (
+                  <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>JSON parsed — click <strong>Load Outline</strong> to use this outline directly.</span>
+                  </div>
+                )}
+
+                {/* DOCX/PDF extraction hint */}
+                {!outlineFiles.some((f) => f.name.toLowerCase().endsWith('.json')) &&
+                  outlineFiles.some((f) => f.status === 'success') && (
+                  <p className="text-xs text-slate-500 pl-1">
+                    Click <strong>Extract Outline</strong> to extract your outline structure using AI.
+                  </p>
+                )}
+
+                {/* API error from Case 2 extraction */}
+                {generateTO.isError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{generateTO.error?.message ?? 'Extraction failed. Please try again.'}</span>
+                  </div>
+                )}
               </div>
             )}
           </motion.div>

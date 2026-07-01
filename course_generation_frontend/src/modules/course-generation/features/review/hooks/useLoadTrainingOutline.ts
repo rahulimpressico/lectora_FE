@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { loadTrainingOutlineFromPath } from '@/api/course-generation/api'
 import { loadJobTrainingOutline } from '@/api/jobs/api'
 import { useCourseStore } from '../../../store/courseStore'
+import { normalizeTrainingOutlineForPanel } from '../utils/trainingOutlinePanel'
 import type { JsonObject } from '../../../types'
 
 /**
@@ -20,6 +21,8 @@ export function useLoadTrainingOutline() {
     setDetectedRuleFamily,
   } = useCourseStore()
 
+  const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,7 +38,8 @@ export function useLoadTrainingOutline() {
         if (generatedToBlobPath) {
           const { to, rules } = await loadTrainingOutlineFromPath(generatedToBlobPath, 'uploads')
           if (cancelled) return
-          setTOData(to as JsonObject, to as JsonObject)
+          const normalizedTo = normalizeTrainingOutlineForPanel(to as JsonObject, courseTypeHint)
+          setTOData(normalizedTo, normalizedTo)
           setRulesData(rules as JsonObject, rules as JsonObject)
           if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name)
           if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family)
@@ -45,7 +49,8 @@ export function useLoadTrainingOutline() {
         if (activeJobId) {
           const { to, rules } = await loadJobTrainingOutline(activeJobId)
           if (cancelled) return
-          setTOData(to as JsonObject, to as JsonObject)
+          const normalizedTo = normalizeTrainingOutlineForPanel(to as JsonObject, courseTypeHint)
+          setTOData(normalizedTo, normalizedTo)
           setRulesData(rules as JsonObject, rules as JsonObject)
           if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name as string)
           if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family as string)
@@ -75,6 +80,7 @@ export function useLoadTrainingOutline() {
     setRulesData,
     setCourseTitle,
     setDetectedRuleFamily,
+    courseTypeHint,
   ])
 
   return { loading: loading && !toData, error: toData ? null : error }

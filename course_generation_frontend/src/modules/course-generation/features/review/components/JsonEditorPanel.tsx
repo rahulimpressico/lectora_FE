@@ -19,6 +19,8 @@ interface JsonEditorPanelProps {
   loadError?: string | null
   emptyMessage?: string
   tooltips?: Record<string, string>
+  hiddenKeys?: Set<string>
+  readOnlyKeys?: Set<string>
   headerActions?: React.ReactNode
 }
 
@@ -37,6 +39,8 @@ export function JsonEditorPanel({
   loadError = null,
   emptyMessage = 'No data available yet.',
   tooltips,
+  hiddenKeys,
+  readOnlyKeys,
   headerActions,
 }: JsonEditorPanelProps) {
   const dirtyCount = modifiedPaths.size
@@ -102,6 +106,8 @@ export function JsonEditorPanel({
             onUpdate={onUpdate}
             onReset={onReset}
             tooltips={tooltips}
+            hiddenKeys={hiddenKeys}
+            readOnlyKeys={readOnlyKeys}
           />
         )}
       </div>

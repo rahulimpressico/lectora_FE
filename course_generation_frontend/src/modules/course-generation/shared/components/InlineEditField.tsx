@@ -17,6 +17,7 @@ interface InlineEditFieldProps {
   isDirty?: boolean
   keyLabel: string
   tooltip?: string
+  readOnly?: boolean
 }
 
 function formatDisplayValue(v: JsonPrimitive): string {
@@ -64,6 +65,7 @@ export function InlineEditField({
   isDirty = false,
   keyLabel,
   tooltip,
+  readOnly = false,
 }: InlineEditFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState(formatDisplayValue(value))
@@ -212,6 +214,12 @@ export function InlineEditField({
                 </span>
               </p>
             )}
+          </div>
+        ) : readOnly ? (
+          <div className="flex w-full items-center gap-2 text-left min-h-[28px]">
+            <div className="flex-1 min-w-0">
+              <ValueChip value={value} />
+            </div>
           </div>
         ) : (
           /* View mode */

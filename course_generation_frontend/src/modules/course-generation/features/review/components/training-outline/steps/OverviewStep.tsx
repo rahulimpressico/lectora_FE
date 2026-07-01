@@ -1,4 +1,4 @@
-import { Tag, BarChart2, Hash, Timer, Award } from 'lucide-react'
+import { BarChart2, Hash, Timer, Award } from 'lucide-react'
 import { DIFFICULTY_OPTIONS, INPUT_CLS } from '../constants'
 import {
   detectKey,
@@ -34,7 +34,6 @@ const MetricDisplay = ({ icon: Icon, label, value, unit }: MetricDisplayProps) =
 export const OverviewStep = ({ localTO, onChange }: OverviewStepProps) => {
   const nameKey       = detectKey(localTO, 'course_name', 'courseTitle', 'name')
   const descKey       = detectKey(localTO, 'description', 'course_description', 'overview')
-  const topicKey      = detectKey(localTO, 'topic', 'course_topic', 'subject')
   const difficultyKey = detectKey(localTO, 'difficulty', 'difficulty_level')
 
   const wcField  = resolveTotalsField(localTO, 'word_count')
@@ -79,24 +78,6 @@ export const OverviewStep = ({ localTO, onChange }: OverviewStepProps) => {
           onChange={(e) => onChange([descKey], e.target.value)}
           placeholder="Describe the course content and purpose…"
           className={`${INPUT_CLS} resize-none`}
-        />
-      </div>
-
-      {/* Topic — editable */}
-      <div>
-        <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mb-1">
-          <Tag size={13} className="text-slate-400 shrink-0" />
-          Topic
-        </label>
-        <p className="text-xs text-slate-500 mb-2 leading-relaxed">
-          The primary subject area of this course.
-        </p>
-        <input
-          type="text"
-          value={getStr(localTO, topicKey)}
-          onChange={(e) => onChange([topicKey], e.target.value)}
-          placeholder="e.g. Insurance Regulations, Risk Management…"
-          className={INPUT_CLS}
         />
       </div>
 
