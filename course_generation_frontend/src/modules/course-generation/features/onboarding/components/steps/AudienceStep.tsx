@@ -50,11 +50,6 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const } },
 }
 
-const fadeIn = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { duration: 0.3 } },
-}
-
 const scaleIn = {
   hidden: { opacity: 0, scale: 0.94 },
   show: { opacity: 1, scale: 1, transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const } },
@@ -78,7 +73,6 @@ export const AudienceStep = () => {
 
   const experienceLevel = wizardData.experienceLevel ?? ''
   const learnerOutcomes = wizardData.learnerOutcomes ?? ''
-  const audienceNotes = wizardData.audienceNotes ?? ''
   const selectedAudiences = wizardData.selectedAudiences ?? []
 
   const toggleAudiencePill = (pill: string) => {
@@ -225,21 +219,6 @@ export const AudienceStep = () => {
           <span className="font-medium text-slate-500">Examples: </span>
           Identify benefit triggers and eligibility criteria · Compare policy types and cost structures · Apply suitability analysis to client scenarios · Explain regulatory requirements and disclosure obligations
         </p>
-      </motion.div>
-
-      {/* Audience Notes */}
-      <motion.div className="space-y-1.5" variants={fadeIn} style={{ willChange: 'transform' }}>
-        <label className="block text-sm font-medium text-slate-700">
-          Additional Learner Context
-          <span className="text-slate-400 font-normal ml-1">(optional)</span>
-        </label>
-        <textarea
-          rows={4}
-          value={audienceNotes}
-          onChange={(e) => setWizardData({ audienceNotes: e.target.value })}
-          placeholder="Add any special learner considerations, such as industry background, assumed prior knowledge, regulatory sensitivity."
-          className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
-        />
       </motion.div>
     </motion.div>
   )
