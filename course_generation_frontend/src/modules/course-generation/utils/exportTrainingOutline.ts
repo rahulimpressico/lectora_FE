@@ -7,9 +7,9 @@ import {
   PageBreak,
   Paragraph,
   TextRun,
-  WidthType,
   convertInchesToTwip,
 } from 'docx'
+import type { IParagraphOptions, IRunOptions } from 'docx'
 import type { JsonObject, JsonValue } from '../types'
 
 export interface TOExportOptions {
@@ -30,14 +30,6 @@ const COLOR_GRAY = '64748b'
 const COLOR_DARK = '0f172a'
 const COLOR_RULE = 'e2e8f0'
 const COLOR_MUTED = '94a3b8'
-
-// Numeric / metadata keys to skip when rendering section text content
-const SKIP_KEYS = new Set([
-  'word_count', 'words', 'minutes', 'duration_minutes', 'duration',
-  'credit_hours', 'credit_hour', 'id', 'key', 'order', 'index',
-  'seq', 'sequence', 'rule_family', 'course_name',
-  'total_word_count', 'total_minutes', 'total_credit_hours',
-])
 
 // Array keys that contain nested outline child items (objects)
 const CHILD_OBJECT_ARRAY_KEYS = new Set([
@@ -98,8 +90,8 @@ function slugToFilename(title: string): string {
 
 function p(
   text: string,
-  runOpts: Omit<Parameters<typeof TextRun>[0], 'text'> = {},
-  paraOpts: Omit<Parameters<typeof Paragraph>[0], 'children' | 'text'> = {},
+  runOpts: Omit<IRunOptions, 'text'> = {},
+  paraOpts: Omit<IParagraphOptions, 'children'> = {},
 ): Paragraph {
   return new Paragraph({
     children: [new TextRun({ text, font: FONT, ...runOpts })],

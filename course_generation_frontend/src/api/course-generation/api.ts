@@ -254,6 +254,8 @@ export interface SuggestRequiredTopicsBody {
   targetAudience?: string
   skillLevel?: string
   learnerOutcomes?: string
+  regenerationPrompt?: string
+  currentTopics?: string[]
 }
 
 export interface RTValidationIssue {
