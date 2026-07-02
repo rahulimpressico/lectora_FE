@@ -30,7 +30,6 @@ import { useFileUpload } from "../hooks/useFileUpload";
 import { useGenerateTO } from "../hooks/useGenerateTO";
 import { uploadDocument } from "@/api/course-generation/api";
 import { TOGenerationLoader } from "./TOGenerationLoader";
-import { S1BlockedPanel } from "./S1BlockedPanel";
 import { InlineAzureBrowser } from "./InlineAzureBrowser";
 import { DIFFICULTY_MULTIPLIERS, calcWordCount } from "../../../utils/courseConfig";
 
@@ -507,17 +506,6 @@ export function UploadPhase() {
                     </div>
                   )}
                   {generateTO.isError && (
-                    generateTO.s1Validation &&
-                    (generateTO.s1Validation.issues?.length > 0 || generateTO.s1Validation.overall_score > 0) ? (
-                      <S1BlockedPanel
-                        errorMessage={
-                          generateTO.error instanceof Error
-                            ? generateTO.error.message
-                            : "S1 Validator blocked the Training Outline."
-                        }
-                        validation={generateTO.s1Validation}
-                      />
-                    ) : (
                       <div className="flex items-start gap-3 rounded-xl border border-red-200/80 bg-red-50/50 px-4 py-3">
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-100 border border-red-200 mt-0.5">
                           <AlertCircle size={13} className="text-red-500" />
@@ -533,7 +521,6 @@ export function UploadPhase() {
                           </p>
                         </div>
                       </div>
-                    )
                   )}
                 </div>
               )}

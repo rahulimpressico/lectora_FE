@@ -8,7 +8,7 @@ import {
 import { ApiClientError } from '@/api/errors'
 import { useCourseStore } from '../../../store/courseStore'
 import { TO_TASKS_QUERY_KEY } from './useToTasks'
-import type { GenerateTOResponse, GenerateTOStageLog, S1ValidationResult, WorkflowPhase } from '../../../types'
+import type { GenerateTOResponse, GenerateTOStageLog, WorkflowPhase } from '../../../types'
 import type { JsonObject } from '../../../types'
 import { normalizeTrainingOutlineForPanel } from '../../review/utils/trainingOutlinePanel'
 
@@ -22,6 +22,39 @@ import { normalizeTrainingOutlineForPanel } from '../../review/utils/trainingOut
 export type GenerateTOOverrides = {
   outlineBlobPaths?: string[]
   useStaticPrompt?: boolean
+}
+
+const GENERIC_TO_ERROR =
+  'Training Outline generation could not be completed. Please try again.'
+
+function userFacingGenerateToError(message: string): string {
+  const trimmed = message.trim()
+  if (!trimmed) return GENERIC_TO_ERROR
+  if (
+    /^s1 failed/i.test(trimmed) ||
+    /blockers?\s*=|warnings?\s*=/i.test(trimmed) ||
+    (/section\s+\d+/i.test(trimmed) &&
+      /(subtopic|objective|compressed|learning|outline)/i.test(trimmed))
+  ) {
+    return GENERIC_TO_ERROR
+  }
+  return trimmed
+}
+
+function userFacingStatusMessage(message: string): string {
+  const trimmed = message.trim()
+  if (!trimmed) return trimmed
+  if (
+    /^s1 failed/i.test(trimmed) ||
+    /blockers?\s*=|warnings?\s*=/i.test(trimmed) ||
+    /s1 requires refinement/i.test(trimmed)
+  ) {
+    return 'Checking outline quality…'
+  }
+  if (/s1_refine|polish|repair/i.test(trimmed)) {
+    return 'Polishing outline structure…'
+  }
+  return trimmed
 }
 
 // Maps the display label from CourseBasicsStep chips to the backend rule-family key.
@@ -64,7 +97,6 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     setGeneratedToBlobPath,
     setCourseTitle,
     setDetectedRuleFamily,
-    setToS1Validation,
   } = useCourseStore()
   const successPhaseRef = useRef(successPhase)
   successPhaseRef.current = successPhase
@@ -90,20 +122,15 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
   // Latest status message from the backend (drives loader step text)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
-  // S1 validation result — available on success (quality scores) or failure (block details)
-  const [s1Validation, setS1Validation] = useState<S1ValidationResult | null>(null)
-
   // ── Result processor ───────────────────────────────────────────────────────
 
   const applyResult = useCallback(
-    ({ to, rules, toBlobPath, s1Validation: resultS1 }: GenerateTOResponse) => {
+    ({ to, rules, toBlobPath }: GenerateTOResponse) => {
       const { courseTypeHint } = useCourseStore.getState()
       const normalizedTo = normalizeTrainingOutlineForPanel(to as JsonObject, courseTypeHint)
       setTOData(normalizedTo, normalizedTo)
       setRulesData(rules as JsonObject, rules as JsonObject)
       setGeneratedToBlobPath(toBlobPath ?? null)
-      // Persist S1 validation result so the three-panel view can show a quality badge.
-      if (resultS1) setToS1Validation(resultS1 as S1ValidationResult)
       const existingTitle = useCourseStore.getState().courseTitle
       if (!existingTitle.trim() && typeof to.course_name === 'string' && to.course_name) {
         setCourseTitle(to.course_name as string)
@@ -117,7 +144,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
       useCourseStore.getState().setActiveJobId(null)
       setPhase(successPhaseRef.current)
     },
-    [setTOData, setRulesData, setGeneratedToBlobPath, setToS1Validation, setCourseTitle, setDetectedRuleFamily, setPhase],
+    [setTOData, setRulesData, setGeneratedToBlobPath, setCourseTitle, setDetectedRuleFamily, setPhase],
   )
 
   // ── Phase 1: fire POST → get jobId (or sync result) ───────────────────────
@@ -141,6 +168,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         calculatedWordCount,
         audience,
         courseTitle,
+        courseTopic,
       } = useCourseStore.getState()
 
       const successDocs = rawDocuments.filter((f) => f.status === 'success' && f.blobPath)
@@ -193,6 +221,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         // User-provided title and description — single source of truth.
         // Sent as separate fields so the backend can override LLM output verbatim.
         ...(courseTitle.trim() && { courseTitle: courseTitle.trim() }),
+        ...(courseTopic.trim() && { courseTopic: courseTopic.trim() }),
         ...(wizardData.description.trim() && { courseDescription: wizardData.description.trim() }),
         // Only include difficulty fields when values are actually set.
         ...(difficulty && { difficulty, difficultyLevel: difficulty }),
@@ -267,11 +296,9 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     const poll = pollQuery.data
     if (!poll || !activeJobId) return
 
-    if (poll.message) setStatusMessage(poll.message)
+    if (poll.message) setStatusMessage(userFacingStatusMessage(poll.message))
 
     if (poll.status === 'completed') {
-      // Capture S1 validation quality data from a successful run.
-      if (poll.s1Validation) setS1Validation(poll.s1Validation as S1ValidationResult)
       if (poll.to && poll.rules) {
         applyResult({
           to: poll.to as JsonObject,
@@ -284,9 +311,11 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
       setActiveJobId(null)
       void qc.invalidateQueries({ queryKey: TO_TASKS_QUERY_KEY })
     } else if (poll.status === 'failed') {
-      // Capture S1 validation block details when the job fails (S1 blocked).
-      if (poll.s1Validation) setS1Validation(poll.s1Validation as S1ValidationResult)
-      setJobError(new Error(poll.error ?? poll.message ?? 'TO generation failed.'))
+      setJobError(
+        new Error(
+          userFacingGenerateToError(poll.error ?? poll.message ?? 'TO generation failed.'),
+        ),
+      )
       setActiveJobId(null)
       void qc.invalidateQueries({ queryKey: TO_TASKS_QUERY_KEY })
     } else if (poll.status === 'cancelled') {
@@ -332,7 +361,6 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     startMutation.reset()
     setJobError(null)
     setStatusMessage(null)
-    setS1Validation(null)
   }
 
   // ── Derived state ──────────────────────────────────────────────────────────
@@ -359,12 +387,5 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     activeJobId,
     /** Raw backend TO-generation logs (includes stage ids like A0/S1/A1). */
     stageLogs,
-    /**
-     * S1 validation result.
-     * - On success: quality scores from the completed A1-phase validation.
-     * - On failure (S1 blocked): block details with issue list and retry prompt.
-     * - null while in-progress or not yet started.
-     */
-    s1Validation,
   }
 }

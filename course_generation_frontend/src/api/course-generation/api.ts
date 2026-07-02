@@ -213,37 +213,6 @@ export async function generateLearningObjectives(
   return data
 }
 
-// ─── Course type suggestion ───────────────────────────────────────────────────
-
-export interface SuggestCourseTypeBody {
-  courseTitle?: string
-  courseDescription?: string
-  targetAudience?: string
-  learningObjectives?: string[]
-}
-
-export interface SuggestCourseTypeResult {
-  ruleFamily: string        // e.g. "insurance_ce"
-  ruleFamilyLabel: string   // e.g. "Insurance CE"
-  confidence: number
-  reasoning: string
-}
-
-/**
- * AI-suggest the best rule family / course type from wizard metadata.
- * Only call when the user explicitly clicks "Suggested by AI" — never auto-trigger.
- */
-export async function suggestCourseType(
-  body: SuggestCourseTypeBody,
-): Promise<SuggestCourseTypeResult> {
-  const { data } = await apiClient.post<SuggestCourseTypeResult>(
-    '/documents/suggest-course-type',
-    body,
-    { timeout: 30_000 },
-  )
-  return data
-}
-
 // ─── Required topics suggestion ───────────────────────────────────────────────
 
 export interface SuggestRequiredTopicsBody {
