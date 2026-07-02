@@ -6,7 +6,7 @@ import { AIGenerationLoader } from '../AIGenerationLoader'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
 import { useWizardNav } from '../WizardNavContext'
-import { exportTrainingOutlineToDocx } from '../../../../utils/exportTrainingOutline'
+import { exportTrainingOutlineToDocx, stripLeadingNumberPrefix } from '../../../../utils/exportTrainingOutline'
 import type { JsonObject } from '../../../../types'
 
 // ── Animation variants ─────────────────────────────────────────────────────
@@ -45,11 +45,11 @@ function getSections(toData: JsonObject): JsonObject[] {
 }
 
 function getSectionTitle(section: JsonObject): string {
-  return (
+  const raw =
     (section.title as string | undefined) ??
     (section.name as string | undefined) ??
     'Untitled Section'
-  )
+  return stripLeadingNumberPrefix(raw) || raw
 }
 
 function getSectionMeta(section: JsonObject): string {

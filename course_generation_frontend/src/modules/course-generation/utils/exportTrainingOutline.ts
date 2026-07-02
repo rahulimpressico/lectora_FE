@@ -86,6 +86,13 @@ function slugToFilename(title: string): string {
     .slice(0, 120)
 }
 
+const LEADING_NUMBER_PREFIX_RE = /^\s*\d+(?:\.\d+)*[\s.:)\-]*/
+
+/** Strip leading outline numbering (e.g. "0. Intro" or "1.0 Intro" → "Intro"). */
+export function stripLeadingNumberPrefix(title: string): string {
+  return title.replace(LEADING_NUMBER_PREFIX_RE, '').trim()
+}
+
 // ─── Primitive paragraph builders ─────────────────────────────────────────────
 
 function p(
@@ -262,7 +269,8 @@ function renderTopic(topic: JsonObject, level: (typeof HeadingLevel)[keyof typeo
 
 function renderSection(section: JsonObject, index: number): Paragraph[] {
   const out: Paragraph[] = []
-  const title = getTitle(section)
+  const rawTitle = getTitle(section)
+  const title = stripLeadingNumberPrefix(rawTitle) || rawTitle
 
   out.push(
     new Paragraph({
