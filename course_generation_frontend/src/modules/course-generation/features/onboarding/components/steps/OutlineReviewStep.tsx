@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertCircle, BookOpen, Clock, RefreshCw } from 'lucide-react'
+import { AlertCircle, BookOpen, Clock, Download, Loader2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { AIGenerationLoader } from '../AIGenerationLoader'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
 import { useWizardNav } from '../WizardNavContext'
+import { exportTrainingOutlineToDocx } from '../../../../utils/exportTrainingOutline'
 import type { JsonObject } from '../../../../types'
 
 // ── Animation variants ─────────────────────────────────────────────────────
@@ -68,9 +69,14 @@ export const OutlineReviewStep = () => {
   const setPhase = useCourseStore((s) => s.setPhase)
   const toData = useCourseStore((s) => s.toData)
   const courseTitle = useCourseStore((s) => s.courseTitle)
+  const audience = useCourseStore((s) => s.audience)
+  const difficultyLevel = useCourseStore((s) => s.difficultyLevel)
+  const durationHours = useCourseStore((s) => s.durationHours)
+  const wizardData = useCourseStore((s) => s.wizardData)
   const generateTO = useGenerateTO()
 
   const [editNote, setEditNote] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   const { setConfig } = useWizardNav()
 
@@ -104,6 +110,26 @@ export const OutlineReviewStep = () => {
 
   const handleRegenerate = () => {
     generateTO.mutate()
+  }
+
+  const handleDownload = async () => {
+    if (!toData || downloading) return
+    setDownloading(true)
+    try {
+      await exportTrainingOutlineToDocx(toData, {
+        courseTitle,
+        ruleFamily: (toData.rule_family as string | undefined) ?? '',
+        audience,
+        difficultyLevel,
+        durationHours,
+        description: wizardData.description || '',
+        objectives: wizardData.objectives.length > 0 ? wizardData.objectives : undefined,
+      })
+    } catch (err) {
+      console.error('Failed to generate Training Outline DOCX:', err)
+    } finally {
+      setDownloading(false)
+    }
   }
 
   // ── Loading state ──────────────────────────────────────────────────────
@@ -259,6 +285,23 @@ export const OutlineReviewStep = () => {
           style={{ willChange: 'transform' }}
         >
           Edit Outline
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={() => void handleDownload()}
+          disabled={downloading}
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          className="flex-1 py-2.5 px-4 border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ willChange: 'transform' }}
+        >
+          {downloading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          {downloading ? 'Generating…' : 'Download TO'}
         </motion.button>
         <motion.button
           type="button"
