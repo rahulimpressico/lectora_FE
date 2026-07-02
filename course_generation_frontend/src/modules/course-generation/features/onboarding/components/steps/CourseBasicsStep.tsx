@@ -95,7 +95,7 @@ export const CourseBasicsStep = () => {
         courseTitle:        courseTitle.trim() || undefined,
         courseDescription:  description.trim()  || undefined,
         targetAudience:     audience.trim()      || undefined,
-        learningObjectives: wizardData.objectives.length > 0
+        learningObjectives: (wizardData?.objectives ?? []).length > 0
           ? wizardData.objectives
           : undefined,
       })

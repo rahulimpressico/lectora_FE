@@ -491,7 +491,7 @@ export const CoursePreviewPanel = () => {
                 ))}
               </div>
               <p className="text-xs text-slate-400 text-center italic pt-3">
-                Module list appears after outline generation
+                Module list appears after structure generation
               </p>
             </div>
           )}

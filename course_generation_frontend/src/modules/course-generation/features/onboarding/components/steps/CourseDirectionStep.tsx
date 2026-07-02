@@ -171,7 +171,9 @@ export const CourseDirectionStep = () => {
   const depth = wizardData.depth ?? 'balanced'
   const emphasis = wizardData.emphasis ?? ''
   const avoid = wizardData.avoid ?? ''
-  const includeScenarios = wizardData.includeScenarios ?? true
+  const legacyIncludeScenarios = wizardData.includeScenarios
+  const includeCaseStudies = wizardData.includeCaseStudies ?? legacyIncludeScenarios ?? true
+  const includeExamples = wizardData.includeExamples ?? legacyIncludeScenarios ?? true
   const includeKnowledgeChecks = wizardData.includeKnowledgeChecks ?? true
 
   const { setConfig } = useWizardNav()
@@ -181,7 +183,7 @@ export const CourseDirectionStep = () => {
       backPhase: 'wizard-objectives',
       backLabel: 'Back',
       nextPhase: 'wizard-outline-pref',
-      nextLabel: 'Next: Outline Preference',
+      nextLabel: 'Next: Course Structure',
       isNextDisabled: false,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,12 +333,31 @@ export const CourseDirectionStep = () => {
       >
         <AnimatePresence>
           <ToggleSwitch
-            checked={includeScenarios}
-            onChange={(v) => setWizardData({ includeScenarios: v })}
-            label="Include Scenarios and Examples"
-            description="Bring concepts to life with practical examples"
+            key="include-case-studies"
+            checked={includeCaseStudies}
+            onChange={(v) =>
+              setWizardData({
+                includeCaseStudies: v,
+                includeScenarios: v || includeExamples,
+              })
+            }
+            label="Include Case Studies"
+            description="Show practical learner situations with context and decisions"
           />
           <ToggleSwitch
+            key="include-examples"
+            checked={includeExamples}
+            onChange={(v) =>
+              setWizardData({
+                includeExamples: v,
+                includeScenarios: includeCaseStudies || v,
+              })
+            }
+            label="Include Examples"
+            description="Clarify concepts with simple, concrete illustrations"
+          />
+          <ToggleSwitch
+            key="include-knowledge-checks"
             checked={includeKnowledgeChecks}
             onChange={(v) => setWizardData({ includeKnowledgeChecks: v })}
             label="Include Knowledge Checks"

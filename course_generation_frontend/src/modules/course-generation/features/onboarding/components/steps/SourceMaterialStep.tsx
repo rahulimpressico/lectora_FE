@@ -10,6 +10,10 @@ import { analyzeSource } from '@/api/course-generation/api'
 import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
 import type { IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
+import {
+  createDocxFilesFromPastedSources,
+  type PastedSourceDefinition,
+} from '../../utils/pastedSourceFiles'
 
 /** Build a deterministic cache key from the current set of analyzable docs. */
 function buildAnalysisCacheKey(docs: Array<{ blobPath: string; sourceRole?: SourceRole; extractHint?: string }>): string {
@@ -108,9 +112,15 @@ export const SourceMaterialStep = () => {
   const existingAnalyses = useCourseStore((s) => s.sourceAnalyses)
   const { enqueueFiles, enqueueAzureFiles } = useFileUpload()
   const [isDragging, setIsDragging] = useState(false)
-  const [sourceMode, setSourceMode] = useState<'upload' | 'azure'>('upload')
+  const [sourceMode, setSourceMode] = useState<'upload' | 'azure' | 'paste'>('upload')
   const [isAnalysing, setIsAnalysing] = useState(false)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [pasteFilename, setPasteFilename] = useState('')
+  const [pasteContent, setPasteContent] = useState('')
+  const [pendingPastedFiles, setPendingPastedFiles] = useState<PastedSourceDefinition[]>([])
+  const [pasteError, setPasteError] = useState<string | null>(null)
+  const [pasteStatus, setPasteStatus] = useState<string | null>(null)
+  const [isCreatingPastedFiles, setIsCreatingPastedFiles] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const successDocs = rawDocuments.filter((d) => d.status === 'success')
@@ -221,6 +231,63 @@ export const SourceMaterialStep = () => {
     e.target.value = ''
   }
 
+  const handleAddPastedFile = () => {
+    setPasteError(null)
+    setPasteStatus(null)
+
+    try {
+      const normalizedFilename = pasteFilename.trim()
+      const normalizedContent = pasteContent.trim()
+
+      if (!normalizedFilename) {
+        throw new Error('Enter a file name before adding a pasted source.')
+      }
+
+      if (!normalizedContent) {
+        throw new Error('Paste source content before adding a file.')
+      }
+
+      const definition: PastedSourceDefinition = {
+        filename: normalizedFilename.toLowerCase().endsWith('.docx')
+          ? normalizedFilename
+          : `${normalizedFilename}.docx`,
+        content: normalizedContent,
+      }
+
+      setPendingPastedFiles((current) => [...current, definition])
+      setPasteFilename('')
+      setPasteContent('')
+      setPasteStatus(`Added ${definition.filename} to the queue.`)
+    } catch (error) {
+      setPasteError(error instanceof Error ? error.message : 'Failed to prepare pasted file.')
+    }
+  }
+
+  const handleCreateFilesFromPaste = async () => {
+    setPasteError(null)
+    setPasteStatus(null)
+    setIsCreatingPastedFiles(true)
+
+    try {
+      if (pendingPastedFiles.length === 0) {
+        throw new Error('Add at least one file to the queue before creating files.')
+      }
+
+      const files = await createDocxFilesFromPastedSources(pendingPastedFiles)
+      await enqueueFiles(files)
+      setPasteStatus(
+        pendingPastedFiles.length === 1
+          ? `Created and queued ${pendingPastedFiles[0].filename} for upload.`
+          : `Created and queued ${pendingPastedFiles.length} files for upload.`,
+      )
+      setPendingPastedFiles([])
+    } catch (error) {
+      setPasteError(error instanceof Error ? error.message : 'Failed to create files from pasted content.')
+    } finally {
+      setIsCreatingPastedFiles(false)
+    }
+  }
+
   return (
     <motion.div
       className="space-y-5 sm:space-y-6"
@@ -279,6 +346,22 @@ export const SourceMaterialStep = () => {
         >
           <Cloud className="w-4 h-4" />
           Select from Azure Storage
+        </motion.button>
+        <motion.button
+          type="button"
+          onClick={() => setSourceMode("paste")}
+          whileHover={sourceMode !== "paste" ? { opacity: 0.8 } : {}}
+          whileTap={{ scale: 0.97 }}
+          style={{ willChange: "transform" }}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all",
+            sourceMode === "paste"
+              ? "bg-white text-indigo-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700",
+          )}
+        >
+          <Database className="w-4 h-4" />
+          Paste as Files
         </motion.button>
       </motion.div>
 
@@ -340,6 +423,167 @@ export const SourceMaterialStep = () => {
                 onChange={handleInputChange}
               />
             </motion.div>
+          </motion.div>
+        ) : sourceMode === "paste" ? (
+          <motion.div
+            key="paste-panel"
+            variants={fadeIn}
+            initial="hidden"
+            animate="show"
+            exit="hidden"
+            className="rounded-xl border border-slate-200 bg-white p-5 space-y-4"
+          >
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-slate-800">Create source files from pasted content</h3>
+              <p className="text-xs text-slate-500">
+                Add one file at a time: enter a file name, paste its content, click <span className="font-semibold text-slate-700">Add file</span>, then repeat. When all files are queued, click <span className="font-semibold text-slate-700">Create queued files</span>.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600">File name for a single pasted source</label>
+              <input
+                type="text"
+                value={pasteFilename}
+                onChange={(e) => setPasteFilename(e.target.value)}
+                placeholder="e.g. employer-health-plans.docx"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400/20"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600">Pasted content</label>
+              <textarea
+                rows={10}
+                value={pasteContent}
+                onChange={(e) => setPasteContent(e.target.value)}
+                placeholder={[
+                  'Paste the content for this file here.',
+                  '',
+                  'Example:',
+                  'Employer-sponsored health plans help employers provide structured health coverage to employees and dependents.',
+                  'These plans vary by network design, cost sharing, and compliance requirements.',
+                ].join('\n')}
+                className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400/20 resize-y min-h-[220px]"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Each pasted entry becomes a real <span className="font-mono">.docx</span> source file and then uploads through the normal materials flow.
+              </p>
+              <motion.button
+                type="button"
+                onClick={handleAddPastedFile}
+                whileTap={{ scale: 0.97 }}
+                style={{ willChange: 'transform' }}
+                className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <Upload className="w-4 h-4" />
+                Add file
+              </motion.button>
+            </div>
+
+            {pendingPastedFiles.length > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Queued files</p>
+                    <p className="text-xs text-slate-500">{pendingPastedFiles.length} file(s) ready to create</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingPastedFiles([])
+                      setPasteStatus(null)
+                      setPasteError(null)
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                  >
+                    Clear queue
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {pendingPastedFiles.map((file, index) => (
+                    <div
+                      key={`${file.filename}-${index}`}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800">{file.filename}</p>
+                        <p className="text-xs text-slate-500">
+                          {file.content.length.toLocaleString()} characters
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingPastedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                        }
+                        className="shrink-0 p-1 text-slate-400 hover:text-red-500 transition-colors"
+                        aria-label={`Remove ${file.filename}`}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end">
+                  <motion.button
+                    type="button"
+                    onClick={() => void handleCreateFilesFromPaste()}
+                    whileTap={{ scale: 0.97 }}
+                    style={{ willChange: 'transform' }}
+                    disabled={isCreatingPastedFiles}
+                    className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isCreatingPastedFiles ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Create queued files
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            ) : null}
+
+            <AnimatePresence>
+              {pasteError ? (
+                <motion.div
+                  key="paste-error"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{pasteError}</span>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {pasteStatus ? (
+                <motion.div
+                  key="paste-status"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{pasteStatus}</span>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </motion.div>
         ) : (
           <motion.div

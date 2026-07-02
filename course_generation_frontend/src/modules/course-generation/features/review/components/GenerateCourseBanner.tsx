@@ -35,6 +35,8 @@ export const GenerateCourseBanner = () => {
   const studyGuideFile = successFiles[0]
   const timedOutlineFile = successFiles[1]
   const timedOutlineBlobPath = timedOutlineFile?.blobPath ?? generatedToBlobPath ?? undefined
+  const includeCaseStudies = wizardData.includeCaseStudies ?? wizardData.includeScenarios ?? true
+  const includeExamples = wizardData.includeExamples ?? wizardData.includeScenarios ?? true
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
     mutationFn: () =>
@@ -69,7 +71,7 @@ export const GenerateCourseBanner = () => {
           ...(wizardData.depth ? { depth: wizardData.depth } : {}),
           ...(wizardData.emphasis.trim() ? { emphasis: wizardData.emphasis.trim() } : {}),
           ...(wizardData.avoid.trim() ? { avoid: wizardData.avoid.trim() } : {}),
-          includeScenarios: wizardData.includeScenarios,
+          includeScenarios: includeCaseStudies || includeExamples,
           includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
         },
       }),

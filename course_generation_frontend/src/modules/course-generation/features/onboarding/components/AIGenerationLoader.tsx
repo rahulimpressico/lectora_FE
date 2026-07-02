@@ -93,7 +93,7 @@ export function AIGenerationLoader({ onCancel, statusMessage }: AIGenerationLoad
           background: 'rgba(241,245,249,0.72)',
         }}
         aria-modal="true"
-        aria-label="Generating training outline"
+        aria-label="Generating course structure"
         aria-busy="true"
       >
         {/* ── Glass card ──────────────────────────────────────────────────── */}
@@ -132,7 +132,7 @@ export function AIGenerationLoader({ onCancel, statusMessage }: AIGenerationLoad
                 }}
               />
               <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', letterSpacing: '-0.01em' }}>
-                Generating Course Outline
+                Generating Course Structure
               </span>
             </div>
 
