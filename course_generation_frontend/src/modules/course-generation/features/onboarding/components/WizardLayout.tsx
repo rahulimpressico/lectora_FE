@@ -21,7 +21,7 @@ const WIZARD_STEPS: WizardStep[] = [
   { id: 'wizard-materials', label: 'Materials' },
   { id: 'wizard-objectives', label: 'Objectives' },
   { id: 'wizard-direction', label: 'Direction' },
-  { id: 'wizard-outline-pref', label: 'Outline' },
+  { id: 'wizard-outline-pref', label: 'Structure' },
   { id: 'wizard-outline-review', label: 'Review' },
 ]
 

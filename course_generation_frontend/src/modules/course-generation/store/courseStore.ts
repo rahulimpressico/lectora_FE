@@ -103,6 +103,15 @@ interface CourseState {
    */
   toS1Validation: S1ValidationResult | null
 
+  /** True when LO text changed after the last outline was generated. */
+  outlineStaleFromLo: boolean
+  /** True when pasted outline text changed after the last outline was generated. */
+  outlineStaleFromPaste: boolean
+  /** Snapshot of objectives when outline was last synced/generated. */
+  objectivesAtLastOutlineSync: string[] | null
+  /** Snapshot of pasted outline text when outline was last synced/generated. */
+  outlinePasteTextAtLastSync: string | null
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   setPhase: (phase: WorkflowPhase) => void
   setCourseTopic: (topic: string) => void
@@ -141,6 +150,10 @@ interface CourseState {
   setActiveJobId: (id: string | null) => void
   setActiveTOJobId: (id: string | null) => void
   setGeneratedToBlobPath: (path: string | null) => void
+  markOutlineStaleFromObjectivesChange: (nextObjectives: string[]) => boolean
+  markOutlineStaleFromPasteChange: (nextPasteText: string) => boolean
+  clearOutlineStale: () => void
+  syncOutlineObjectives: (objectives: string[]) => void
   reset: () => void
 }
 
@@ -449,6 +462,10 @@ const initialState = {
   sourceAnalyses:            [] as SourceAnalysis[],
   sourceAnalysesCacheKey:    null as string | null,
   toS1Validation:            null as S1ValidationResult | null,
+  outlineStaleFromLo:        false,
+  outlineStaleFromPaste:     false,
+  objectivesAtLastOutlineSync: null as string[] | null,
+  outlinePasteTextAtLastSync: null as string | null,
 }
 
 export const useCourseStore = create<CourseState>()(
@@ -469,7 +486,16 @@ export const useCourseStore = create<CourseState>()(
         setCourseTitle: (courseTitle) => set({ courseTitle }),
 
         setWizardData: (patch) =>
-          set((s) => ({ wizardData: { ...s.wizardData, ...patch } })),
+          set((s) => ({
+            wizardData: {
+              ...DEFAULT_WIZARD_DATA,
+              ...s.wizardData,
+              ...patch,
+              ...(patch.objectives !== undefined && !Array.isArray(patch.objectives)
+                ? { objectives: [] }
+                : {}),
+            },
+          })),
 
         setSourceAnalyses: (analyses, cacheKey) => set({ sourceAnalyses: analyses, sourceAnalysesCacheKey: cacheKey ?? null }),
 
@@ -516,11 +542,15 @@ export const useCourseStore = create<CourseState>()(
 
         // ── TO ────────────────────────────────────────────────────────────────
         setTOData: (data, original) =>
-          set({
-            toData:          data,
-            toOriginal:      original ?? data,
-            modifiedTOPaths: new Set(),
-          }),
+          set((s) => ({
+            toData:                    data,
+            toOriginal:                original ?? data,
+            modifiedTOPaths:           new Set(),
+            outlineStaleFromLo:        false,
+            outlineStaleFromPaste:     false,
+            objectivesAtLastOutlineSync: [...s.wizardData.objectives],
+            outlinePasteTextAtLastSync: s.wizardData.outlinePasteText?.trim() || null,
+          })),
 
         updateTOField: (path, value) =>
           set((s) => {
@@ -635,6 +665,93 @@ export const useCourseStore = create<CourseState>()(
 
         setGeneratedToBlobPath: (path) => set({ generatedToBlobPath: path }),
 
+        markOutlineStaleFromObjectivesChange: (nextObjectives) => {
+          let invalidated = false
+          set((s) => {
+            if (!s.toData) return s
+
+            const snapshot = s.objectivesAtLastOutlineSync ?? s.wizardData.objectives
+            const changed =
+              snapshot.length !== nextObjectives.length ||
+              snapshot.some((item, index) => item.trim() !== (nextObjectives[index] ?? '').trim())
+
+            if (!changed) return s
+
+            invalidated = true
+            return {
+              toData:              null,
+              toOriginal:          null,
+              generatedToBlobPath: null,
+              toS1Validation:      null,
+              modifiedTOPaths:     new Set<string>(),
+              outlineStaleFromLo:  true,
+            }
+          })
+          return invalidated
+        },
+
+        markOutlineStaleFromPasteChange: (nextPasteText) => {
+          let invalidated = false
+          set((s) => {
+            const normalizedNext = nextPasteText.trim()
+            const snapshot = s.outlinePasteTextAtLastSync
+
+            if (snapshot === null) {
+              if (s.toData && normalizedNext) {
+                invalidated = true
+                return {
+                  toData:              null,
+                  toOriginal:          null,
+                  generatedToBlobPath: null,
+                  toS1Validation:      null,
+                  modifiedTOPaths:     new Set<string>(),
+                  outlineStaleFromPaste: true,
+                }
+              }
+              return { outlinePasteTextAtLastSync: normalizedNext }
+            }
+
+            if (snapshot === normalizedNext) return s
+
+            if (!s.toData) {
+              return { outlinePasteTextAtLastSync: normalizedNext }
+            }
+
+            invalidated = true
+            return {
+              toData:              null,
+              toOriginal:          null,
+              generatedToBlobPath: null,
+              toS1Validation:      null,
+              modifiedTOPaths:     new Set<string>(),
+              outlineStaleFromPaste: true,
+            }
+          })
+          return invalidated
+        },
+
+        clearOutlineStale: () => set({ outlineStaleFromLo: false, outlineStaleFromPaste: false }),
+
+        syncOutlineObjectives: (objectives) =>
+          set((s) => {
+            if (!s.toData || objectives.length === 0) return s
+
+            const existing = s.toData.learning_objectives ?? s.toData.learningObjectives
+            const existingList = Array.isArray(existing) ? (existing as string[]) : []
+            const unchanged =
+              existingList.length === objectives.length &&
+              existingList.every((item, index) => item.trim() === (objectives[index] ?? '').trim())
+
+            if (unchanged) return s
+
+            return {
+              toData: {
+                ...s.toData,
+                learning_objectives: [...objectives],
+              },
+            }
+          }),
+
         reset: () =>
           set({
             ...initialState,
@@ -645,6 +762,10 @@ export const useCourseStore = create<CourseState>()(
             difficultyLevel:    null,
             calculatedWordCount: null,
             toS1Validation:     null,
+            outlineStaleFromLo: false,
+            outlineStaleFromPaste: false,
+            objectivesAtLastOutlineSync: null,
+            outlinePasteTextAtLastSync: null,
           }),
       }),
       {
@@ -683,6 +804,10 @@ export const useCourseStore = create<CourseState>()(
             rulesData:           s.rulesData,
             rulesOriginal:       s.rulesOriginal,
             generatedToBlobPath: s.generatedToBlobPath,
+            outlineStaleFromLo:  s.outlineStaleFromLo,
+            outlineStaleFromPaste: s.outlineStaleFromPaste,
+            objectivesAtLastOutlineSync: s.objectivesAtLastOutlineSync,
+            outlinePasteTextAtLastSync: s.outlinePasteTextAtLastSync,
             // Source analysis results (computed at Materials step Next time)
             sourceAnalyses:           s.sourceAnalyses,
             sourceAnalysesCacheKey:   s.sourceAnalysesCacheKey,
@@ -703,6 +828,16 @@ export const useCourseStore = create<CourseState>()(
           }
 
           return base
+        },
+        merge: (persisted, current) => {
+          const p = persisted as Partial<typeof current>
+          return {
+            ...current,
+            ...p,
+            wizardData: { ...DEFAULT_WIZARD_DATA, ...(p.wizardData ?? {}) },
+            sourceAnalyses: Array.isArray(p.sourceAnalyses) ? p.sourceAnalyses : [],
+            rawDocuments: Array.isArray(p.rawDocuments) ? p.rawDocuments : current.rawDocuments,
+          }
         },
       },
     ),

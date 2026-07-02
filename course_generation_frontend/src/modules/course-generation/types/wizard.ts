@@ -15,8 +15,11 @@ export interface WizardData {
   emphasis: string
   avoid: string
   includeScenarios: boolean
+  includeCaseStudies: boolean
+  includeExamples: boolean
   includeKnowledgeChecks: boolean
-  outlineMode: 'upload' | 'generate' | null
+  outlineMode: 'upload' | 'generate' | 'paste' | null
+  outlinePasteText: string
   preferredChapters: string
   lessonStyle: 'short' | 'detailed'
 }
@@ -36,8 +39,11 @@ export const DEFAULT_WIZARD_DATA: WizardData = {
   emphasis: '',
   avoid: '',
   includeScenarios: true,
+  includeCaseStudies: true,
+  includeExamples: true,
   includeKnowledgeChecks: true,
   outlineMode: 'generate',
+  outlinePasteText: '',
   preferredChapters: '',
   lessonStyle: 'short',
 }

@@ -154,8 +154,14 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         )
       }
 
+      const { wizardData } = useCourseStore.getState()
+      const pastedOutlineText =
+        wizardData.outlineMode === 'paste' ? wizardData.outlinePasteText.trim() : ''
+
       const toDocBlobPath =
-        toDocument?.status === 'success' && toDocument.blobPath
+        !pastedOutlineText &&
+        toDocument?.status === 'success' &&
+        toDocument.blobPath
           ? toDocument.blobPath
           : undefined
 
@@ -170,7 +176,8 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         [metadataContext, customToPrompt.trim() || null].filter(Boolean).join('\n\n') ||
         undefined
 
-      const { wizardData } = useCourseStore.getState()
+      const includeCaseStudies = wizardData.includeCaseStudies ?? wizardData.includeScenarios ?? true
+      const includeExamples = wizardData.includeExamples ?? wizardData.includeScenarios ?? true
       const body: Record<string, unknown> = {
         blobPaths,
         // User-provided title and description — single source of truth.
@@ -182,6 +189,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         ...(effectiveCustomPrompt && { customToPrompt: effectiveCustomPrompt }),
         ...(courseTypeHint.trim() && { courseTypeHint: courseTypeHint.trim() }),
         ...(toDocBlobPath && { toDocBlobPath }),
+        ...(pastedOutlineText && { outlineText: pastedOutlineText }),
         // Send the exact user-selected values — no ?? fallbacks.
         ...(durationHours != null && { durationHours }),
         ...(calculatedWordCount != null && { calculatedWordCount }),
@@ -199,7 +207,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         ...(wizardData.emphasis.trim() && { emphasis: wizardData.emphasis.trim() }),
         ...(wizardData.avoid.trim() && { avoid: wizardData.avoid.trim() }),
         // Instructional design flags (always send when wizard has been visited)
-        includeScenarios: wizardData.includeScenarios,
+        includeScenarios: includeCaseStudies || includeExamples,
         includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
         // Outline structure
         ...(wizardData.preferredChapters && { preferredChapters: parseInt(wizardData.preferredChapters, 10) || undefined }),
