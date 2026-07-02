@@ -14,7 +14,8 @@ export interface WizardData {
   depth: 'overview' | 'balanced' | 'detailed'
   emphasis: string
   avoid: string
-  includeScenarios: boolean
+  includeCaseStudy: boolean
+  includeExamples: boolean
   includeKnowledgeChecks: boolean
   outlineMode: 'upload' | 'generate' | null
   preferredChapters: string
@@ -35,7 +36,8 @@ export const DEFAULT_WIZARD_DATA: WizardData = {
   depth: 'balanced',
   emphasis: '',
   avoid: '',
-  includeScenarios: true,
+  includeCaseStudy: true,
+  includeExamples: true,
   includeKnowledgeChecks: true,
   outlineMode: 'generate',
   preferredChapters: '',

@@ -275,6 +275,7 @@ export interface GenerateCoursePayload {
     emphasis?: string
     avoid?: string
     includeScenarios?: boolean
+    includeExamples?: boolean
     includeKnowledgeChecks?: boolean
   }
 }
