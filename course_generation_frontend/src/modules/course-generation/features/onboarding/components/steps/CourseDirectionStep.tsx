@@ -171,7 +171,8 @@ export const CourseDirectionStep = () => {
   const depth = wizardData.depth ?? 'balanced'
   const emphasis = wizardData.emphasis ?? ''
   const avoid = wizardData.avoid ?? ''
-  const includeScenarios = wizardData.includeScenarios ?? true
+  const includeCaseStudy = wizardData.includeCaseStudy ?? true
+  const includeExamples = wizardData.includeExamples ?? true
   const includeKnowledgeChecks = wizardData.includeKnowledgeChecks ?? true
 
   const { setConfig } = useWizardNav()
@@ -331,9 +332,15 @@ export const CourseDirectionStep = () => {
       >
         <AnimatePresence>
           <ToggleSwitch
-            checked={includeScenarios}
-            onChange={(v) => setWizardData({ includeScenarios: v })}
-            label="Include Scenarios and Examples"
+            checked={includeCaseStudy}
+            onChange={(v) => setWizardData({ includeCaseStudy: v })}
+            label="Include Case Study"
+            description="Use realistic case studies to illustrate key concepts"
+          />
+          <ToggleSwitch
+            checked={includeExamples}
+            onChange={(v) => setWizardData({ includeExamples: v })}
+            label="Include Examples"
             description="Bring concepts to life with practical examples"
           />
           <ToggleSwitch
