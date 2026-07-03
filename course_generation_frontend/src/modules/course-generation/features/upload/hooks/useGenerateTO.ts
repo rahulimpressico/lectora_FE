@@ -8,27 +8,61 @@ import {
 import { ApiClientError } from '@/api/errors'
 import { useCourseStore } from '../../../store/courseStore'
 import { TO_TASKS_QUERY_KEY } from './useToTasks'
-import type { GenerateTOResponse, GenerateTOStageLog, S1ValidationResult, WorkflowPhase } from '../../../types'
+import type { GenerateTOResponse, GenerateTOStageLog, WorkflowPhase } from '../../../types'
 import type { JsonObject } from '../../../types'
-
-// ── Course metadata context ────────────────────────────────────────────────────
+import { normalizeTrainingOutlineForPanel } from '../../review/utils/trainingOutlinePanel'
 
 /**
- * Builds supplemental hints sent alongside the document to the backend.
- * This is NOT a system-prompt override — it is appended after the main
- * build_dynamic_to_prompt() system prompt so structured JSON output is preserved.
+ * Per-call overrides for useGenerateTO.mutate().
+ *
+ * Case 2 (DOCX/PDF outline upload): pass { outlineBlobPaths, useStaticPrompt: true }
+ *   so the hook uses only the outline file as source and forces GENERATE_TO_PROMPT.
+ * Case 1 (generate from source): call mutate() with no args.
  */
-function buildCourseMetadataContext({
-  courseId,
-  courseTitle,
-}: {
-  courseId: string
-  courseTitle: string
-}): string | null {
-  const lines: string[] = []
-  if (courseTitle.trim()) lines.push(`Preferred course title: ${courseTitle.trim()}`)
-  if (courseId.trim()) lines.push(`Course ID: ${courseId.trim()}`)
-  return lines.length > 0 ? lines.join('\n') : null
+export type GenerateTOOverrides = {
+  outlineBlobPaths?: string[]
+  useStaticPrompt?: boolean
+}
+
+const GENERIC_TO_ERROR =
+  'Training Outline generation could not be completed. Please try again.'
+
+function userFacingGenerateToError(message: string): string {
+  const trimmed = message.trim()
+  if (!trimmed) return GENERIC_TO_ERROR
+  if (
+    /^s1 failed/i.test(trimmed) ||
+    /blockers?\s*=|warnings?\s*=/i.test(trimmed) ||
+    (/section\s+\d+/i.test(trimmed) &&
+      /(subtopic|objective|compressed|learning|outline)/i.test(trimmed))
+  ) {
+    return GENERIC_TO_ERROR
+  }
+  return trimmed
+}
+
+function userFacingStatusMessage(message: string): string {
+  const trimmed = message.trim()
+  if (!trimmed) return trimmed
+  if (
+    /^s1 failed/i.test(trimmed) ||
+    /blockers?\s*=|warnings?\s*=/i.test(trimmed) ||
+    /s1 requires refinement/i.test(trimmed)
+  ) {
+    return 'Checking outline quality…'
+  }
+  if (/s1_refine|polish|repair/i.test(trimmed)) {
+    return 'Polishing outline structure…'
+  }
+  return trimmed
+}
+
+// Maps the display label from CourseBasicsStep chips to the backend rule-family key.
+// No API call needed — user selects manually; we just normalise here.
+const COURSE_TYPE_LABEL_TO_KEY: Record<string, string> = {
+  'Insurance CE': 'insurance_ce',
+  'IARCE':        'iarce',
+  'Firm Element': 'firm_element',
 }
 
 function isCompletedResponse(
@@ -63,7 +97,6 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     setGeneratedToBlobPath,
     setCourseTitle,
     setDetectedRuleFamily,
-    setToS1Validation,
   } = useCourseStore()
   const successPhaseRef = useRef(successPhase)
   successPhaseRef.current = successPhase
@@ -89,18 +122,15 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
   // Latest status message from the backend (drives loader step text)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
-  // S1 validation result — available on success (quality scores) or failure (block details)
-  const [s1Validation, setS1Validation] = useState<S1ValidationResult | null>(null)
-
   // ── Result processor ───────────────────────────────────────────────────────
 
   const applyResult = useCallback(
-    ({ to, rules, toBlobPath, s1Validation: resultS1 }: GenerateTOResponse) => {
-      setTOData(to as JsonObject, to as JsonObject)
+    ({ to, rules, toBlobPath }: GenerateTOResponse) => {
+      const { courseTypeHint } = useCourseStore.getState()
+      const normalizedTo = normalizeTrainingOutlineForPanel(to as JsonObject, courseTypeHint)
+      setTOData(normalizedTo, normalizedTo)
       setRulesData(rules as JsonObject, rules as JsonObject)
       setGeneratedToBlobPath(toBlobPath ?? null)
-      // Persist S1 validation result so the three-panel view can show a quality badge.
-      if (resultS1) setToS1Validation(resultS1 as S1ValidationResult)
       const existingTitle = useCourseStore.getState().courseTitle
       if (!existingTitle.trim() && typeof to.course_name === 'string' && to.course_name) {
         setCourseTitle(to.course_name as string)
@@ -114,14 +144,14 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
       useCourseStore.getState().setActiveJobId(null)
       setPhase(successPhaseRef.current)
     },
-    [setTOData, setRulesData, setGeneratedToBlobPath, setToS1Validation, setCourseTitle, setDetectedRuleFamily, setPhase],
+    [setTOData, setRulesData, setGeneratedToBlobPath, setCourseTitle, setDetectedRuleFamily, setPhase],
   )
 
   // ── Phase 1: fire POST → get jobId (or sync result) ───────────────────────
 
   const startMutation = useMutation({
     retry: false,
-    mutationFn: async () => {
+    mutationFn: async (overrides: GenerateTOOverrides = {}) => {
       setJobError(null)
       setStatusMessage(null)
       abortRef.current?.abort()
@@ -137,21 +167,29 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         difficultyLevel,
         calculatedWordCount,
         audience,
-        courseId,
         courseTitle,
+        courseTopic,
       } = useCourseStore.getState()
 
       const successDocs = rawDocuments.filter((f) => f.status === 'success' && f.blobPath)
-      const blobPaths = successDocs.map((f) => f.blobPath as string)
+      const allBlobPaths = successDocs.map((f) => f.blobPath as string)
 
-      if (blobPaths.length === 0) throw new Error('No uploaded documents found.')
-      if (!audience.trim()) {
-        throw new Error('Please provide the target audience before generating the Training Outline.')
-      }
-      if (!toDocument && (!durationHours || !difficultyLevel)) {
-        throw new Error(
-          'Please select both a course duration and difficulty level before generating the Training Outline.',
-        )
+      // Case 2 (outline file upload): use only the supplied outline blob paths.
+      // Case 1 (generate from source): use all uploaded source documents.
+      const effectiveBlobPaths = overrides.outlineBlobPaths ?? allBlobPaths
+
+      if (effectiveBlobPaths.length === 0) throw new Error('No uploaded documents found.')
+
+      // Audience + duration validation only applies to Case 1 (generate from source).
+      if (!overrides.useStaticPrompt) {
+        if (!audience.trim()) {
+          throw new Error('Please provide the target audience before generating the Training Outline.')
+        }
+        if (!toDocument && (!durationHours || !difficultyLevel)) {
+          throw new Error(
+            'Please select both a course duration and difficulty level before generating the Training Outline.',
+          )
+        }
       }
 
       const toDocBlobPath =
@@ -161,30 +199,39 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
 
       // Use raw store values — no silent defaults that would mask missing data.
       const difficulty = difficultyLevel ? difficultyLevel.toLowerCase() : null
+      // Derive the rule-family key from the user's manual chip selection — no AI/API call needed.
+      const ruleFamily = courseTypeHint.trim()
+        ? (COURSE_TYPE_LABEL_TO_KEY[courseTypeHint.trim()] ?? null)
+        : null
 
       // ── Source analyses computed at LO generation time (stored in courseStore) ─
       const sourceAnalyses = useCourseStore.getState().sourceAnalyses
 
-      const metadataContext = buildCourseMetadataContext({ courseId, courseTitle })
-      const effectiveCustomPrompt =
-        [metadataContext, customToPrompt.trim() || null].filter(Boolean).join('\n\n') ||
-        undefined
+      // Wizard Case 1 uses structured API fields only — drop stale composite customToPrompt.
+      if (!overrides.useStaticPrompt) {
+        useCourseStore.getState().setCustomToPrompt('')
+      }
 
       const { wizardData } = useCourseStore.getState()
+      const manualCustomHint = customToPrompt.trim()
       const body: Record<string, unknown> = {
-        blobPaths,
+        blobPaths: effectiveBlobPaths,
+        // Force static GENERATE_TO_PROMPT when extracting from an uploaded outline file.
+        ...(overrides.useStaticPrompt && { useStaticPrompt: true }),
         // User-provided title and description — single source of truth.
         // Sent as separate fields so the backend can override LLM output verbatim.
         ...(courseTitle.trim() && { courseTitle: courseTitle.trim() }),
+        ...(courseTopic.trim() && { courseTopic: courseTopic.trim() }),
         ...(wizardData.description.trim() && { courseDescription: wizardData.description.trim() }),
         // Only include difficulty fields when values are actually set.
         ...(difficulty && { difficulty, difficultyLevel: difficulty }),
-        ...(effectiveCustomPrompt && { customToPrompt: effectiveCustomPrompt }),
+        ...(overrides.useStaticPrompt && manualCustomHint && { customToPrompt: manualCustomHint }),
         ...(courseTypeHint.trim() && { courseTypeHint: courseTypeHint.trim() }),
+        ...(ruleFamily && { ruleFamily }),
         ...(toDocBlobPath && { toDocBlobPath }),
-        // Send the exact user-selected values — no ?? fallbacks.
-        ...(durationHours != null && { durationHours }),
-        ...(calculatedWordCount != null && { calculatedWordCount }),
+        // Duration/word-count only sent for Case 1 (dynamic prompt flow).
+        ...(!overrides.useStaticPrompt && durationHours != null && { durationHours }),
+        ...(!overrides.useStaticPrompt && calculatedWordCount != null && { calculatedWordCount }),
         ...(audience.trim() && { audience: audience.trim() }),
         // ── Onboarding wizard fields ──────────────────────────────────────────
         // Audience & experience
@@ -249,11 +296,9 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     const poll = pollQuery.data
     if (!poll || !activeJobId) return
 
-    if (poll.message) setStatusMessage(poll.message)
+    if (poll.message) setStatusMessage(userFacingStatusMessage(poll.message))
 
     if (poll.status === 'completed') {
-      // Capture S1 validation quality data from a successful run.
-      if (poll.s1Validation) setS1Validation(poll.s1Validation as S1ValidationResult)
       if (poll.to && poll.rules) {
         applyResult({
           to: poll.to as JsonObject,
@@ -266,9 +311,11 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
       setActiveJobId(null)
       void qc.invalidateQueries({ queryKey: TO_TASKS_QUERY_KEY })
     } else if (poll.status === 'failed') {
-      // Capture S1 validation block details when the job fails (S1 blocked).
-      if (poll.s1Validation) setS1Validation(poll.s1Validation as S1ValidationResult)
-      setJobError(new Error(poll.error ?? poll.message ?? 'TO generation failed.'))
+      setJobError(
+        new Error(
+          userFacingGenerateToError(poll.error ?? poll.message ?? 'TO generation failed.'),
+        ),
+      )
       setActiveJobId(null)
       void qc.invalidateQueries({ queryKey: TO_TASKS_QUERY_KEY })
     } else if (poll.status === 'cancelled') {
@@ -314,7 +361,6 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     startMutation.reset()
     setJobError(null)
     setStatusMessage(null)
-    setS1Validation(null)
   }
 
   // ── Derived state ──────────────────────────────────────────────────────────
@@ -332,7 +378,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     isPending,
     isError,
     error,
-    mutate: () => startMutation.mutate(),
+    mutate: (overrides?: GenerateTOOverrides) => startMutation.mutate(overrides ?? {}),
     cancel,
     reset: cancel,
     /** Latest backend status message — can be forwarded to TOGenerationLoader */
@@ -341,12 +387,5 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     activeJobId,
     /** Raw backend TO-generation logs (includes stage ids like A0/S1/A1). */
     stageLogs,
-    /**
-     * S1 validation result.
-     * - On success: quality scores from the completed A1-phase validation.
-     * - On failure (S1 blocked): block details with issue list and retry prompt.
-     * - null while in-progress or not yet started.
-     */
-    s1Validation,
   }
 }

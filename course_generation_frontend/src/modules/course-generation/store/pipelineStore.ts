@@ -289,11 +289,10 @@ export const usePipelineStore = create<PipelineStoreState>()(
                 } else if (newStatus === 'completed') {
                   const dur = calcDurationMs(be.startedAt, be.completedAt)
                   const suffix = dur ? ` — ${(dur / 1_000).toFixed(0)}s` : ''
-                  const warning = be.outcome === 'WARNING' ? ' (with warnings)' : ''
                   newLogs.push(
                     makeLog({
                       level: 'success',
-                      message: `${stage.label} complete${suffix}${warning}`,
+                      message: `${stage.label} complete${suffix}`,
                       stageId: stage.id,
                     }),
                   )
@@ -316,8 +315,10 @@ export const usePipelineStore = create<PipelineStoreState>()(
                 }
               }
 
-              // Map SSE per-stage blockers (populated during S1/S2 retry cycles)
-              const blockers: StageBlocker[] = (be.blockers ?? []).map(
+              // Surface only hard blockers in the UI — warnings are handled server-side.
+              const blockers: StageBlocker[] = (be.blockers ?? [])
+                .filter((b) => mapBlockerSeverity(b.severity) === 'blocker')
+                .map(
                 (b, i): StageBlocker => ({
                   id: `blocker-${stage.id}-${i}`,
                   severity: mapBlockerSeverity(b.severity),

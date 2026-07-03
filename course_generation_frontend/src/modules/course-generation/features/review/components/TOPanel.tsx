@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { BookOpen, Download, Loader2, Wand2 } from 'lucide-react'
 import { JsonEditorPanel } from './JsonEditorPanel'
 import { ReviseOutlineModal } from './ReviseOutlineModal'
 import { useCourseStore } from '../../../store/courseStore'
 import { exportTrainingOutlineToDocx } from '../../../utils/exportTrainingOutline'
+import {
+  normalizeTrainingOutlineForPanel,
+  TO_PANEL_HIDDEN_KEYS,
+  TO_PANEL_READONLY_KEYS,
+} from '../utils/trainingOutlinePanel'
 import type { JsonValue } from '../../../types'
 
 interface TOPanelProps {
@@ -23,8 +28,18 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
     audience,
     difficultyLevel,
     durationHours,
+    courseTypeHint,
     wizardData,
   } = useCourseStore()
+
+  const panelTO = useMemo(
+    () => (toData ? normalizeTrainingOutlineForPanel(toData, courseTypeHint) : null),
+    [toData, courseTypeHint],
+  )
+  const panelOriginal = useMemo(
+    () => (toOriginal ? normalizeTrainingOutlineForPanel(toOriginal, courseTypeHint) : null),
+    [toOriginal, courseTypeHint],
+  )
 
   const [downloading, setDownloading] = useState(false)
   const [showReviseModal, setShowReviseModal] = useState(false)
@@ -89,8 +104,8 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
         subtitle="Review and adjust the AI-generated course structure"
         icon={<BookOpen size={13} className="text-indigo-600" />}
         iconBgClass="bg-indigo-50"
-        data={toData}
-        originalData={toOriginal}
+        data={panelTO}
+        originalData={panelOriginal}
         modifiedPaths={modifiedTOPaths}
         onUpdate={(path: string[], value: JsonValue) => updateTOField(path, value)}
         onReset={(path: string[]) => resetTOField(path)}
@@ -98,6 +113,8 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
         loading={loading}
         loadError={loadError}
         emptyMessage="Generate a Training Outline or open a saved course to review its outline."
+        hiddenKeys={TO_PANEL_HIDDEN_KEYS}
+        readOnlyKeys={TO_PANEL_READONLY_KEYS}
         headerActions={headerActions}
       />
 

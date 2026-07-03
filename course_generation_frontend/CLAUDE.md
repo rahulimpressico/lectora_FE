@@ -80,7 +80,7 @@ Each feature owns its components and hooks internally — import from the featur
 
 | Phase | Component | Description |
 |---|---|---|
-| `upload` | `UploadPhase` (`features/upload/`) | Drop `.docx` files (parsed client-side with `mammoth`), or pick from Azure via `InlineAzureBrowser`. "Generate TO" calls `/api/documents/generate-to`. If S1 validation blocks the generated outline after all backend retries, `S1BlockedPanel` is shown with quality scores, blocker issues, and recommendations. |
+| `upload` | `UploadPhase` (`features/upload/`) | Drop `.docx` files (parsed client-side with `mammoth`), or pick from Azure via `InlineAzureBrowser`. "Generate TO" calls `POST /documents/generate-to`, which runs **A0 → A1 → S1 (`full`)** up to 3 cycles on the backend. Response `to`/`rules` come from **A0** output. If S1 still blocks after all retries, `S1BlockedPanel` shows quality scores, blocker issues, and recommendations. |
 
 **Shared phases**
 
@@ -140,7 +140,7 @@ All modules under `src/api/`:
 
 - `client.ts` — shared Axios instance (120 s timeout, error-normalisation interceptor). Always import this; never create ad-hoc instances.
 - `errors.ts` — `ApiClientError` (preserves HTTP status), `isExpiredJobError()`.
-- `course-generation/api.ts` — `uploadDocument`, `generateTO` (async-poll fallback: 202 → polls `GET /documents/generate-to/jobs/{jobId}` every 1 s up to 15 min), `saveTrainingOutline` (`POST /documents/save-to` — persists the user-edited TO JSON to backend blob so edits survive page refresh independently of localStorage). `useGenerateTO` (`features/upload/hooks/`) forwards all populated `wizardData` fields to `POST /documents/generate-to` so A0 can use them for prompt construction.
+- `course-generation/api.ts` — `uploadDocument`, `generateTO` (backend: A0 → A1 → S1 per cycle; async-poll: 202 → `GET /documents/generate-to/jobs/{jobId}` every 1 s up to 15 min), `saveTrainingOutline` (`POST /documents/save-to`). `useGenerateTO` forwards populated `wizardData` to `POST /documents/generate-to` for A0 prompt construction.
 - `jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`. `GenerateCoursePayload` (sent by `GenerateCourseBanner`) carries: an optional `courseConfig` field forwarding `wizardData` for A2 dynamic prompt construction; an optional `sourceFileSpecs` array (`SourceFileSpec[]`) with per-file blob path, extract hint, and `ImportanceLevel` so A2 can build a chunk index and apply per-file guidance. Both `generateTO` and `createJob` receive wizard data so it influences the full pipeline (A0 → A2).
 - `pipeline/sse.ts` — `PipelineSSEClient`.
 - `editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure` (`POST /jobs/{jobId}/artifacts/save-to-azure`), `syncCourseContent` (bulk-sync full course tree before download/save), `deleteSectionAPI` (`DELETE /jobs/{jobId}/sections/{sectionId}`), `persistSectionOrder` (`PATCH /jobs/{jobId}/sections/reorder` — sends depth-first flat ID list via `buildFlatSectionOrder`), `updateCourseTitleAPI` (`PATCH /jobs/{jobId}/course`). Download handles binary blob (local → browser download) and JSON `{ url }` (prod → signed blob URL).

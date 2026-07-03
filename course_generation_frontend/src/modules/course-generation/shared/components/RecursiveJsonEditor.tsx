@@ -15,7 +15,10 @@ import type { JsonObject, JsonValue, JsonPrimitive } from '../../types'
 // Context that carries the tooltips map so any PrimitiveNode can read it
 // without prop-drilling through every intermediate node type.
 const TooltipsContext = createContext<Record<string, string>>({})
+const HiddenKeysContext = createContext<Set<string>>(new Set())
+const ReadOnlyKeysContext = createContext<Set<string>>(new Set())
 function useTooltips() { return useContext(TooltipsContext) }
+function useReadOnlyKeys() { return useContext(ReadOnlyKeysContext) }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -564,6 +567,7 @@ function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onU
   const pk = pathKey(path)
   const isDirty = modifiedPaths.has(pk)
   const tooltips = useTooltips()
+  const readOnlyKeys = useReadOnlyKeys()
 
   return (
     <InlineEditField
@@ -574,6 +578,7 @@ function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onU
       onSave={(newVal) => onUpdate(path, newVal)}
       onCancel={() => onReset(path)}
       tooltip={tooltips[keyName]}
+      readOnly={readOnlyKeys.has(keyName)}
     />
   )
 }
@@ -598,6 +603,10 @@ interface RecursiveJsonEditorProps {
   onReset: (path: string[]) => void
   /** Optional map of field-name → tooltip text. Applied to any matching PrimitiveNode. */
   tooltips?: Record<string, string>
+  /** Root-level keys omitted from the Overview card and top-level sections. */
+  hiddenKeys?: Set<string>
+  /** Root-level keys shown read-only in the Overview card. */
+  readOnlyKeys?: Set<string>
 }
 
 export function RecursiveJsonEditor({
@@ -607,13 +616,17 @@ export function RecursiveJsonEditor({
   onUpdate,
   onReset,
   tooltips = {},
+  hiddenKeys = new Set(),
+  readOnlyKeys = new Set(),
 }: RecursiveJsonEditorProps) {
-  const entries = Object.entries(data)
+  const entries = Object.entries(data).filter(([key]) => !hiddenKeys.has(key))
   const primitiveEntries = entries.filter(([, v]) => isPrimitive(v))
   const complexEntries   = entries.filter(([, v]) => !isPrimitive(v))
 
   return (
     <TooltipsContext.Provider value={tooltips}>
+    <HiddenKeysContext.Provider value={hiddenKeys}>
+    <ReadOnlyKeysContext.Provider value={readOnlyKeys}>
     <div className="space-y-3">
 
       {/* ── Overview card: all root-level primitive fields ─────────── */}
@@ -658,6 +671,8 @@ export function RecursiveJsonEditor({
         />
       ))}
     </div>
+    </ReadOnlyKeysContext.Provider>
+    </HiddenKeysContext.Provider>
     </TooltipsContext.Provider>
   )
 }
