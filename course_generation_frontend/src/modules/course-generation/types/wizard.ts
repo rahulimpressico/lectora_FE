@@ -14,11 +14,28 @@ export interface WizardData {
   depth: 'overview' | 'balanced' | 'detailed'
   emphasis: string
   avoid: string
-  includeScenarios: boolean
+  includeCaseStudies: boolean
+  includeExamples: boolean
   includeKnowledgeChecks: boolean
   outlineMode: 'upload' | 'generate' | null
   preferredChapters: string
   lessonStyle: 'short' | 'detailed'
+}
+
+export type ExperienceLevel = WizardData['experienceLevel']
+
+export const EXPERIENCE_LEVEL_LABELS: Record<
+  Exclude<ExperienceLevel, ''>,
+  string
+> = {
+  new: 'New to Topic',
+  some: 'Some Experience',
+  experienced: 'Experienced',
+}
+
+export function formatExperienceLevel(level: ExperienceLevel): string {
+  if (!level) return ''
+  return EXPERIENCE_LEVEL_LABELS[level] ?? level
 }
 
 export const DEFAULT_WIZARD_DATA: WizardData = {
@@ -35,7 +52,8 @@ export const DEFAULT_WIZARD_DATA: WizardData = {
   depth: 'balanced',
   emphasis: '',
   avoid: '',
-  includeScenarios: true,
+  includeCaseStudies: true,
+  includeExamples: true,
   includeKnowledgeChecks: true,
   outlineMode: 'generate',
   preferredChapters: '',

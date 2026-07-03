@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
 import { useCourseStore } from '../../../store/courseStore'
 import type { JsonObject } from '../../../types'
+import { formatExperienceLevel } from '../../../types/wizard'
 
 // ── Animation variants ────────────────────────────────────────────────────────
 
@@ -286,7 +287,7 @@ export const CoursePreviewPanel = () => {
                 {wizardData.experienceLevel && (
                   <div className="mt-3">
                     <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-semibold">
-                      {capitalize(wizardData.experienceLevel)} level
+                      {formatExperienceLevel(wizardData.experienceLevel)}
                     </span>
                   </div>
                 )}
@@ -361,7 +362,7 @@ export const CoursePreviewPanel = () => {
                 animate="show"
                 className="space-y-2"
               >
-                {sections.slice(0, 12).map((section, i) => {
+                {sections.map((section, i) => {
                   const topics = getSectionTopics(section)
                   const hasTopics = topics.length > 0
                   const isExpanded = expandedSections.has(i)
@@ -449,11 +450,6 @@ export const CoursePreviewPanel = () => {
                     </motion.div>
                   )
                 })}
-                {sections.length > 12 && (
-                  <p className="text-xs text-slate-400 text-center py-1">
-                    +{sections.length - 12} more sections
-                  </p>
-                )}
               </motion.div>
             </div>
           )}

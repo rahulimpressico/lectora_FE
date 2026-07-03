@@ -3,7 +3,7 @@ import { BookOpen, Download, Loader2, Wand2 } from 'lucide-react'
 import { JsonEditorPanel } from './JsonEditorPanel'
 import { ReviseOutlineModal } from './ReviseOutlineModal'
 import { useCourseStore } from '../../../store/courseStore'
-import { exportTrainingOutlineToDocx } from '../../../utils/exportTrainingOutline'
+import { useDownloadTrainingOutline } from '../hooks/useDownloadTrainingOutline'
 import {
   normalizeTrainingOutlineForPanel,
   TO_PANEL_HIDDEN_KEYS,
@@ -24,12 +24,7 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
     updateTOField,
     resetTOField,
     setTOData,
-    courseTitle,
-    audience,
-    difficultyLevel,
-    durationHours,
     courseTypeHint,
-    wizardData,
   } = useCourseStore()
 
   const panelTO = useMemo(
@@ -41,31 +36,11 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
     [toOriginal, courseTypeHint],
   )
 
-  const [downloading, setDownloading] = useState(false)
   const [showReviseModal, setShowReviseModal] = useState(false)
+  const { download: handleDownload, downloading } = useDownloadTrainingOutline()
 
   const handleResetAll = () => {
     if (toOriginal) setTOData(toOriginal, toOriginal)
-  }
-
-  const handleDownload = async () => {
-    if (!toData || downloading) return
-    setDownloading(true)
-    try {
-      await exportTrainingOutlineToDocx(toData, {
-        courseTitle,
-        ruleFamily: (toData.rule_family as string | undefined) ?? '',
-        audience,
-        difficultyLevel,
-        durationHours,
-        description: wizardData.description || '',
-        objectives: wizardData.objectives.length > 0 ? wizardData.objectives : undefined,
-      })
-    } catch (err) {
-      console.error('Failed to generate Training Outline DOCX:', err)
-    } finally {
-      setDownloading(false)
-    }
   }
 
   const headerActions = toData ? (
