@@ -1,5 +1,5 @@
 import { useLocation, Link } from 'react-router-dom'
-import { ChevronRight, Bell, Search, Menu } from 'lucide-react'
+import { ChevronRight, Bell, Search, Menu, User } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -74,7 +74,9 @@ export function TopBar({ onMenuClick, translucent = false }: TopBarProps) {
         </button>
 
         {/* User avatar */}
-        <div className="ml-1 h-7 w-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)] cursor-pointer hover:scale-105 hover:shadow-[0_3px_14px_rgba(99,102,241,0.35)] transition-all duration-200 active:scale-95" />
+        <div className="ml-1 flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)] cursor-pointer hover:scale-105 hover:shadow-[0_3px_14px_rgba(99,102,241,0.35)] transition-all duration-200 active:scale-95">
+          <User size={13} className="text-white" strokeWidth={2.25} />
+        </div>
       </div>
     </header>
   )

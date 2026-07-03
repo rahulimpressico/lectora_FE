@@ -10,8 +10,10 @@ import {
   CircleDollarSign,
   ListTodo,
   Loader2,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Logo } from "@/shared/components/Logo";
 import { useToTasks } from "@/modules/course-generation/features/upload/hooks/useToTasks";
 
 const navItems = [
@@ -83,7 +85,7 @@ function SidebarContent({
   return (
     <aside
       className={cn(
-        "flex h-full w-56 shrink-0 flex-col shadow-[1px_0_0_0_rgba(0,0,0,0.02)]",
+        "flex h-full w-60 shrink-0 flex-col shadow-[1px_0_0_0_rgba(0,0,0,0.02)]",
         translucent
           ? "border-r border-white/45 bg-white/48 backdrop-blur-xl"
           : "glass-sidebar",
@@ -92,21 +94,21 @@ function SidebarContent({
       {/* Brand mark */}
       <div
         className={cn(
-          "flex items-center gap-3 border-b px-5 py-[18px]",
+          "flex items-center gap-4 border-b px-3 py-[18px]",
           translucent ? "border-white/40" : "border-slate-100/70",
         )}
       >
-        <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-[0_3px_12px_0_rgb(99,102,241,0.5)] shrink-0">
-          <Sparkles size={14} className="text-white" />
-          <div className="absolute inset-0 rounded-xl bg-white/10" />
-        </div>
+        <Logo className="text-xl shrink-0" />
+
         <div
           className="min-w-0 flex-1 cursor-pointer"
           onClick={() => navigate("/")}
         >
-          <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
-            Course<span className="text-indigo-600"> Studio</span>
-          </span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-sm font-bold text-slate-900 tracking-tight leading-none">
+              Course<span className="text-indigo-600"> Studio</span>
+            </span>
+          </div>
           <p className="text-[10px] text-slate-400 mt-0.5 font-medium tracking-wide">
             Course Generation Platform
           </p>
@@ -167,34 +169,36 @@ function SidebarContent({
           translucent ? "border-white/40" : "border-slate-100",
         )}
       >
-        {bottomButtons.map(({ label, icon: Icon, onClick, isActive, badge }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => {
-              onClose?.()
-              onClick?.()
-            }}
-            className={cn(
-              "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
-              isActive
-                ? "bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700"
-                : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
-            )}
-          >
-            <Icon
-              size={15}
-              className={isActive ? "text-indigo-600" : "text-slate-400"}
-            />
-            <span className="flex-1 text-left">{label}</span>
-            {badge != null && (
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
-                <Loader2 size={7} className="animate-spin" />
-                {badge}
-              </span>
-            )}
-          </button>
-        ))}
+        {bottomButtons.map(
+          ({ label, icon: Icon, onClick, isActive, badge }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                onClose?.();
+                onClick?.();
+              }}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                isActive
+                  ? "bg-gradient-to-r from-indigo-50 to-violet-50/60 text-indigo-700"
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+              )}
+            >
+              <Icon
+                size={15}
+                className={isActive ? "text-indigo-600" : "text-slate-400"}
+              />
+              <span className="flex-1 text-left">{label}</span>
+              {badge != null && (
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[9px] font-bold text-white leading-none">
+                  <Loader2 size={7} className="animate-spin" />
+                  {badge}
+                </span>
+              )}
+            </button>
+          ),
+        )}
       </div>
 
       {/* User profile */}
@@ -207,7 +211,9 @@ function SidebarContent({
         )}
       >
         <div className="flex items-center gap-2.5 px-1">
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 shrink-0 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)]" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 shrink-0 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)]">
+            <User size={13} className="text-white" strokeWidth={2.25} />
+          </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-slate-800 truncate leading-none">
               Course Author
