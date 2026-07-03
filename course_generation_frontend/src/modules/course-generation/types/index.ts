@@ -274,7 +274,8 @@ export interface GenerateCoursePayload {
     depth?: string
     emphasis?: string
     avoid?: string
-    includeScenarios?: boolean
+    includeCaseStudies?: boolean
+    includeExamples?: boolean
     includeKnowledgeChecks?: boolean
   }
 }

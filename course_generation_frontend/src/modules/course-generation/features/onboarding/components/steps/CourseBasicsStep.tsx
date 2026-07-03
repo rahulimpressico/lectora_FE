@@ -61,13 +61,16 @@ export const CourseBasicsStep = () => {
   }
 
   const handleCustomDuration = (val: string) => {
-    setCustomHours(val)
-    const n = parseFloat(val)
-    if (!isNaN(n) && n > 0) {
-      setDurationHours(n)
-    } else {
+    if (val === '') {
+      setCustomHours('')
       setDurationHours(null)
+      return
     }
+    const intPart = val.match(/^\d+/)?.[0]
+    if (!intPart) return
+    setCustomHours(intPart)
+    const n = parseInt(intPart, 10)
+    if (n > 0) setDurationHours(n)
   }
 
   const handleChipClick = (label: string) => {
@@ -147,7 +150,7 @@ export const CourseBasicsStep = () => {
       {/* Description */}
       <motion.div className="space-y-1.5" variants={fadeUp} style={{ willChange: "transform" }}>
         <label className="block text-sm font-medium text-slate-700">
-          Course Description <span className="text-red-400">*</span>
+          Course Scope <span className="text-red-400">*</span>
         </label>
         <textarea
           rows={8}
@@ -221,8 +224,9 @@ export const CourseBasicsStep = () => {
         <div className="flex items-center gap-2 pt-1">
           <input
             type="number"
-            min="0.5"
-            step="0.5"
+            min="1"
+            step="1"
+            inputMode="numeric"
             value={customHours}
             onChange={(e) => handleCustomDuration(e.target.value)}
             placeholder="Custom (e.g. 6)"

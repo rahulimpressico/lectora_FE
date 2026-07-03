@@ -530,7 +530,7 @@ function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onRes
               {arr.map((item, idx) => (
                 <JsonNode
                   key={idx}
-                  keyName={String(idx)}
+                  keyName={String(idx + 1)}
                   value={item}
                   originalValue={item}
                   path={[...path, String(idx)]}

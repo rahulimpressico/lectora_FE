@@ -246,7 +246,8 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         ...(wizardData.emphasis.trim() && { emphasis: wizardData.emphasis.trim() }),
         ...(wizardData.avoid.trim() && { avoid: wizardData.avoid.trim() }),
         // Instructional design flags (always send when wizard has been visited)
-        includeScenarios: wizardData.includeScenarios,
+        includeCaseStudies: wizardData.includeCaseStudies,
+        includeExamples: wizardData.includeExamples,
         includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
         // Outline structure
         ...(wizardData.preferredChapters && { preferredChapters: parseInt(wizardData.preferredChapters, 10) || undefined }),

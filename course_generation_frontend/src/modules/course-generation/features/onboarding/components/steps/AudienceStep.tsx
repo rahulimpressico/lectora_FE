@@ -5,7 +5,7 @@ import { Award, BookOpen, GraduationCap } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
 import { useWizardNav } from '../WizardNavContext'
 import { cn } from '@/lib/cn'
-import type { WizardData } from '../../../../types/wizard'
+import { EXPERIENCE_LEVEL_LABELS, type WizardData } from '../../../../types/wizard'
 
 const AUDIENCE_PILLS = [
   'Financial Advisors',
@@ -25,19 +25,19 @@ interface ExperienceCard {
 const EXPERIENCE_CARDS: ExperienceCard[] = [
   {
     value: 'new',
-    label: 'New to Topic',
+    label: EXPERIENCE_LEVEL_LABELS.new,
     description: 'Little to no prior knowledge',
     icon: <GraduationCap className="w-5 h-5" />,
   },
   {
     value: 'some',
-    label: 'Some Experience',
+    label: EXPERIENCE_LEVEL_LABELS.some,
     description: 'Familiar with core concepts',
     icon: <BookOpen className="w-5 h-5" />,
   },
   {
     value: 'experienced',
-    label: 'Experienced',
+    label: EXPERIENCE_LEVEL_LABELS.experienced,
     description: 'Strong existing knowledge',
     icon: <Award className="w-5 h-5" />,
   },
@@ -209,7 +209,7 @@ export const AudienceStep = () => {
           Learner Outcomes
         </label>
         <textarea
-          rows={5}
+          rows={10}
           value={learnerOutcomes}
           onChange={(e) => setWizardData({ learnerOutcomes: e.target.value })}
           placeholder="What should learners be able to do after completing this course?"
