@@ -93,6 +93,19 @@ export function stripLeadingNumberPrefix(title: string): string {
   return title.replace(LEADING_NUMBER_PREFIX_RE, '').trim()
 }
 
+/** Display label for an outline section — always 1-based (e.g. "1. Introduction"). */
+export function formatOutlineSectionLabel(
+  index: number,
+  section: JsonObject,
+): string {
+  const raw =
+    (section.title as string | undefined) ??
+    (section.name as string | undefined) ??
+    'Untitled Section'
+  const clean = stripLeadingNumberPrefix(raw) || raw
+  return `${index + 1}. ${clean}`
+}
+
 // ─── Primitive paragraph builders ─────────────────────────────────────────────
 
 function p(

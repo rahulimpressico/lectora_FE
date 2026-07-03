@@ -3,6 +3,7 @@ import { BookOpen, CheckCircle2, ChevronRight, Clock, FileText, GraduationCap, T
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/cn'
 import { useCourseStore } from '../../../store/courseStore'
+import { formatOutlineSectionLabel } from '../../../utils/exportTrainingOutline'
 import type { JsonObject } from '../../../types'
 
 // ── Animation variants ────────────────────────────────────────────────────────
@@ -39,12 +40,8 @@ function getSections(toData: JsonObject): JsonObject[] {
   return Array.isArray(s) ? (s as JsonObject[]) : []
 }
 
-function getSectionTitle(section: JsonObject): string {
-  return (
-    (section.title as string | undefined) ??
-    (section.name as string | undefined) ??
-    'Untitled Section'
-  )
+function getSectionTitle(section: JsonObject, index: number): string {
+  return formatOutlineSectionLabel(index, section)
 }
 
 function getSectionMeta(section: JsonObject): string {
@@ -398,7 +395,7 @@ export const CoursePreviewPanel = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-800 truncate">
-                            {getSectionTitle(section)}
+                            {getSectionTitle(section, i)}
                           </p>
                           {getSectionMeta(section) && (
                             <p className="text-[11px] text-slate-400 mt-0.5">{getSectionMeta(section)}</p>
