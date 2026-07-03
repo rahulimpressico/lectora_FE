@@ -1,6 +1,7 @@
-import { useLocation, Link } from 'react-router-dom'
-import { ChevronRight, Bell, Search, Menu } from 'lucide-react'
+import { useLocation, Link, useNavigate } from 'react-router-dom'
+import { ChevronRight, Bell, Search, Menu, LogOut } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { useAuth } from '@/auth/AuthContext'
 
 const ROUTE_LABELS: Record<string, string> = {
   '/dashboard':          'Dashboard',
@@ -18,7 +19,14 @@ interface TopBarProps {
 
 export function TopBar({ onMenuClick, translucent = false }: TopBarProps) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { tempUserAuthEnabled, user, logout } = useAuth()
   const label = ROUTE_LABELS[pathname] ?? 'Page'
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <header
@@ -73,8 +81,20 @@ export function TopBar({ onMenuClick, translucent = false }: TopBarProps) {
           <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 shadow-[0_0_0_1.5px_white]" />
         </button>
 
-        {/* User avatar */}
-        <div className="ml-1 h-7 w-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)] cursor-pointer hover:scale-105 hover:shadow-[0_3px_14px_rgba(99,102,241,0.35)] transition-all duration-200 active:scale-95" />
+        {/* User / logout */}
+        {tempUserAuthEnabled ? (
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="ml-1 flex h-8 items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-2.5 text-xs font-medium text-slate-600 hover:border-slate-300 hover:text-slate-800 transition-all duration-150"
+            aria-label={user ? `Log out ${user.username}` : 'Log out'}
+          >
+            <LogOut size={14} />
+            <span className="hidden sm:inline">Log out</span>
+          </button>
+        ) : (
+          <div className="ml-1 h-7 w-7 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 ring-2 ring-white shadow-[0_2px_8px_rgba(99,102,241,0.25)] cursor-pointer hover:scale-105 hover:shadow-[0_3px_14px_rgba(99,102,241,0.35)] transition-all duration-200 active:scale-95" />
+        )}
       </div>
     </header>
   )
