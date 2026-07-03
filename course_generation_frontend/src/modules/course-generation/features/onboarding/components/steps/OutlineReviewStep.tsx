@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, BookOpen, Clock, Download, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -48,6 +48,12 @@ function getSections(toData: JsonObject): JsonObject[] {
   return []
 }
 
+function getSectionsKey(toData: JsonObject): string {
+  if (Array.isArray(toData.sections)) return 'sections'
+  if (Array.isArray(toData.modules)) return 'modules'
+  return 'sections'
+}
+
 function getSectionTitle(section: JsonObject): string {
   return (
     (section.title as string | undefined) ??
@@ -56,10 +62,10 @@ function getSectionTitle(section: JsonObject): string {
   )
 }
 
-/** Strip leading N.0 / N. chapter prefix when the UI already shows a chapter badge. */
+/** Strip leading N / N.0 chapter prefix when the UI already shows a chapter badge. */
 function displaySectionTitle(section: JsonObject): string {
   const raw = getSectionTitle(section).trim()
-  const withoutPrefix = raw.replace(/^\s*\d+(?:\.\d+)?\s+/, '').trim()
+  const withoutPrefix = raw.replace(/^\s*\d+(?:\.\d+)*\s+/, '').trim()
   return withoutPrefix || raw
 }
 
@@ -152,14 +158,13 @@ export const OutlineReviewStep = () => {
     (toData?.course_description as string | undefined)
 
   const sections = toData ? getSections(toData) : []
-  // Cap stagger at 8 items to avoid long delays
-  const visibleSections = sections.slice(0, 8)
+  const sectionsKey = toData ? getSectionsKey(toData) : 'sections'
 
   const handleRegenerate = () => {
     generateTO.mutate()
   }
 
-  const renderEditableNode = (node: JsonObject, path: string[], level = 0): JSX.Element => {
+  const renderEditableNode = (node: JsonObject, path: string[], level = 0): ReactElement => {
     const titleInfo = getNodeTitleInfo(node)
     const stringChild = getStringChildInfo(node)
     const objectChild = getObjectChildInfo(node)
@@ -355,10 +360,10 @@ export const OutlineReviewStep = () => {
                         <span className="text-xs text-slate-400">{getSectionMeta(section)}</span>
                       )}
                     </div>
-                    {renderEditableNode(section, ['sections', String(i)], 0)}
+                    {renderEditableNode(section, [sectionsKey, String(i)], 0)}
                   </motion.div>
                 ))
-              : visibleSections.map((section, i) => (
+              : sections.map((section, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -12 }}
@@ -419,7 +424,7 @@ export const OutlineReviewStep = () => {
           className="flex-1 py-2.5 px-4 border border-slate-200 bg-white text-slate-700 text-sm font-semibold rounded-xl hover:border-brand-300 hover:text-brand-600 transition-colors"
           style={{ willChange: 'transform' }}
         >
-          {isEditingOutline ? 'Done Editing' : 'Edit Structure'}
+          {isEditingOutline ? 'Done Editing' : 'Edit Outline'}
         </motion.button>
         <motion.button
           type="button"
