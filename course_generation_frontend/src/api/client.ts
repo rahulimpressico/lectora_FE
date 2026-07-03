@@ -8,9 +8,16 @@ import axios from 'axios'
 import { API_BASE_URL } from '@/config/api'
 import { ApiClientError } from '@/api/errors'
 
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120_000,
+  withCredentials: true,
 })
 
 apiClient.interceptors.request.use(
@@ -54,6 +61,15 @@ function normalizeErrorMessage(value: unknown): string {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    const requestUrl = String(error.config?.url ?? '')
+    if (
+      error.response?.status === 401 &&
+      !requestUrl.includes('/login') &&
+      !requestUrl.includes('/auth/me')
+    ) {
+      unauthorizedHandler?.()
+    }
+
     const message = normalizeErrorMessage(
       error.response?.data?.detail ??
         error.response?.data?.message ??
