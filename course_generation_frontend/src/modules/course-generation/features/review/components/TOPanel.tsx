@@ -75,7 +75,7 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
   return (
     <>
       <JsonEditorPanel
-        title="Training Outline"
+        title="Course Structure"
         subtitle="Review and adjust the AI-generated course structure"
         icon={<BookOpen size={13} className="text-indigo-600" />}
         iconBgClass="bg-indigo-50"

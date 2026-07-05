@@ -182,7 +182,7 @@ export const CourseDirectionStep = () => {
       backPhase: 'wizard-objectives',
       backLabel: 'Back',
       nextPhase: 'wizard-outline-pref',
-      nextLabel: 'Next: Outline Preference',
+      nextLabel: 'Next: Course Structure',
       isNextDisabled: false,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

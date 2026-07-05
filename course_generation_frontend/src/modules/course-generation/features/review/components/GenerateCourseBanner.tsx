@@ -48,7 +48,7 @@ export const GenerateCourseBanner = () => {
       if (modifiedTOPaths.size > 0) {
         if (!generatedToBlobPath || !toData) {
           throw new Error(
-            'The persisted Training Outline could not be found. Please regenerate the TO before starting course generation.',
+            'The persisted course structure could not be found. Please regenerate it before starting course generation.',
           )
         }
         const saved = await saveTrainingOutline(
@@ -152,7 +152,7 @@ export const GenerateCourseBanner = () => {
               <p className="text-xs text-slate-400 mt-0.5">
                 {unsavedCount > 0
                   ? `${unsavedCount} unsaved edit${unsavedCount !== 1 ? 's' : ''} — review before generating.`
-                  : 'Review the Training Outline and Rules above, then click Generate Course.'}
+                  : 'Review the course structure and Rules above, then click Generate Course.'}
               </p>
             </div>
           )}

@@ -125,7 +125,7 @@ export const OutlinePreferenceStep = () => {
         setConfig({
           backPhase: 'wizard-direction',
           backLabel: 'Back',
-          nextLabel: 'View Outline',
+          nextLabel: 'View Course Structure',
           isNextLoading: false,
           isNextDisabled: false,
           onNext: () => setPhase('wizard-outline-review'),
@@ -266,9 +266,9 @@ export const OutlinePreferenceStep = () => {
     >
       {/* Header */}
       <motion.div className="mb-8 sm:mb-10" variants={fadeUp}>
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Outline Structure</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Course Structure</p>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">How would you like to structure this?</h2>
-        <p className="text-slate-500 text-base leading-relaxed max-w-md">Upload your own course outline, or let the AI build one from your materials and settings.</p>
+        <p className="text-slate-500 text-base leading-relaxed max-w-md">Upload your own course structure, or let the AI build one from your materials and settings.</p>
       </motion.div>
 
       {/* Option cards */}
@@ -296,7 +296,7 @@ export const OutlinePreferenceStep = () => {
             <Upload className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-800">Yes, I have an outline</p>
+            <p className="text-sm font-semibold text-slate-800">Yes, I have a course structure</p>
             <p className="text-xs text-slate-500 mt-0.5">Upload your existing course structure</p>
           </div>
         </motion.button>
@@ -325,7 +325,7 @@ export const OutlinePreferenceStep = () => {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">No, create one for me</p>
-            <p className="text-xs text-slate-500 mt-0.5">Let the AI build a structured outline from your materials</p>
+            <p className="text-xs text-slate-500 mt-0.5">Let the AI build a course structure from your materials and inputs</p>
           </div>
         </motion.button>
       </motion.div>
@@ -476,10 +476,10 @@ export const OutlinePreferenceStep = () => {
                 <>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <p className="text-sm font-semibold text-slate-800">Outline already generated</p>
+                    <p className="text-sm font-semibold text-slate-800">Course structure already generated</p>
                   </div>
                   <p className="text-xs text-slate-500">
-                    Click <strong>View Outline</strong> to review your existing outline, or regenerate it below if you've changed your settings.
+                    Click <strong>View Course Structure</strong> to review your existing outline, or regenerate it below if you've changed your settings.
                   </p>
                   <button
                     type="button"
@@ -488,7 +488,7 @@ export const OutlinePreferenceStep = () => {
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-300 bg-white rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    Regenerate Outline
+                    Regenerate Structure
                   </button>
                 </>
               ) : (

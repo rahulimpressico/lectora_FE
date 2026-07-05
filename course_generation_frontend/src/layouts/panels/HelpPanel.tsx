@@ -43,8 +43,8 @@ const guideSteps = [
     color: 'from-violet-500 to-purple-600',
     glow: 'rgba(139,92,246,0.25)',
     step: '02',
-    title: 'Generate Training Outline',
-    desc: 'The AI extracts a structured Training Outline (TO) from your documents. Review and edit the TO and rule pack in the three-panel layout before proceeding.',
+    title: 'Generate Course Structure',
+    desc: 'The AI extracts a structure from your documents. Review and edit it and rule pack in the three-panel layout before proceeding.',
   },
   {
     icon: Cpu,

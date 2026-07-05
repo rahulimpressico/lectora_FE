@@ -31,7 +31,7 @@ export const PIPELINE_STAGE_CONFIGS: PipelineStageConfig[] = [
     backendId: 'A1',
     label: 'Preparing Final Outline',
     shortLabel: 'Outline',
-    description: 'Interpreting the reviewed Training Outline and building the enriched course structure',
+    description: 'Interpreting the reviewed Course Structure',
     isGate: false,
     estimatedDurationSec: 90,
   },

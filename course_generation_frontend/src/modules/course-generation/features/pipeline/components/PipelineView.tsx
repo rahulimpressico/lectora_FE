@@ -224,7 +224,7 @@ function ActivityLogPanel({
 // visible stage is active.  S1 is folded into A2 so no messages needed.
 const STAGE_MESSAGES: Record<string, string[]> = {
   A1: [
-    "Interpreting the reviewed Training Outline…",
+    "Interpreting the reviewed Course Structure…",
     "Building the enriched course structure…",
     "Mapping sections and learning objectives…",
   ],

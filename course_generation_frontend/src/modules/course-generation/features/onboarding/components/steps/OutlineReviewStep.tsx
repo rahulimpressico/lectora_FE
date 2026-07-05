@@ -148,8 +148,8 @@ export const OutlineReviewStep = () => {
     >
       {/* Header */}
       <motion.div variants={fadeUp} className="mb-8 sm:mb-10">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Outline Review</p>
-        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">Your outline is ready</h2>
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-indigo-500 mb-3">Structure Review</p>
+        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight mb-3">Your Course Structure is ready</h2>
         <p className="text-slate-500 text-base leading-relaxed max-w-md">
           {isEditing
             ? 'Click a chapter to expand it, then edit the title and sub-topics.'
@@ -237,7 +237,7 @@ export const OutlineReviewStep = () => {
           whileHover={{ scale: 1.02, y: -1 }}
           whileTap={{ scale: 0.97 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          title="Download Training Outline as DOCX"
+          title="Download Course Structure as DOCX"
           className="flex-1 py-2.5 px-4 border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold rounded-xl hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ willChange: 'transform' }}
         >
@@ -263,7 +263,7 @@ export const OutlineReviewStep = () => {
           style={{ willChange: 'transform' }}
         >
           <Pencil className="w-4 h-4" />
-          {isEditing ? 'Done Editing' : 'Edit Outline'}
+          {isEditing ? 'Done Editing' : 'Edit Structure'}
         </motion.button>
         <motion.button
           type="button"
