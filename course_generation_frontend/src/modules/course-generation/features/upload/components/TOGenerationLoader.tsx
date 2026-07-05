@@ -8,20 +8,20 @@ const STAGES = [
   {
     id: 'A0',
     icon: Bot,
-    label: 'A0 Agent',
-    desc: 'Reading source docs and drafting the initial Topic Outline',
+    label: 'Understanding your content',
+    desc: 'Reading your files and drafting the first outline',
   },
   {
     id: 'S1',
     icon: ShieldCheck,
-    label: 'S1 Validator',
-    desc: 'AI validating requirement alignment and learning progression',
+    label: 'Reviewing the outline',
+    desc: 'Checking whether the outline covers the right topics in a clear order',
   },
   {
     id: 'A1',
     icon: Bot,
-    label: 'A1 Agent',
-    desc: 'Finalizing TO structure for review in Three Panel View',
+    label: 'Preparing it for you',
+    desc: 'Finalizing the outline so you can review and edit it',
   },
 ] as const
 
@@ -238,7 +238,7 @@ export function TOGenerationLoader({ onCancel, statusMessage, stageLogs = [] }: 
               <p className="mt-1.5 text-sm text-slate-500 text-center leading-relaxed max-w-xs relative">
                 Please wait — do not close this tab.
                 <br />
-                <span className="text-indigo-500 font-medium">Running A0 → S1 → A1 TO pipeline.</span>
+                <span className="text-indigo-500 font-medium">We are building your training outline step by step.</span>
               </p>
             </div>
 
@@ -298,7 +298,7 @@ export function TOGenerationLoader({ onCancel, statusMessage, stageLogs = [] }: 
                         {step.id === 'S1' && s1RetryCount > 0 && status === 'active' && (
                           <span className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-bold text-amber-600 shrink-0">
                             <RefreshCw size={8} className="animate-spin" />
-                            Retry {s1RetryCount}
+                            Review {s1RetryCount + 1}
                           </span>
                         )}
                       </div>
@@ -312,7 +312,7 @@ export function TOGenerationLoader({ onCancel, statusMessage, stageLogs = [] }: 
                           >
                             <p className="text-[11px] text-indigo-400/90 mt-0.5 leading-snug">
                               {step.id === 'S1' && s1RetryCount > 0
-                                ? 'Re-validating outline (reusing cached A0 output, no doc re-read)…'
+                                ? 'Taking another pass to improve the outline based on the latest review…'
                                 : step.desc}
                             </p>
                             {statusMessage && (

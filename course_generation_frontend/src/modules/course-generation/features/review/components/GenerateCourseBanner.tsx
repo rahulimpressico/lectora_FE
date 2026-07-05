@@ -3,6 +3,7 @@ import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { useCourseStore } from '../../../store/courseStore'
 import { createJob } from '@/api/jobs/api'
+import { saveTrainingOutline } from '@/api/course-generation/api'
 import { extractErrorMessage, isFileNotFoundError } from '../../../utils/jobErrorUtils'
 
 export const GenerateCourseBanner = () => {
@@ -14,6 +15,7 @@ export const GenerateCourseBanner = () => {
     modifiedTOPaths,
     modifiedRulesPaths,
     generatedToBlobPath,
+    toDocument,
     audience,
     courseTitle,
     detectedRuleFamily,
@@ -33,12 +35,31 @@ export const GenerateCourseBanner = () => {
     !!toData && !!rulesData && successFiles.length > 0 && missingBlobFiles.length === 0
 
   const studyGuideFile = successFiles[0]
-  const timedOutlineFile = successFiles[1]
-  const timedOutlineBlobPath = timedOutlineFile?.blobPath ?? generatedToBlobPath ?? undefined
+  const uploadedTODocBlobPath =
+    toDocument?.status === 'success' && toDocument.blobPath
+      ? toDocument.blobPath
+      : undefined
+  const timedOutlineBlobPath = generatedToBlobPath ?? uploadedTODocBlobPath ?? undefined
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
-    mutationFn: () =>
-      createJob({
+    mutationFn: async () => {
+      let persistedTimedOutlineBlobPath = timedOutlineBlobPath
+
+      if (modifiedTOPaths.size > 0) {
+        if (!generatedToBlobPath || !toData) {
+          throw new Error(
+            'The persisted Training Outline could not be found. Please regenerate the TO before starting course generation.',
+          )
+        }
+        const saved = await saveTrainingOutline(
+          generatedToBlobPath,
+          toData as Record<string, unknown>,
+          (rulesData as Record<string, unknown> | null) ?? null,
+        )
+        persistedTimedOutlineBlobPath = saved.blobPath
+      }
+
+      return createJob({
         courseTitle:
           courseTitle ||
           ((toData?.course_name as string) ?? (toData?.courseTitle as string) ?? 'Untitled Course'),
@@ -47,9 +68,10 @@ export const GenerateCourseBanner = () => {
           ((rulesData?.ruleFamily as string) ?? (toData?.rule_family as string) ?? 'insurance_ce'),
         inputs: {
           studyGuide: { blobPath: studyGuideFile?.blobPath ?? '' },
-          ...(timedOutlineBlobPath ? { timedOutline: { blobPath: timedOutlineBlobPath } } : {}),
+          ...(persistedTimedOutlineBlobPath
+            ? { timedOutline: { blobPath: persistedTimedOutlineBlobPath } }
+            : {}),
         },
-        ...(toData ? { toOverride: toData } : {}),
         sourceFileSpecs: successFiles
           .filter((f): f is typeof f & { blobPath: string } => typeof f.blobPath === 'string' && f.blobPath.length > 0)
           .map((f) => ({
@@ -73,7 +95,8 @@ export const GenerateCourseBanner = () => {
           includeExamples: wizardData.includeExamples,
           includeKnowledgeChecks: wizardData.includeKnowledgeChecks,
         },
-      }),
+      })
+    },
     onSuccess: (response) => {
       setActiveJobId(response.jobId)
       setPhase('pipeline')

@@ -252,8 +252,8 @@ export interface GenerateCoursePayload {
     studyGuide: { blobPath: string }
     timedOutline?: { blobPath: string }
   }
-  /** User-edited Training Outline JSON from the three-panel TO editor.
-   *  The backend injects this into shared_state so A1 uses the reviewed version. */
+  /** Legacy/manual override path.
+   *  The FE now persists reviewed TO JSON and passes it via `inputs.timedOutline`. */
   toOverride?: JsonObject
   /** Per-file source specs including blob path, extract hint, and importance.
    *  Passed to A2 so it can build a chunk index and apply per-file guidance. */

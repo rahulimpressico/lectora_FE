@@ -12,7 +12,7 @@ export function Logo({ className = "" }: LogoProps) {
         className,
       )}
     >
-      Reged
+      RegEd
     </span>
   );
 }
