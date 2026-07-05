@@ -332,18 +332,21 @@ export const CourseDirectionStep = () => {
       >
         <AnimatePresence>
           <ToggleSwitch
+            key="case-studies"
             checked={includeCaseStudies}
             onChange={(v) => setWizardData({ includeCaseStudies: v })}
             label="Include Case Studies"
             description="Use realistic case studies to illustrate key concepts"
           />
           <ToggleSwitch
+            key="examples"
             checked={includeExamples}
             onChange={(v) => setWizardData({ includeExamples: v })}
             label="Include Examples"
             description="Add practical examples that bring concepts to life"
           />
           <ToggleSwitch
+            key="knowledge-checks"
             checked={includeKnowledgeChecks}
             onChange={(v) => setWizardData({ includeKnowledgeChecks: v })}
             label="Include Knowledge Checks"
