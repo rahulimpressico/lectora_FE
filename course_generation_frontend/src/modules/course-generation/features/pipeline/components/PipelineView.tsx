@@ -20,6 +20,7 @@ import { useJobPipeline } from "../hooks/useJobPipeline";
 import { CourseGifLoader } from "./CourseGifLoader";
 import { PipelinePageBackground } from "./PipelinePageBackground";
 import { ConfirmLeaveModal } from "@/shared/components/ConfirmLeaveModal";
+import { toUserFacingPipelineLogMessage } from "@/modules/course-generation/utils/userFacingGenerationText";
 import type { PipelineStageState } from "../../../types/pipeline";
 import type { LogEntry } from "../../../store/pipelineStore";
 
@@ -205,7 +206,7 @@ function ActivityLogPanel({
                         !isLatest && "opacity-65",
                       )}
                     >
-                      {log.message}
+                      {toUserFacingPipelineLogMessage(log.message)}
                     </p>
                   </div>
                 </motion.div>
@@ -541,7 +542,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
           </button>
           <div className="w-px h-3.5 bg-slate-200 shrink-0" />
           <span className="text-[12px] font-medium text-slate-400 truncate">
-            Course Generation Pipeline
+            Course generation progress
           </span>
         </div>
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-8">
@@ -587,7 +588,7 @@ export function PipelineView({ jobId }: PipelineViewProps) {
         <div className="relative z-10 flex flex-col items-center gap-3">
           <Loader2 size={22} className="animate-spin text-indigo-500" />
           <p className="text-xs text-slate-400 font-medium">
-            Connecting to pipeline…
+            Connecting to course generation…
           </p>
         </div>
       </div>
@@ -645,12 +646,12 @@ export function PipelineView({ jobId }: PipelineViewProps) {
                 {courseTitle}
               </p>
               <p className="text-[10px] text-slate-400 font-medium tracking-wide">
-                Course Generation Pipeline
+                Course generation progress
               </p>
             </>
           ) : (
             <span className="text-[12px] font-medium text-slate-400 truncate">
-              Course Generation Pipeline
+              Course generation progress
             </span>
           )}
         </div>

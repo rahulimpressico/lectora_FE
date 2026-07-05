@@ -15,6 +15,10 @@ import {
 import { cn } from '@/lib/cn'
 import { cancelGenerateTO, type TOTaskSummary } from '@/api/course-generation/api'
 import { useToTasks, TO_TASKS_QUERY_KEY } from '@/modules/course-generation/features/upload/hooks/useToTasks'
+import {
+  toUserFacingTOErrorMessage,
+  toUserFacingTOTaskMessage,
+} from '@/modules/course-generation/utils/userFacingGenerationText'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -101,7 +105,9 @@ function TaskRow({ task }: { task: TOTaskSummary }) {
           <p className="text-xs font-semibold text-slate-800 truncate" title={sourceName}>
             {sourceName}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5 truncate">{task.message}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+            {toUserFacingTOTaskMessage(task.message, task.status)}
+          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -143,7 +149,7 @@ function TaskRow({ task }: { task: TOTaskSummary }) {
           )}
           {task.error && (
             <p className="text-[10px] text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5 leading-relaxed">
-              {task.error}
+              {toUserFacingTOErrorMessage(task.error)}
             </p>
           )}
         </div>
@@ -184,7 +190,7 @@ export function TasksPanel({ isOpen, onClose }: TasksPanelProps) {
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-bold text-slate-900 leading-none">Tasks</h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              TO generation jobs
+              Outline generation activity
               {runningCount > 0 && (
                 <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">
                   <Loader2 size={8} className="animate-spin" />
@@ -225,7 +231,7 @@ export function TasksPanel({ isOpen, onClose }: TasksPanelProps) {
               <div>
                 <p className="text-sm font-medium text-slate-500">No tasks yet</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  TO generation jobs will appear here.
+                  Outline generation updates will appear here.
                 </p>
               </div>
             </div>

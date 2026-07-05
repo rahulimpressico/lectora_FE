@@ -6,6 +6,10 @@ import {
   startGenerateTO,
 } from '@/api/course-generation/api'
 import { ApiClientError } from '@/api/errors'
+import {
+  toUserFacingTOErrorMessage,
+  toUserFacingTOStatusMessage,
+} from '@/modules/course-generation/utils/userFacingGenerationText'
 import { useCourseStore } from '../../../store/courseStore'
 import { TO_TASKS_QUERY_KEY } from './useToTasks'
 import type { GenerateTOResponse, GenerateTOStageLog, WorkflowPhase } from '../../../types'
@@ -22,39 +26,6 @@ import { normalizeTrainingOutlineForPanel } from '../../review/utils/trainingOut
 export type GenerateTOOverrides = {
   outlineBlobPaths?: string[]
   useStaticPrompt?: boolean
-}
-
-const GENERIC_TO_ERROR =
-  'Training Outline generation could not be completed. Please try again.'
-
-function userFacingGenerateToError(message: string): string {
-  const trimmed = message.trim()
-  if (!trimmed) return GENERIC_TO_ERROR
-  if (
-    /^s1 failed/i.test(trimmed) ||
-    /blockers?\s*=|warnings?\s*=/i.test(trimmed) ||
-    (/section\s+\d+/i.test(trimmed) &&
-      /(subtopic|objective|compressed|learning|outline)/i.test(trimmed))
-  ) {
-    return GENERIC_TO_ERROR
-  }
-  return trimmed
-}
-
-function userFacingStatusMessage(message: string): string {
-  const trimmed = message.trim()
-  if (!trimmed) return trimmed
-  if (
-    /^s1 failed/i.test(trimmed) ||
-    /blockers?\s*=|warnings?\s*=/i.test(trimmed) ||
-    /s1 requires refinement/i.test(trimmed)
-  ) {
-    return 'Checking outline quality…'
-  }
-  if (/s1_refine|polish|repair/i.test(trimmed)) {
-    return 'Polishing outline structure…'
-  }
-  return trimmed
 }
 
 // Maps the display label from CourseBasicsStep chips to the backend rule-family key.
@@ -297,7 +268,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     const poll = pollQuery.data
     if (!poll || !activeJobId) return
 
-    if (poll.message) setStatusMessage(userFacingStatusMessage(poll.message))
+    if (poll.message) setStatusMessage(toUserFacingTOStatusMessage(poll.message))
 
     if (poll.status === 'completed') {
       if (poll.to && poll.rules) {
@@ -314,7 +285,7 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
     } else if (poll.status === 'failed') {
       setJobError(
         new Error(
-          userFacingGenerateToError(poll.error ?? poll.message ?? 'TO generation failed.'),
+          toUserFacingTOErrorMessage(poll.error ?? poll.message ?? 'TO generation failed.'),
         ),
       )
       setActiveJobId(null)
