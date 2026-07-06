@@ -69,6 +69,7 @@ export function UploadPhase() {
     setCourseTitle,
     toDocument,
     setToDocument,
+    setGeneratedToBlobPath,
     durationHours,
     difficultyLevel,
     setDurationHours,
@@ -101,6 +102,7 @@ export function UploadPhase() {
     },
     onSuccess: ({ blobPath, file }) => {
       setToUploadError(null);
+      setGeneratedToBlobPath(null);
       const lower = file.name.toLowerCase();
       setToDocument({
         id: "to-doc",
@@ -125,7 +127,9 @@ export function UploadPhase() {
       ? "Enter at least 2 characters with a letter or number"
       : null;
 
-  const successFiles = rawDocuments.filter((f) => f.status === "success");
+  const successFiles = rawDocuments.filter(
+    (f) => f.status === 'success' && f.uploadRole !== 'outline',
+  )
   const processingFiles = rawDocuments.filter(
     (f) => f.status === "parsing" || f.status === "uploading",
   );

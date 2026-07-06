@@ -3,7 +3,7 @@ import { useMutation, useQueries } from '@tanstack/react-query'
 import { uploadDocument, pollIngestionStatus } from '@/api/course-generation/api'
 import { useCourseStore } from '../../../store/courseStore'
 import { useDocxPreview } from './useDocxPreview'
-import type { UploadedFile, UploadedFileType } from '../../../types'
+import type { UploadedFile, UploadedFileType, UploadRole } from '../../../types'
 
 const ACCEPTED_EXTENSIONS = ['.docx', '.pdf']
 const INGESTION_POLL_INTERVAL_MS = 3_000
@@ -18,6 +18,10 @@ function getFileType(filename: string): UploadedFileType | null {
   if (lower.endsWith('.docx')) return 'docx'
   if (lower.endsWith('.pdf')) return 'pdf'
   return null
+}
+
+export type EnqueueFilesOptions = {
+  uploadRole?: UploadRole
 }
 
 export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
@@ -70,10 +74,12 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
   })
 
   const enqueueFiles = useCallback(
-    async (files: FileList | File[]) => {
+    async (files: FileList | File[], options: EnqueueFilesOptions = {}) => {
       if (!isValidCourseTopic(courseTopic)) {
         return
       }
+
+      const uploadRole = options.uploadRole ?? 'source'
 
       const accepted = Array.from(files).filter((f) => {
         const t = getFileType(f.name)
@@ -93,6 +99,7 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
           // PDFs have no client-side preview step — they start directly in 'uploading'.
           status:    isPdf ? 'uploading' : 'parsing',
           fileType,
+          uploadRole,
         }
         addRawDocument(entry)
 
@@ -153,6 +160,7 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
           fileType,
           blobPath: entry.path,
           source: 'azure',
+          uploadRole: 'source',
           // Azure-picked files are pre-existing blobs — no ingestion status to wait for
         })
       }

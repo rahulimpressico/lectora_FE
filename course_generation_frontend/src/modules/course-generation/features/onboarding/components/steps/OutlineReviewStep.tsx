@@ -7,6 +7,7 @@ import { OutlineSectionsEditor, getOutlineSections } from '../OutlineSectionsEdi
 import { useCourseStore } from '../../../../store/courseStore'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
 import { useDownloadTrainingOutline } from '../../../review/hooks/useDownloadTrainingOutline'
+import { usePersistTrainingOutline } from '../../hooks/usePersistTrainingOutline'
 import { useWizardNav } from '../WizardNavContext'
 import type { JsonObject } from '../../../../types'
 
@@ -45,23 +46,37 @@ export const OutlineReviewStep = () => {
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const updateTOField = useCourseStore((s) => s.updateTOField)
   const generateTO = useGenerateTO()
+  const persistTrainingOutline = usePersistTrainingOutline()
   const { download: handleDownload, downloading } = useDownloadTrainingOutline()
 
   const [isEditing, setIsEditing] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set())
+  const [persistError, setPersistError] = useState<string | null>(null)
 
   const { setConfig } = useWizardNav()
+
+  const handleEnterWorkspace = () => {
+    setPersistError(null)
+    persistTrainingOutline.mutate(undefined, {
+      onSuccess: () => setPhase('three-panel'),
+      onError: (err) => {
+        setPersistError(err instanceof Error ? err.message : 'Failed to save the Training Outline.')
+      },
+    })
+  }
 
   useEffect(() => {
     setConfig({
       backPhase: 'wizard-outline-pref',
       backLabel: 'Back',
-      nextLabel: 'Enter Workspace',
-      isNextDisabled: !toData,
-      onNext: () => setPhase('three-panel'),
+      nextLabel: persistTrainingOutline.isPending ? 'Saving…' : 'Enter Workspace',
+      isNextDisabled: !toData || persistTrainingOutline.isPending,
+      isNextLoading: persistTrainingOutline.isPending,
+      loadingLabel: 'Saving…',
+      onNext: handleEnterWorkspace,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toData])
+  }, [toData, persistTrainingOutline.isPending])
 
   const courseName =
     (toData?.course_name as string | undefined) ||
@@ -214,7 +229,7 @@ export const OutlineReviewStep = () => {
 
       {/* Error alert */}
       <AnimatePresence>
-        {generateTO.isError && (
+        {(generateTO.isError || persistError) && (
           <motion.div
             variants={fadeIn}
             initial="hidden"
@@ -223,7 +238,11 @@ export const OutlineReviewStep = () => {
             className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700"
           >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{generateTO.error?.message ?? 'An error occurred. Please try again.'}</span>
+            <span>
+              {persistError ??
+                generateTO.error?.message ??
+                'An error occurred. Please try again.'}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>

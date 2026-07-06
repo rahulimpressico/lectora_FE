@@ -142,7 +142,9 @@ export function useGenerateTO(successPhase: WorkflowPhase = 'three-panel') {
         courseTopic,
       } = useCourseStore.getState()
 
-      const successDocs = rawDocuments.filter((f) => f.status === 'success' && f.blobPath)
+      const successDocs = rawDocuments.filter(
+        (f) => f.status === 'success' && f.blobPath && f.uploadRole !== 'outline',
+      )
       const allBlobPaths = successDocs.map((f) => f.blobPath as string)
 
       // Case 2 (outline file upload): use only the supplied outline blob paths.

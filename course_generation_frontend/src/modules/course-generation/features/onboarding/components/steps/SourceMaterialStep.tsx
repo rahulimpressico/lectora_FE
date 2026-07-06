@@ -119,7 +119,9 @@ export const SourceMaterialStep = () => {
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const successDocs = rawDocuments.filter((d) => d.status === 'success')
+  const successDocs = rawDocuments.filter(
+    (d) => d.status === 'success' && d.uploadRole !== 'outline',
+  )
   const skipIndexDocs = successDocs.filter((d) => isSkipIndexStatus(d.ingestionStatus))
   const hasIndexingFailures = hasSkipIndexFiles(rawDocuments)
   const addedPaths = new Set(successDocs.map((d) => d.blobPath).filter(Boolean) as string[])

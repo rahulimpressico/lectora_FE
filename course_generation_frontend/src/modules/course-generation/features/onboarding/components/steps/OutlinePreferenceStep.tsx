@@ -63,6 +63,8 @@ export const OutlinePreferenceStep = () => {
   const difficultyLevel = useCourseStore((s) => s.difficultyLevel)
 
   const rawDocuments = useCourseStore((s) => s.rawDocuments)
+  const uploadedOutlineJson = useCourseStore((s) => s.uploadedOutlineJson)
+  const setUploadedOutlineJson = useCourseStore((s) => s.setUploadedOutlineJson)
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
   const { enqueueFiles } = useFileUpload()
   const generateTO = useGenerateTO('wizard-outline-review')
@@ -76,13 +78,9 @@ export const OutlinePreferenceStep = () => {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
-  // Snapshot the IDs already in the store when this step mounts so we can
-  // distinguish outline files uploaded here from source files added in step 3.
-  const [priorDocIds] = useState(() => new Set(rawDocuments.map((f) => f.id)))
-  const outlineFiles = rawDocuments.filter((f) => !priorDocIds.has(f.id))
+  const outlineFiles = rawDocuments.filter((f) => f.uploadRole === 'outline')
 
   // ── Case 3: client-side JSON parsing ──────────────────────────────────────
-  const [parsedJsonTO, setParsedJsonTO] = useState<JsonObject | null>(null)
   const [jsonParseError, setJsonParseError] = useState<string | null>(null)
 
   const readJsonFiles = useCallback((files: FileList | File[]) => {
@@ -96,21 +94,21 @@ export const OutlinePreferenceStep = () => {
             if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
               throw new Error('JSON must be an object, not an array or primitive value.')
             }
-            setParsedJsonTO(parsed as JsonObject)
+            setUploadedOutlineJson(parsed as JsonObject)
             setJsonParseError(null)
           } catch (err) {
-            setParsedJsonTO(null)
+            setUploadedOutlineJson(null)
             setJsonParseError(err instanceof Error ? err.message : 'Invalid JSON file.')
           }
         }
         reader.onerror = () => {
-          setParsedJsonTO(null)
+          setUploadedOutlineJson(null)
           setJsonParseError('Failed to read the JSON file.')
         }
         reader.readAsText(file)
       }
     }
-  }, [])
+  }, [setUploadedOutlineJson])
 
   const [isSuggesting, setIsSuggesting] = useState(false)
   const [suggestReasoning, setSuggestReasoning] = useState<string | null>(null)
@@ -159,7 +157,7 @@ export const OutlinePreferenceStep = () => {
 
       if (jsonOutlineFile) {
         // Case 3: JSON upload — load parsed content client-side, no LLM call
-        const canLoad = !!parsedJsonTO && !jsonParseError
+        const canLoad = !!uploadedOutlineJson && !jsonParseError
         setConfig({
           backPhase: 'wizard-direction',
           backLabel: 'Back',
@@ -167,7 +165,7 @@ export const OutlinePreferenceStep = () => {
           isNextDisabled: !canLoad,
           onNext: canLoad
             ? () => {
-                setTOData(parsedJsonTO, parsedJsonTO)
+                setTOData(uploadedOutlineJson, uploadedOutlineJson)
                 setPhase('wizard-outline-review')
               }
             : undefined,
@@ -202,8 +200,16 @@ export const OutlinePreferenceStep = () => {
   }, [
     outlineMode, hasExistingTO, generateTO.isPending, outlineFiles, wizardData, audience,
     setConfig, setPhase, generateTO, durationHours, difficultyLevel,
-    parsedJsonTO, jsonParseError, setTOData,
+    uploadedOutlineJson, jsonParseError, setTOData,
   ])
+
+  const handleRemoveOutlineFile = (fileId: string, fileName: string) => {
+    removeRawDocument(fileId)
+    if (fileName.toLowerCase().endsWith('.json')) {
+      setUploadedOutlineJson(null)
+      setJsonParseError(null)
+    }
+  }
 
   const handleSuggestStructure = () => {
     setIsSuggesting(true)
@@ -245,14 +251,14 @@ export const OutlinePreferenceStep = () => {
     setIsDragging(false)
     if (e.dataTransfer.files.length > 0) {
       readJsonFiles(e.dataTransfer.files)
-      void enqueueFiles(e.dataTransfer.files)
+      void enqueueFiles(e.dataTransfer.files, { uploadRole: 'outline' })
     }
   }
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       readJsonFiles(e.target.files)
-      void enqueueFiles(e.target.files)
+      void enqueueFiles(e.target.files, { uploadRole: 'outline' })
     }
     e.target.value = ''
   }
@@ -580,7 +586,7 @@ export const OutlinePreferenceStep = () => {
                         </div>
                         <motion.button
                           type="button"
-                          onClick={() => removeRawDocument(file.id)}
+                          onClick={() => handleRemoveOutlineFile(file.id, file.name)}
                           whileHover={{ scale: 1.15 }}
                           whileTap={{ scale: 0.9 }}
                           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
@@ -602,7 +608,7 @@ export const OutlinePreferenceStep = () => {
                 )}
 
                 {/* JSON parsed successfully */}
-                {parsedJsonTO && !jsonParseError && outlineFiles.some((f) => f.name.toLowerCase().endsWith('.json')) && (
+                {uploadedOutlineJson && !jsonParseError && outlineFiles.some((f) => f.name.toLowerCase().endsWith('.json')) && (
                   <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
                     <span>JSON parsed — click <strong>Load Outline</strong> to use this outline directly.</span>
