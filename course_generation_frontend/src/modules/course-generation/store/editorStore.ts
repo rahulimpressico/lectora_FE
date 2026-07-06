@@ -7,6 +7,7 @@ import type {
   CourseSection,
   SectionEditState,
   AIOperationType,
+  BodyParagraph,
 } from '../types/editor'
 
 // ─── Store shape ──────────────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ interface EditorStoreState {
   updateSectionTitle: (sectionId: string, title: string) => void
 
   setAIProcessing: (sectionId: string, operation: AIOperationType) => void
-  applyAIResult: (sectionId: string, content: string) => void
+  applyAIResult: (sectionId: string, content: string, paragraphs?: BodyParagraph[]) => void
   clearAIOperation: (sectionId: string) => void
 
   // ── Section/subtopic CRUD ───────────────────────────────────────────────────
@@ -271,9 +272,8 @@ export const useEditorStore = create<EditorStoreState>()(
         if (section) {
           section.content = content
           section.wordCount = content.trim().split(/\s+/).filter(Boolean).length
-          // Keep paragraphs in sync so RichContentRenderer doesn't fall back
-          // to the original (stale) structured data after isDirty is cleared.
-          section.paragraphs = [{ type: 'text', content }]
+          // Clear structured paragraphs so markdown in content renders via MarkdownBlockRenderer.
+          section.paragraphs = undefined
         }
         const s = draft.sectionEditStates.get(sectionId)
         if (s) {
@@ -304,13 +304,13 @@ export const useEditorStore = create<EditorStoreState>()(
         if (s) { s.isAIProcessing = true; s.currentAIOperation = operation }
       }),
 
-      applyAIResult: (sectionId, content) => set((draft) => {
+      applyAIResult: (sectionId, content, paragraphs) => set((draft) => {
         if (!draft.courseContent) return
         const section = findInDraft(draft.courseContent.sections as CourseSection[], sectionId)
         if (section) {
           section.content = content
           section.wordCount = content.trim().split(/\s+/).filter(Boolean).length
-          section.paragraphs = [{ type: 'text', content }]
+          section.paragraphs = paragraphs && paragraphs.length > 0 ? paragraphs : undefined
         }
         const s = draft.sectionEditStates.get(sectionId)
         if (s) {
