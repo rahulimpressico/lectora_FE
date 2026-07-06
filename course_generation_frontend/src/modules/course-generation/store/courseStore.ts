@@ -60,6 +60,8 @@ interface CourseState {
 
   /** Optional user-uploaded TO document (replaces AI generation when set). */
   toDocument: UploadedFile | null
+  /** Parsed JSON outline from the wizard upload step (client-side, no LLM). */
+  uploadedOutlineJson: JsonObject | null
 
   // ── Dynamic TO generation — course configuration ─────────────────────────
   /** Course duration selected by the user (1–5 hours). Required for dynamic TO. */
@@ -137,6 +139,7 @@ interface CourseState {
   setToS1Validation: (result: S1ValidationResult | null) => void
 
   setToDocument: (file: UploadedFile | null) => void
+  setUploadedOutlineJson: (json: JsonObject | null) => void
   setActiveJob: (job: JobResponse | null) => void
   setActiveJobId: (id: string | null) => void
   setActiveTOJobId: (id: string | null) => void
@@ -442,6 +445,7 @@ const initialState = {
   courseTitle:          '',
   detectedRuleFamily:   '',
   toDocument:           null as UploadedFile | null,
+  uploadedOutlineJson:    null as JsonObject | null,
   wizardData:           { ...DEFAULT_WIZARD_DATA } as WizardData,
   durationHours:        null as number | null,
   difficultyLevel:      null as string | null,
@@ -627,6 +631,8 @@ export const useCourseStore = create<CourseState>()(
 
         setToDocument: (file) => set({ toDocument: file }),
 
+        setUploadedOutlineJson: (json) => set({ uploadedOutlineJson: json }),
+
         setActiveJob: (job) => set({ activeJob: job }),
 
         setActiveJobId: (id) => set({ activeJobId: id }),
@@ -641,6 +647,7 @@ export const useCourseStore = create<CourseState>()(
             modifiedTOPaths:    new Set(),
             modifiedRulesPaths: new Set(),
             toDocument:         null,
+            uploadedOutlineJson: null,
             durationHours:      null,
             difficultyLevel:    null,
             calculatedWordCount: null,
@@ -658,6 +665,13 @@ export const useCourseStore = create<CourseState>()(
           const persistedDocs = s.rawDocuments
             .filter((d) => d.status === 'success' && d.blobPath)
             .map(({ file: _f, previewHtml: _h, ...rest }) => rest)
+
+          const persistedToDocument = s.toDocument
+            ? (() => {
+                const { file: _f, previewHtml: _h, ...rest } = s.toDocument!
+                return rest
+              })()
+            : null
 
           // Base shape — common to every phase.
           const base = {
@@ -683,6 +697,8 @@ export const useCourseStore = create<CourseState>()(
             rulesData:           s.rulesData,
             rulesOriginal:       s.rulesOriginal,
             generatedToBlobPath: s.generatedToBlobPath,
+            toDocument:          persistedToDocument,
+            uploadedOutlineJson: s.uploadedOutlineJson,
             // Source analysis results (computed at Materials step Next time)
             sourceAnalyses:           s.sourceAnalyses,
             sourceAnalysesCacheKey:   s.sourceAnalysesCacheKey,

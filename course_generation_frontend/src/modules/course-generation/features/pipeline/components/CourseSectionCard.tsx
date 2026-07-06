@@ -114,6 +114,12 @@ export function CourseSectionCard({
   // Computed early so modalMutation and the render path share the same value.
   const hasChildren = section.children.length > 0
   const isL1 = depth === 0
+  const canAddSubtopic =
+    isL1 &&
+    section.sectionType !== 'overview' &&
+    section.sectionType !== 'learning-objectives' &&
+    section.id !== 'course-overview' &&
+    section.id !== 'course-learning-objectives'
 
   // For L1 sections with children but little/no direct content, build combined text
   // from all subsections so AI operations have real material to work with.
@@ -129,9 +135,9 @@ export function CourseSectionCard({
           .join('\n\n')
       : ''
   const aiContent =
-    isL1 && hasChildren && !(editState?.currentContent ?? '').trim()
+    isL1 && hasChildren && !(editState?.currentContent ?? section.content).trim()
       ? combinedChildrenContent
-      : (editState?.currentContent ?? '')
+      : (editState?.currentContent ?? section.content)
 
   const modalMutation = useMutation({
     mutationFn: ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
@@ -266,7 +272,7 @@ export function CourseSectionCard({
             userPrompt,
           })
           if (isMountedRef.current) {
-            applyAIResult(child.id, result.content)
+            applyAIResult(child.id, result.content, result.paragraphs)
           }
         } catch {
           if (isMountedRef.current) clearAIOperation(child.id)
@@ -934,7 +940,7 @@ export function CourseSectionCard({
                   )}
 
                   {/* Add subtopic button */}
-                  {isL1 && (
+                  {canAddSubtopic && (
                     <button
                       type="button"
                       onClick={(e) => {

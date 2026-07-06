@@ -9,6 +9,11 @@ import { InlineAzureBrowser } from '../../../upload/components/InlineAzureBrowse
 import { analyzeSource } from '@/api/course-generation/api'
 import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
+import {
+  hasSkipIndexFiles,
+  isSkipIndexStatus,
+  SKIP_INDEX_BLOCK_MESSAGE,
+} from '../../../../utils/ingestionStatus'
 import type { IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
 
 /** Build a deterministic cache key from the current set of analyzable docs. */
@@ -34,10 +39,11 @@ function IngestionBadge({ status }: { status: IngestionStatus | undefined }) {
       </span>
     )
   }
-  if (status === 'failed') {
+  if (isSkipIndexStatus(status)) {
     return (
-      <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
-        Index skipped
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+        <XCircle className="w-2.5 h-2.5" />
+        Skip Index
       </span>
     )
   }
@@ -113,7 +119,11 @@ export const SourceMaterialStep = () => {
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const successDocs = rawDocuments.filter((d) => d.status === 'success')
+  const successDocs = rawDocuments.filter(
+    (d) => d.status === 'success' && d.uploadRole !== 'outline',
+  )
+  const skipIndexDocs = successDocs.filter((d) => isSkipIndexStatus(d.ingestionStatus))
+  const hasIndexingFailures = hasSkipIndexFiles(rawDocuments)
   const addedPaths = new Set(successDocs.map((d) => d.blobPath).filter(Boolean) as string[])
   const isIngesting = successDocs.some(
     (d) => d.ingestionStatus === 'pending' || d.ingestionStatus === 'processing',
@@ -126,6 +136,8 @@ export const SourceMaterialStep = () => {
   const { setConfig } = useWizardNav()
 
   const handleNext = () => {
+    if (hasIndexingFailures) return
+
     setAnalysisError(null)
 
     // Compute cache key only from docs that will actually be sent
@@ -183,19 +195,32 @@ export const SourceMaterialStep = () => {
       })
   }
 
+  const handleReupload = (fileId: string) => {
+    removeRawDocument(fileId)
+    setSourceMode('upload')
+    window.setTimeout(() => inputRef.current?.click(), 0)
+  }
+
   useEffect(() => {
-    const isBlocked = successDocs.length === 0 || isIngesting || isAnalysing
+    const isBlocked =
+      successDocs.length === 0 || isIngesting || isAnalysing || hasIndexingFailures
     setConfig({
       backPhase: 'wizard-audience',
       backLabel: 'Back',
-      nextLabel: isAnalysing ? 'Analysing Sources…' : isIngesting ? 'Indexing…' : 'Next: Objectives',
+      nextLabel: isAnalysing
+        ? 'Analysing Sources…'
+        : isIngesting
+          ? 'Indexing…'
+          : hasIndexingFailures
+            ? 'Resolve indexing errors'
+            : 'Next: Objectives',
       isNextDisabled: isBlocked,
       isNextLoading: isIngesting || isAnalysing,
       loadingLabel: isIngesting ? 'Uploading…' : 'Analysing…',
       onNext: handleNext,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [successDocs.length, isIngesting, isAnalysing])
+  }, [successDocs.length, isIngesting, isAnalysing, hasIndexingFailures, skipIndexDocs.length])
 
   useEffect(() => {
     if (!courseTopic.trim() && courseTitle.trim()) {
@@ -359,6 +384,22 @@ export const SourceMaterialStep = () => {
         )}
       </AnimatePresence>
 
+      {/* Skip Index blocking error */}
+      <AnimatePresence>
+        {hasIndexingFailures && (
+          <motion.div
+            key="skip-index-error"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="flex items-start gap-2.5 px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span className="flex-1">{SKIP_INDEX_BLOCK_MESSAGE}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Analysis error */}
       <AnimatePresence>
         {analysisError && (
@@ -415,7 +456,11 @@ export const SourceMaterialStep = () => {
               Selected files
             </p>
             <AnimatePresence mode="popLayout">
-              {rawDocuments.map((file) => (
+              {rawDocuments.map((file) => {
+                const isSkipIndex =
+                  file.status === 'success' && isSkipIndexStatus(file.ingestionStatus)
+
+                return (
                 <motion.div
                   key={file.id}
                   variants={fileCardVariants}
@@ -423,7 +468,10 @@ export const SourceMaterialStep = () => {
                   animate="show"
                   exit="exit"
                   style={{ willChange: "transform" }}
-                  className="bg-white border border-border rounded-xl overflow-hidden"
+                  className={cn(
+                    "bg-white border rounded-xl overflow-hidden",
+                    isSkipIndex ? "border-red-200 bg-red-50/30" : "border-border",
+                  )}
                 >
                   {/* File header row */}
                   <div className="flex items-center gap-3 px-4 py-3">
@@ -431,7 +479,7 @@ export const SourceMaterialStep = () => {
                       {(file.status === "uploading" || file.status === "parsing") && (
                         <Loader2 className="w-4 h-4 text-brand-500 animate-spin" />
                       )}
-                      {file.status === "success" && (
+                      {file.status === "success" && !isSkipIndex && (
                         <motion.span
                           variants={checkmarkSpring}
                           initial="hidden"
@@ -441,7 +489,9 @@ export const SourceMaterialStep = () => {
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                         </motion.span>
                       )}
-                      {file.status === "error" && <XCircle className="w-4 h-4 text-red-400" />}
+                      {(file.status === "error" || isSkipIndex) && (
+                        <XCircle className="w-4 h-4 text-red-500" />
+                      )}
                       {file.status === "idle" && (
                         <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
                       )}
@@ -458,19 +508,35 @@ export const SourceMaterialStep = () => {
                         {file.status === "uploading" && " · Uploading..."}
                         {file.status === "parsing" && " · Parsing..."}
                         {file.status === "error" && file.errorMessage && ` · ${file.errorMessage}`}
+                        {isSkipIndex && " · Indexing failed"}
                       </p>
                     </div>
-                    <motion.button
-                      type="button"
-                      onClick={() => removeRawDocument(file.id)}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      style={{ willChange: "transform" }}
-                      className="shrink-0 p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
-                      aria-label="Remove file"
-                    >
-                      <X className="w-4 h-4" />
-                    </motion.button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isSkipIndex && (
+                        <motion.button
+                          type="button"
+                          onClick={() => handleReupload(file.id)}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          style={{ willChange: "transform" }}
+                          className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-100 rounded-md transition-colors"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Re-upload
+                        </motion.button>
+                      )}
+                      <motion.button
+                        type="button"
+                        onClick={() => removeRawDocument(file.id)}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        style={{ willChange: "transform" }}
+                        className="p-1 text-slate-400 hover:text-red-400 transition-colors rounded"
+                        aria-label={isSkipIndex ? "Remove file" : "Remove file"}
+                      >
+                        <X className="w-4 h-4" />
+                      </motion.button>
+                    </div>
                   </div>
 
                   {/* Per-file metadata — only shown once uploaded */}
@@ -491,7 +557,8 @@ export const SourceMaterialStep = () => {
                     </div>
                   )}
                 </motion.div>
-              ))}
+                )
+              })}
             </AnimatePresence>
           </motion.div>
         )}

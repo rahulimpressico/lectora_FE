@@ -91,6 +91,7 @@ export interface AIOperationResponse {
   sectionId: string
   operation: AIOperationType
   content: string
+  paragraphs?: BodyParagraph[]
   processingTimeMs: number
 }
 

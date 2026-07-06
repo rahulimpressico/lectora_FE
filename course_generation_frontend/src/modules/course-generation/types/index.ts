@@ -30,6 +30,7 @@ export type UploadedFileType = 'docx' | 'pdf' | 'json'
 export type IngestionStatus = 'pending' | 'processing' | 'indexed' | 'parsed' | 'failed'
 export type SourceRole = 'primary_source' | 'supporting_source' | 'reference_only'
 export type ImportanceLevel = 'core' | 'supporting' | 'reference_only' | 'ignore'
+export type UploadRole = 'source' | 'outline'
 
 export interface UploadedFile {
   id: string
@@ -42,6 +43,8 @@ export interface UploadedFile {
   previewHtml?: string
   blobPath?: string
   source?: 'system' | 'azure'
+  /** Distinguishes source materials (step 4) from outline uploads (step 7). */
+  uploadRole?: UploadRole
   extractHint?: string
   sourceRole?: SourceRole
   importance?: ImportanceLevel

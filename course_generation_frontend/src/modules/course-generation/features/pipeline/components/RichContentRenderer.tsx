@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/cn'
 import type { Components } from 'react-markdown'
 import type { BodyParagraph } from '../../../types/editor'
+import { containsBlockMarkdown } from '../../../utils/markdownContent'
 
 const REMARK_PLUGINS = [remarkGfm]
 
@@ -288,6 +289,9 @@ function CalloutBlock({ label, content }: { label?: string; content: string }) {
 // STANDARD BLOCK RENDERERS
 // ─────────────────────────────────────────────────────────────────────────────
 function TextBlock({ content }: { content: string }) {
+  if (containsBlockMarkdown(content)) {
+    return <MarkdownBlockRenderer text={content} />
+  }
   return (
     <p className="text-[13.5px] text-slate-700 leading-[1.82] tracking-[0.008em]">
       <MarkdownInline>{content}</MarkdownInline>
@@ -394,30 +398,62 @@ function TableBlock({
   )
 }
 
-// ── Plain-text fallback (for edited/dirty content) ───────────────────────────
-// Uses react-markdown so **bold**, *italic*, `code`, ~~del~~ and links are
-// rendered without the old hand-rolled regex split.
-function PlainTextRenderer({ text }: { text: string }) {
+// ── Full markdown renderer (headings, lists, tables, code blocks, etc.) ───────
+const MARKDOWN_BLOCK_COMPONENTS: Components = {
+  p: ({ children }) => (
+    <p className="text-[13.5px] text-slate-700 leading-[1.82] tracking-[0.008em]">{children}</p>
+  ),
+  h1: ({ children }) => <h1 className="text-lg font-bold text-slate-900 pt-2">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-base font-bold text-slate-900 pt-2">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-[13.5px] font-semibold text-slate-800 pt-1">{children}</h3>,
+  h4: ({ children }) => <h4 className="text-[13px] font-semibold text-slate-700 pt-0.5">{children}</h4>,
+  h5: ({ children }) => <h5 className="text-[13px] font-semibold text-slate-700">{children}</h5>,
+  h6: ({ children }) => <h6 className="text-[13px] font-semibold text-slate-600">{children}</h6>,
+  ul: ({ children }) => <ul className="list-disc pl-5 space-y-2 my-2">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal pl-5 space-y-2 my-2">{children}</ol>,
+  li: ({ children }) => (
+    <li className="text-[13.5px] text-slate-700 leading-[1.82]">{children}</li>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-4 border-slate-200 pl-4 my-2 text-slate-600 italic">{children}</blockquote>
+  ),
+  pre: ({ children }) => (
+    <pre className="overflow-x-auto rounded-lg bg-slate-900 text-slate-100 p-4 my-2 text-[12px] leading-relaxed">{children}</pre>
+  ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm my-2">
+      <table className="w-full text-[12.5px] text-slate-700 border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-slate-50">{children}</thead>,
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => <tr className="border-b border-slate-100 last:border-0">{children}</tr>,
+  th: ({ children }) => (
+    <th className="px-4 py-2.5 text-left font-semibold text-slate-800 border-b border-slate-200">{children}</th>
+  ),
+  td: ({ children }) => <td className="px-4 py-2.5 leading-relaxed">{children}</td>,
+  strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
+  del: ({ children }) => <del className="text-slate-400">{children}</del>,
+  code: ({ className: codeClassName, children }) => {
+    const isBlock = Boolean(codeClassName)
+    if (isBlock) {
+      return <code className={cn('font-mono text-[12px]', codeClassName)}>{children}</code>
+    }
+    return (
+      <code className="text-[12px] font-mono bg-slate-100 px-1 rounded text-slate-700">{children}</code>
+    )
+  },
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline hover:text-brand-800">
+      {children}
+    </a>
+  ),
+}
+
+function MarkdownBlockRenderer({ text }: { text: string }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={REMARK_PLUGINS}
-      components={{
-        p: ({ children }) => (
-          <p className="text-[13.5px] text-slate-700 leading-[1.82] tracking-[0.008em]">{children}</p>
-        ),
-        strong: ({ children }) => <strong className="font-semibold text-slate-900">{children}</strong>,
-        em: ({ children }) => <em>{children}</em>,
-        del: ({ children }) => <del className="text-slate-400">{children}</del>,
-        code: ({ children }) => (
-          <code className="text-[12px] font-mono bg-slate-100 px-1 rounded text-slate-700">{children}</code>
-        ),
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-600 underline hover:text-brand-800">
-            {children}
-          </a>
-        ),
-      }}
-    >
+    <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_BLOCK_COMPONENTS}>
       {text}
     </ReactMarkdown>
   )
@@ -441,7 +477,20 @@ export function RichContentRenderer({
     if (!fallbackText) return null
     return (
       <div className={cn('space-y-2.5', className)}>
-        <PlainTextRenderer text={fallbackText} />
+        <MarkdownBlockRenderer text={fallbackText} />
+      </div>
+    )
+  }
+
+  // Single text paragraph with block markdown — render as full markdown, not inline-only.
+  if (
+    paragraphs.length === 1
+    && paragraphs[0].type === 'text'
+    && containsBlockMarkdown(paragraphs[0].content ?? '')
+  ) {
+    return (
+      <div className={cn('space-y-2.5', className)}>
+        <MarkdownBlockRenderer text={paragraphs[0].content ?? ''} />
       </div>
     )
   }

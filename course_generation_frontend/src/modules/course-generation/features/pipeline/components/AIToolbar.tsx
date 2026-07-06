@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   Sparkles,
-  RefreshCw,
   PenLine,
   SmilePlus,
   AlignLeft,
@@ -42,44 +41,37 @@ const OPERATION_ICON_COLOR: Record<AIOperationType, string> = {
 
 const AI_OPERATIONS: OperationDef[] = [
   {
-    type: 'regenerate',
-    label: 'Regenerate',
-    description: 'Fully rewrite from learning objectives',
-    Icon: RefreshCw,
-    group: 'primary',
-  },
-  {
     type: 'rewrite',
     label: 'Rewrite by AI',
-    description: 'Rewrite with custom instructions',
+    description: 'Targeted edits with custom instructions',
     Icon: PenLine,
     group: 'primary',
   },
   {
     type: 'improve_tone',
     label: 'Improve Tone',
-    description: 'Set a custom tone or style',
+    description: 'Adjust tone only where needed',
     Icon: SmilePlus,
     group: 'secondary',
   },
   {
     type: 'summarize',
     label: 'Summarize',
-    description: 'Condense to key points (~50% length)',
+    description: 'Condense in place, keep structure',
     Icon: AlignLeft,
     group: 'secondary',
   },
   {
     type: 'expand',
     label: 'Expand',
-    description: 'Add depth, examples, and elaboration',
+    description: 'Add depth without rewriting',
     Icon: ChevronsUpDown,
     group: 'secondary',
   },
   {
     type: 'simplify',
     label: 'Simplify',
-    description: 'Plain language, shorter sentences',
+    description: 'Plain language, same structure',
     Icon: Minimize2,
     group: 'secondary',
   },
@@ -87,8 +79,8 @@ const AI_OPERATIONS: OperationDef[] = [
 
 const OPERATION_LABEL: Record<AIOperationType, string> = {
   regenerate: 'Regenerating…',
-  rewrite: 'Rewriting…',
-  improve_tone: 'Improving tone…',
+  rewrite: 'Applying edits…',
+  improve_tone: 'Applying tone edits…',
   summarize: 'Summarizing…',
   expand: 'Expanding…',
   simplify: 'Simplifying…',

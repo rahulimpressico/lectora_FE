@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List, X } from 'lucide-react'
 import { useCourseStore } from '../../../../store/courseStore'
@@ -6,33 +6,10 @@ import { useWizardNav } from '../WizardNavContext'
 import { generateLearningObjectives } from '@/api/course-generation/api'
 import { cn } from '@/lib/cn'
 import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
-
-function parseNaturalLanguageObjectives(text: string): string[] {
-  const trimmed = text.trim()
-  if (!trimmed) return []
-
-  // Try numbered list: "1. ...", "1) ..."
-  const numbered = trimmed.split(/\n?\s*\d+[.)]\s+/).map((s) => s.trim()).filter(Boolean)
-  if (numbered.length > 1) return numbered
-
-  // Try bullet list: "- ...", "• ...", "* ..."
-  const bulleted = trimmed.split(/\n\s*[-•*]\s+/).map((s) => s.trim()).filter(Boolean)
-  if (bulleted.length > 1) return bulleted
-
-  // Try semicolons
-  const bySemi = trimmed.split(/;\s*/).map((s) => s.trim()).filter(Boolean)
-  if (bySemi.length > 1) return bySemi
-
-  // Fall back: split on ". " at sentence boundaries
-  const bySentence = trimmed
-    .split(/(?<=[a-z])\.\s+(?=[A-Z])/)
-    .map((s) => s.replace(/\.$/, '').trim())
-    .filter((s) => s.length > 10)
-  if (bySentence.length > 1) return bySentence
-
-  // Single block — return as one objective
-  return [trimmed]
-}
+import {
+  parseNaturalLanguageObjectives,
+  pastedTextLooksLikeMultipleObjectives,
+} from '@/modules/course-generation/utils/parseNaturalLanguageObjectives'
 
 // ─── Animation variants ───────────────────────────────────────────────────────
 
@@ -160,7 +137,7 @@ function RegeneratePromptModal({ open, onConfirm, onClose }: RegeneratePromptMod
 interface EditableObjectivesListProps {
   objectives: string[]
   onChange: (objectives: string[]) => void
-  onRegenerate: () => void
+  onRegenerate?: () => void
   isRegenerating?: boolean
 }
 
@@ -194,7 +171,8 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenera
   const addObjective = () => {
     const trimmed = newObjective.trim()
     if (!trimmed) return
-    onChange([...objectives, trimmed])
+    const parsed = parseNaturalLanguageObjectives(trimmed)
+    onChange([...objectives, ...parsed])
     setNewObjective('')
   }
 
@@ -248,14 +226,14 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenera
       </AnimatePresence>
 
       {/* Add manually */}
-      <div className="flex items-center gap-2 pt-1">
-        <input
-          type="text"
+      <div className="flex items-start gap-2 pt-1">
+        <textarea
+          rows={2}
           value={newObjective}
           onChange={(e) => setNewObjective(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') addObjective() }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addObjective() } }}
           placeholder="Add a custom objective..."
-          className="flex-1 px-3 py-2.5 text-sm border border-dashed border-slate-300 rounded-xl bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all"
+          className="flex-1 px-3 py-2.5 text-sm border border-dashed border-slate-300 rounded-xl bg-slate-50 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-indigo-400 focus:bg-white transition-all resize-none"
         />
         <motion.button
           type="button"
@@ -270,6 +248,7 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenera
       </div>
 
       {/* Regenerate */}
+      {onRegenerate && (
       <motion.button
         type="button"
         onClick={onRegenerate}
@@ -286,6 +265,7 @@ function EditableObjectivesList({ objectives, onChange, onRegenerate, isRegenera
         )}
         {isRegenerating ? 'Regenerating...' : 'Regenerate Objectives'}
       </motion.button>
+      )}
     </div>
   )
 }
@@ -317,6 +297,25 @@ export const LearningObjectivesStep = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false)
 
+  const appendParsedObjectives = useCallback((text: string) => {
+    const parsed = parseNaturalLanguageObjectives(text)
+    if (parsed.length === 0) return
+    const current = useCourseStore.getState().wizardData.objectives ?? []
+    setWizardData({ objectives: [...current, ...parsed] })
+    setNaturalText('')
+  }, [setWizardData])
+
+  const handleNaturalTextPaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData('text/plain')
+    if (!pasted.trim() || !pastedTextLooksLikeMultipleObjectives(pasted)) return
+
+    e.preventDefault()
+    const textarea = e.currentTarget
+    const { selectionStart, selectionEnd } = textarea
+    const combined = `${naturalText.slice(0, selectionStart)}${pasted}${naturalText.slice(selectionEnd)}`
+    appendParsedObjectives(combined)
+  }, [appendParsedObjectives, naturalText])
+
   const sourceMaterials = rawDocuments
     .filter((d) => d.status === 'success' && d.blobPath)
     .map((d) => d.blobPath as string)
@@ -329,7 +328,7 @@ export const LearningObjectivesStep = () => {
       backLabel: 'Back',
       nextPhase: 'wizard-direction',
       nextLabel: 'Next: Course Direction',
-      isNextDisabled: objectivesMode === 'ai-generated' && objectives.length === 0,
+      isNextDisabled: objectives.length === 0,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectivesMode, objectives.length])
@@ -448,20 +447,15 @@ export const LearningObjectivesStep = () => {
                   rows={8}
                   value={naturalText}
                   onChange={(e) => setNaturalText(e.target.value)}
+                  onPaste={handleNaturalTextPaste}
                   placeholder="e.g. After completing this course, learners will understand LTC insurance fundamentals, identify policy types and riders, apply regulatory requirements to client scenarios, and demonstrate ethical sales practices."
                   className="w-full px-3.5 py-2.5 text-sm border border-border rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 transition-all resize-none"
                 />
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-400">Works with numbered lists, bullet points, semicolons, or full sentences.</p>
+                  <p className="text-xs text-slate-400">Paste one objective per line, or use numbered lists, bullets, or semicolons.</p>
                   <motion.button
                     type="button"
-                    onClick={() => {
-                      const parsed = parseNaturalLanguageObjectives(naturalText)
-                      if (parsed.length > 0) {
-                        setWizardData({ objectives: [...objectives, ...parsed] })
-                        setNaturalText('')
-                      }
-                    }}
+                    onClick={() => appendParsedObjectives(naturalText)}
                     disabled={!naturalText.trim()}
                     className="shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     whileHover={naturalText.trim() ? { scale: 1.02 } : {}}
@@ -474,20 +468,15 @@ export const LearningObjectivesStep = () => {
               </div>
 
               {objectives.length > 0 && (
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                  <p className="text-xs font-medium text-slate-500 mb-2">
-                    {objectives.length} objective{objectives.length !== 1 ? 's' : ''} detected
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <p className="text-xs font-medium text-slate-500">
+                    {objectives.length} objective{objectives.length !== 1 ? 's' : ''} added
+                    <span className="ml-2 font-normal">Click any to edit, or paste more above</span>
                   </p>
-                  <ul className="space-y-1.5">
-                    {objectives.map((obj, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                        <span className="shrink-0 w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-xs flex items-center justify-center font-semibold mt-0.5">
-                          {i + 1}
-                        </span>
-                        {obj}
-                      </li>
-                    ))}
-                  </ul>
+                  <EditableObjectivesList
+                    objectives={objectives}
+                    onChange={(next) => setWizardData({ objectives: next })}
+                  />
                 </div>
               )}
             </motion.div>

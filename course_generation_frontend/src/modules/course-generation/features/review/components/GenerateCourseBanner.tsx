@@ -39,7 +39,7 @@ export const GenerateCourseBanner = () => {
     toDocument?.status === 'success' && toDocument.blobPath
       ? toDocument.blobPath
       : undefined
-  const timedOutlineBlobPath = generatedToBlobPath ?? uploadedTODocBlobPath ?? undefined
+  const timedOutlineBlobPath = uploadedTODocBlobPath ?? generatedToBlobPath ?? undefined
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
     mutationFn: async () => {

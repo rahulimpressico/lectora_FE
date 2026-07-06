@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Sparkles, PenLine, SmilePlus, Check, RotateCcw } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/cn'
 
 interface AIOperationModalProps {
@@ -27,21 +29,21 @@ const CONFIG: Record<'rewrite' | 'improve_tone', {
 }> = {
   rewrite: {
     title: 'Rewrite by AI',
-    subtitle: 'Provide instructions and let AI rewrite this section',
-    promptLabel: 'Rewrite Instructions',
-    placeholder: 'e.g., Make it more concise and use simpler language…',
+    subtitle: 'Describe what to change — AI will edit only those parts and keep everything else unchanged',
+    promptLabel: 'Edit Instructions',
+    placeholder: 'e.g., Make the second paragraph more concise, or simplify the bullet list under "Key Terms"…',
     Icon: PenLine,
-    confirmLabel: 'Rewrite',
-    processingLabel: 'Rewriting…',
+    confirmLabel: 'Apply Edits',
+    processingLabel: 'Applying edits…',
   },
   improve_tone: {
     title: 'Improve Tone',
-    subtitle: 'Describe the tone and style you want for this section',
+    subtitle: 'Describe the tone you want — only affected passages will be updated',
     promptLabel: 'Desired Tone / Style',
-    placeholder: 'e.g., Professional and formal, more engaging and conversational…',
+    placeholder: 'e.g., Make the introduction more conversational; keep technical terms in the rest…',
     Icon: SmilePlus,
-    confirmLabel: 'Improve Tone',
-    processingLabel: 'Improving tone…',
+    confirmLabel: 'Apply Tone Edits',
+    processingLabel: 'Applying tone edits…',
   },
 }
 
@@ -120,14 +122,8 @@ export function AIOperationModal({
             </p>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs font-semibold text-slate-700 mb-2">{sectionTitle}</p>
-              <div className="text-xs text-slate-500 leading-relaxed max-h-32 overflow-y-auto pr-1">
-                {currentContent.split('\n').map((para, i) =>
-                  para.trim() ? (
-                    <p key={i} className="mb-1 last:mb-0">{para}</p>
-                  ) : (
-                    <br key={i} />
-                  ),
-                )}
+              <div className="text-xs text-slate-500 leading-relaxed max-h-32 overflow-y-auto pr-1 prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentContent}</ReactMarkdown>
               </div>
             </div>
           </div>
@@ -159,14 +155,8 @@ export function AIOperationModal({
                   AI Result — Preview
                 </p>
               </div>
-              <div className="rounded-lg border border-brand-200 bg-brand-50/40 px-4 py-3 text-xs text-slate-700 leading-relaxed max-h-48 overflow-y-auto">
-                {result!.split('\n').map((para, i) =>
-                  para.trim() ? (
-                    <p key={i} className="mb-1.5 last:mb-0">{para}</p>
-                  ) : (
-                    <br key={i} />
-                  ),
-                )}
+              <div className="rounded-lg border border-brand-200 bg-brand-50/40 px-4 py-3 text-xs text-slate-700 leading-relaxed max-h-48 overflow-y-auto prose-sm max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result!}</ReactMarkdown>
               </div>
             </div>
           )}

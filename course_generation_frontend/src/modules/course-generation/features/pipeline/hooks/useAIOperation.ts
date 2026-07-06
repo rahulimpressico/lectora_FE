@@ -34,7 +34,7 @@ export function useAIOperation(jobId: string) {
     },
 
     onSuccess: (result) => {
-      applyAIResult(result.sectionId, result.content)
+      applyAIResult(result.sectionId, result.content, result.paragraphs)
     },
 
     onError: (_err, variables) => {
