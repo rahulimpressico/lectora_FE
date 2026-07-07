@@ -15,7 +15,7 @@ const redirectUri =
 const DEFAULT_REFRESH_MINUTES = 30
 const rawRefreshMinutes = Number(import.meta.env.VITE_AZURE_TOKEN_REFRESH_MINUTES)
 
-const SCOPES = ['openid', 'profile', 'User.Read', ...(apiScope ? [apiScope] : [])]
+const SCOPES = ['openid','email', 'profile', 'User.Read', ...(apiScope ? [apiScope] : [])]
 
 // Always enabled — defaults guarantee tenant/client IDs are present.
 export function msalAuthEnabled(): boolean {
