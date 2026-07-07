@@ -1,4 +1,4 @@
-const DEFAULT_PROD_API = 'https://lectora-be.onrender.com'
+const DEFAULT_PROD_API = 'https://lectora-course-gen-engine.onrender.com'
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')

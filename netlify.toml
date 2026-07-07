@@ -6,7 +6,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  VITE_API_BASE_URL = "https://lectora-be.onrender.com"
+  VITE_API_BASE_URL = "https://lectora-course-gen-engine.onrender.com"
 
 # React Router — client-side routes (static assets are served first when present)
 [[redirects]]
