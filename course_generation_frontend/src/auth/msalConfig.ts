@@ -1,7 +1,12 @@
 import type { Configuration, PopupRequest, SilentRequest } from '@azure/msal-browser'
 
-const tenantId = import.meta.env.VITE_AZURE_TENANT_ID?.trim() ?? ''
-const clientId = import.meta.env.VITE_AZURE_CLIENT_ID?.trim() ?? ''
+// Auth is always on. Tenant/client IDs are NOT secrets (they are sent in the
+// public sign-in URL), so we ship defaults and let env vars override them.
+const DEFAULT_TENANT_ID = '59abe6c5-fee5-4332-b2dd-5935ec367903'
+const DEFAULT_CLIENT_ID = 'f9b43fd2-0414-4454-a4e2-acb5e22a5eb8'
+
+const tenantId = import.meta.env.VITE_AZURE_TENANT_ID?.trim() || DEFAULT_TENANT_ID
+const clientId = import.meta.env.VITE_AZURE_CLIENT_ID?.trim() || DEFAULT_CLIENT_ID
 const apiScope = import.meta.env.VITE_AZURE_API_SCOPE?.trim() ?? ''
 const redirectUri =
   import.meta.env.VITE_AZURE_REDIRECT_URI?.trim() || window.location.origin
@@ -12,8 +17,9 @@ const rawRefreshMinutes = Number(import.meta.env.VITE_AZURE_TOKEN_REFRESH_MINUTE
 
 const SCOPES = ['openid', 'profile', 'User.Read', ...(apiScope ? [apiScope] : [])]
 
+// Always enabled — defaults guarantee tenant/client IDs are present.
 export function msalAuthEnabled(): boolean {
-  return Boolean(tenantId && clientId)
+  return true
 }
 
 export function getMsalConfig(): Configuration {
