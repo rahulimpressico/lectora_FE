@@ -12,8 +12,8 @@ import { InteractionRequiredAuthError, InteractionStatus } from '@azure/msal-bro
 import type { AccountInfo } from '@azure/msal-browser'
 import {
   getLoginRequest,
+  getIdentityTokenRequest,
   getTokenRefreshMs,
-  getTokenRequest,
   msalAuthEnabled,
 } from '@/auth/msalConfig'
 import { msalInstance } from '@/auth/msalInstance'
@@ -90,18 +90,26 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
     setAccount(null)
   }, [instance, accounts])
 
-  // Session refresh loop — silently renew the token on the configured TTL.
-  // If silent renewal requires interaction (refresh token expired), drop the
-  // session so RequireAuth re-triggers login.
+  // Session refresh loop — keep the MSAL identity session alive using login
+  // scopes only. Backend API tokens are acquired per-request in getAccessToken().
+  // Do NOT request VITE_AZURE_API_SCOPE here; API token failure must not log
+  // the user out.
   useEffect(() => {
     if (!account) return
 
     let cancelled = false
 
     const refresh = async () => {
+      const { scopes } = getIdentityTokenRequest()
+      if (scopes.length === 0) return
+
       try {
-        await instance.acquireTokenSilent({ ...getTokenRequest(), account })
+        await instance.acquireTokenSilent({
+          ...getIdentityTokenRequest(),
+          account,
+        })
       } catch (err) {
+        // Only clear account when the MSAL session itself is invalid/expired.
         if (!cancelled && err instanceof InteractionRequiredAuthError) {
           setAccount(null)
         }

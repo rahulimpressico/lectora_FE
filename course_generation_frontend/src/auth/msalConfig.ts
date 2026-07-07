@@ -1,12 +1,7 @@
 import type { Configuration, PopupRequest, SilentRequest } from '@azure/msal-browser'
 
-// Auth is always on. Tenant/client IDs are NOT secrets (they are sent in the
-// public sign-in URL), so we ship defaults and let env vars override them.
-const DEFAULT_TENANT_ID = '59abe6c5-fee5-4332-b2dd-5935ec367903'
-const DEFAULT_CLIENT_ID = 'f9b43fd2-0414-4454-a4e2-acb5e22a5eb8'
-
-const tenantId = import.meta.env.VITE_AZURE_TENANT_ID?.trim() || DEFAULT_TENANT_ID
-const clientId = import.meta.env.VITE_AZURE_CLIENT_ID?.trim() || DEFAULT_CLIENT_ID
+const tenantId = import.meta.env.VITE_AZURE_TENANT_ID?.trim() ?? ''
+const clientId = import.meta.env.VITE_AZURE_CLIENT_ID?.trim() ?? ''
 const apiScope = import.meta.env.VITE_AZURE_API_SCOPE?.trim() ?? ''
 const redirectUri =
   import.meta.env.VITE_AZURE_REDIRECT_URI?.trim() || window.location.origin
@@ -15,11 +10,28 @@ const redirectUri =
 const DEFAULT_REFRESH_MINUTES = 30
 const rawRefreshMinutes = Number(import.meta.env.VITE_AZURE_TOKEN_REFRESH_MINUTES)
 
-const SCOPES = ['openid','email', 'profile', 'User.Read', ...(apiScope ? [apiScope] : [])]
+function parseScopes(raw: string | undefined): string[] {
+  if (!raw?.trim()) return []
+  return raw
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean)
+}
 
-// Always enabled — defaults guarantee tenant/client IDs are present.
+/** Identity / consent scopes from `VITE_AZURE_SCOPES` (comma-separated). */
+const identityScopes = parseScopes(import.meta.env.VITE_AZURE_SCOPES)
+
+/** Login and session-refresh scopes: identity scopes plus the backend API scope. */
+function getAuthScopes(): string[] {
+  const scopes = [...identityScopes]
+  if (apiScope && !scopes.includes(apiScope)) {
+    scopes.push(apiScope)
+  }
+  return scopes
+}
+
 export function msalAuthEnabled(): boolean {
-  return true
+  return Boolean(tenantId && clientId)
 }
 
 export function getMsalConfig(): Configuration {
@@ -37,11 +49,31 @@ export function getMsalConfig(): Configuration {
 }
 
 export function getLoginRequest(): PopupRequest {
-  return { scopes: SCOPES }
+  return { scopes: getAuthScopes() }
 }
 
 export function getTokenRequest(): Omit<SilentRequest, 'account'> {
-  return { scopes: SCOPES }
+  return { scopes: getAuthScopes() }
+}
+
+/** Session-refresh request — identity scopes only (no backend API scope). */
+export function getIdentityTokenRequest(): Omit<SilentRequest, 'account'> {
+  return { scopes: identityScopes }
+}
+
+/**
+ * The backend API scope (`VITE_AZURE_API_SCOPE`, e.g.
+ * `api://<app-id>/access_as_user`). Empty string when not configured.
+ * A token minted for this scope is what the backend validates — Graph scopes
+ * like `User.Read`/`openid` are NOT accepted by the API.
+ */
+export function getApiScope(): string {
+  return apiScope
+}
+
+/** Silent-token request scoped to the backend API (not Graph). */
+export function getApiTokenRequest(): Omit<SilentRequest, 'account'> {
+  return { scopes: [apiScope] }
 }
 
 export function getTokenRefreshMs(): number {

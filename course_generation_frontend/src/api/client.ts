@@ -7,14 +7,32 @@
 import axios from 'axios'
 import { API_BASE_URL } from '@/config/api'
 import { ApiClientError } from '@/api/errors'
+import { getAccessToken } from '@/auth/getAccessToken'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 120_000,
 })
 
+/**
+ * Auth request interceptor.
+ *
+ * Every request made through this client is treated as protected: we attach a
+ * fresh MSAL access token (`Authorization: Bearer <token>`) before the request
+ * leaves the browser. There is no public/protected split — all backend routes
+ * behind `apiClient` require auth. If a token cannot be acquired the request is
+ * rejected so no unauthenticated call ever reaches the backend.
+ *
+ * Note: browser-native requests that bypass axios (SSE `EventSource`,
+ * `<img src>`/`<a href>` via `storageFileUrl`) are NOT covered here — see the
+ * review notes for those gaps.
+ */
 apiClient.interceptors.request.use(
-  (config) => config,
+  async (config) => {
+    const token = await getAccessToken()
+    config.headers.set('Authorization', `Bearer ${token}`)
+    return config
+  },
   (error) => Promise.reject(error),
 )
 
