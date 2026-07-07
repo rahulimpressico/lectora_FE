@@ -2,13 +2,20 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from 'react'
 import { MsalProvider, useMsal } from '@azure/msal-react'
-import { InteractionStatus } from '@azure/msal-browser'
+import { InteractionRequiredAuthError, InteractionStatus } from '@azure/msal-browser'
 import type { AccountInfo } from '@azure/msal-browser'
-import { getLoginRequest, msalAuthEnabled } from '@/auth/msalConfig'
+import {
+  getLoginRequest,
+  getTokenRefreshMs,
+  getTokenRequest,
+  msalAuthEnabled,
+} from '@/auth/msalConfig'
 import { msalInstance } from '@/auth/msalInstance'
 import { useMsalBootstrap } from '@/auth/useMsalBootstrap'
 
@@ -59,7 +66,14 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
   const { instance, accounts, inProgress } = useMsal()
   const initialized = useMsalBootstrap(instance, accounts)
 
-  const activeAccount = instance.getActiveAccount() ?? accounts[0] ?? null
+  const [account, setAccount] = useState<AccountInfo | null>(
+    () => instance.getActiveAccount() ?? accounts[0] ?? null,
+  )
+
+  // Keep local session state in sync with MSAL's account cache.
+  useEffect(() => {
+    setAccount(instance.getActiveAccount() ?? accounts[0] ?? null)
+  }, [instance, accounts])
 
   // Redirect (not popup) so login can start automatically on load — browsers
   // block popups that aren't opened from a direct user gesture.
@@ -68,26 +82,51 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
   }, [instance])
 
   const logout = useCallback(async () => {
-    const account = instance.getActiveAccount() ?? accounts[0]
+    const current = instance.getActiveAccount() ?? accounts[0]
     await instance.logoutPopup({
-      account: account ?? undefined,
+      account: current ?? undefined,
       postLogoutRedirectUri: window.location.origin,
     })
+    setAccount(null)
   }, [instance, accounts])
 
-  const isLoading =
-    !initialized || inProgress !== InteractionStatus.None
+  // Session refresh loop — silently renew the token on the configured TTL.
+  // If silent renewal requires interaction (refresh token expired), drop the
+  // session so RequireAuth re-triggers login.
+  useEffect(() => {
+    if (!account) return
+
+    let cancelled = false
+
+    const refresh = async () => {
+      try {
+        await instance.acquireTokenSilent({ ...getTokenRequest(), account })
+      } catch (err) {
+        if (!cancelled && err instanceof InteractionRequiredAuthError) {
+          setAccount(null)
+        }
+      }
+    }
+
+    const id = window.setInterval(() => void refresh(), getTokenRefreshMs())
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [account, instance])
+
+  const isLoading = !initialized || inProgress !== InteractionStatus.None
 
   const value = useMemo<AuthContextValue>(
     () => ({
       isLoading,
       msalAuthEnabled: true,
-      isAuthenticated: activeAccount !== null,
-      user: activeAccount ? accountToUser(activeAccount) : null,
+      isAuthenticated: account !== null,
+      user: account ? accountToUser(account) : null,
       login,
       logout,
     }),
-    [isLoading, activeAccount, login, logout],
+    [isLoading, account, login, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
