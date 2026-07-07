@@ -152,7 +152,7 @@ function TopicChip({ topic, onRemove, onEdit }: TopicChipProps) {
       variants={chipVariants}
       layout
       className={cn(
-        'group flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors',
+        'group flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors',
         isEditing
           ? 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-200'
           : 'border-indigo-200 bg-indigo-50 text-indigo-800 hover:border-indigo-400',
