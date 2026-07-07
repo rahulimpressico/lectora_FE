@@ -13,8 +13,9 @@ import type { AccountInfo } from '@azure/msal-browser'
 import {
   getLoginRequest,
   getIdentityTokenRequest,
+  getMissingAuthConfig,
   getTokenRefreshMs,
-  msalAuthEnabled,
+  isAuthConfigValid,
 } from '@/auth/msalConfig'
 import { msalInstance } from '@/auth/msalInstance'
 import { useMsalBootstrap } from '@/auth/useMsalBootstrap'
@@ -27,7 +28,6 @@ export interface AuthUser {
 
 interface AuthContextValue {
   isLoading: boolean
-  msalAuthEnabled: boolean
   isAuthenticated: boolean
   user: AuthUser | null
   login: () => Promise<void>
@@ -44,22 +44,32 @@ function accountToUser(account: AccountInfo): AuthUser {
   }
 }
 
-function BypassAuthProvider({ children }: { children: ReactNode }) {
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      isLoading: false,
-      msalAuthEnabled: false,
-      isAuthenticated: true,
-      user: null,
-      login: async () => {
-        throw new Error('Microsoft sign-in is not configured')
-      },
-      logout: async () => {},
-    }),
-    [],
+/**
+ * Blocking, fail-closed screen shown when required MSAL configuration is
+ * missing. There is NO authentication bypass — the app is not rendered and no
+ * context value with `isAuthenticated: true` is ever produced in this state.
+ */
+function AuthConfigError({ missing }: { missing: string[] }) {
+  return (
+    <div className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-surface-secondary px-6 text-center">
+      <h1 className="text-lg font-semibold text-slate-800">
+        Authentication configuration is missing
+      </h1>
+      <p className="max-w-md text-sm text-slate-500">
+        Microsoft sign-in cannot start because required configuration is not
+        set. The application is blocked until this is fixed.
+      </p>
+      {missing.length > 0 && (
+        <ul className="mt-1 space-y-0.5 text-sm text-slate-600">
+          {missing.map((name) => (
+            <li key={name}>
+              <code>{name}</code>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 function MsalAuthProvider({ children }: { children: ReactNode }) {
@@ -128,7 +138,6 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       isLoading,
-      msalAuthEnabled: true,
       isAuthenticated: account !== null,
       user: account ? accountToUser(account) : null,
       login,
@@ -141,8 +150,10 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  if (!msalAuthEnabled() || !msalInstance) {
-    return <BypassAuthProvider>{children}</BypassAuthProvider>
+  // Fail closed: without valid MSAL config (or an initialized instance) the app
+  // is blocked entirely. No bypass, no fake user, no protected routes.
+  if (!isAuthConfigValid() || !msalInstance) {
+    return <AuthConfigError missing={getMissingAuthConfig()} />
   }
 
   return (

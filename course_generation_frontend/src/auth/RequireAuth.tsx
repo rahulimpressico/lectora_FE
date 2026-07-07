@@ -31,7 +31,7 @@ function AutoLogin() {
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isLoading, msalAuthEnabled, isAuthenticated } = useAuth()
+  const { isLoading, isAuthenticated } = useAuth()
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -43,7 +43,8 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     return <SessionScreen label="Checking session…" />
   }
 
-  if (msalAuthEnabled && !isAuthenticated) {
+  // Protected routes never render without a real authenticated MSAL account.
+  if (!isAuthenticated) {
     return <AutoLogin />
   }
 

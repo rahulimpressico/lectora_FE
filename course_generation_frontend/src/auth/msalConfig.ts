@@ -34,6 +34,26 @@ export function msalAuthEnabled(): boolean {
   return Boolean(tenantId && clientId)
 }
 
+/**
+ * Names of required MSAL environment variables that are missing/blank.
+ *
+ * These are mandatory in EVERY environment (local, UAT, production) — there is
+ * no bypass. `VITE_AZURE_REDIRECT_URI` is intentionally excluded because it
+ * safely falls back to `window.location.origin`.
+ */
+export function getMissingAuthConfig(): string[] {
+  const missing: string[] = []
+  if (!tenantId) missing.push('VITE_AZURE_TENANT_ID')
+  if (!clientId) missing.push('VITE_AZURE_CLIENT_ID')
+  if (!apiScope) missing.push('VITE_AZURE_API_SCOPE')
+  return missing
+}
+
+/** True only when all required MSAL configuration is present. */
+export function isAuthConfigValid(): boolean {
+  return getMissingAuthConfig().length === 0
+}
+
 export function getMsalConfig(): Configuration {
   return {
     auth: {
