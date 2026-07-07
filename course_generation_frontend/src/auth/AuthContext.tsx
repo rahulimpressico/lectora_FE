@@ -61,18 +61,17 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
 
   const activeAccount = instance.getActiveAccount() ?? accounts[0] ?? null
 
+  // Redirect (not popup) so login can start automatically on load — browsers
+  // block popups that aren't opened from a direct user gesture.
   const login = useCallback(async () => {
-    const result = await instance.loginPopup(getLoginRequest())
-    if (result.account) {
-      instance.setActiveAccount(result.account)
-    }
+    await instance.loginRedirect(getLoginRequest())
   }, [instance])
 
   const logout = useCallback(async () => {
     const account = instance.getActiveAccount() ?? accounts[0]
     await instance.logoutPopup({
       account: account ?? undefined,
-      postLogoutRedirectUri: `${window.location.origin}/login`,
+      postLogoutRedirectUri: window.location.origin,
     })
   }, [instance, accounts])
 

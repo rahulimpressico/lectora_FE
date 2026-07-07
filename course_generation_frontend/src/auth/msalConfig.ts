@@ -14,7 +14,7 @@ export function getMsalConfig(): Configuration {
       clientId,
       authority: `https://login.microsoftonline.com/${tenantId}`,
       redirectUri: window.location.origin,
-      postLogoutRedirectUri: `${window.location.origin}/login`,
+      postLogoutRedirectUri: window.location.origin,
     },
     cache: {
       cacheLocation: 'sessionStorage',
