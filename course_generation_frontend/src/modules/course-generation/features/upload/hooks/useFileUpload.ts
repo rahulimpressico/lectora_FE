@@ -24,7 +24,7 @@ export type EnqueueFilesOptions = {
   uploadRole?: UploadRole
 }
 
-export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
+export function useFileUpload() {
   const {
     rawDocuments,
     addRawDocument,
@@ -134,7 +134,6 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [addRawDocument, updateRawDocument, parseFile, uploadToServer, courseTopic, setUploadFolder],
   )
 

@@ -76,8 +76,7 @@ export function UploadPhase() {
     setDifficultyLevel,
   } = useCourseStore();
 
-  const { enqueueFiles, enqueueAzureFiles, isTopicValid } =
-    useFileUpload("raw");
+  const { enqueueFiles, enqueueAzureFiles, isTopicValid } = useFileUpload();
   const generateTO = useGenerateTO();
 
   const [uploadMode, setUploadMode] = useState<UploadMode>("system");
