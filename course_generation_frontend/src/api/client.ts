@@ -7,6 +7,14 @@
 import axios from 'axios'
 import { API_BASE_URL } from '@/config/api'
 import { ApiClientError } from '@/api/errors'
+import {
+  getAccessToken,
+  MissingApiScopeError,
+  NoActiveAccountError,
+  InteractiveAuthRequiredError,
+  ApiTokenAcquisitionError,
+  isAccessTokenError,
+} from '@/auth/getAccessToken'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -15,9 +23,60 @@ const apiClient = axios.create({
 
 /** Timeout for slow LLM-backed calls (TO generate/regenerate/revise/upload). */
 export const LLM_REQUEST_TIMEOUT_MS = 10 * 60 * 1_000
+/**
+ * Map typed auth/token errors to `ApiClientError` so callers get a consistent
+ * shape. Re-throws anything that is not a known access-token error.
+ */
+function toApiClientAuthError(error: unknown): ApiClientError {
+  if (error instanceof MissingApiScopeError) {
+    console.error('[auth]', error.message)
+    return new ApiClientError(error.message, 500)
+  }
 
+  if (error instanceof NoActiveAccountError) {
+    console.error('[auth]', error.message)
+    return new ApiClientError(error.message, 401)
+  }
+
+  if (error instanceof InteractiveAuthRequiredError) {
+    console.error('[auth]', error.message, error.cause ?? '')
+    return new ApiClientError(error.message, 401)
+  }
+
+  if (error instanceof ApiTokenAcquisitionError) {
+    console.error('[auth]', error.message, error.cause ?? '')
+    return new ApiClientError(error.message, 403)
+  }
+
+  if (isAccessTokenError(error)) {
+    return new ApiClientError(error.message)
+  }
+
+  throw error
+}
+
+/**
+ * Auth request interceptor.
+ *
+ * Every request made through this client is treated as protected: we attach a
+ * fresh MSAL access token (`Authorization: Bearer <token>`) before the request
+ * leaves the browser. There is no public/protected split — all backend routes
+ * behind `apiClient` require auth. If a token cannot be acquired the request is
+ * rejected so no unauthenticated call ever reaches the backend.
+ *
+ * Remaining gaps (not covered here): SSE `EventSource`, `<img src>`/`<a href>`
+ * via `storageFileUrl`, and any raw `fetch()` calls.
+ */
 apiClient.interceptors.request.use(
-  (config) => config,
+  async (config) => {
+    try {
+      const token = await getAccessToken()
+      config.headers.set('Authorization', `Bearer ${token}`)
+      return config
+    } catch (error) {
+      return Promise.reject(toApiClientAuthError(error))
+    }
+  },
   (error) => Promise.reject(error),
 )
 
