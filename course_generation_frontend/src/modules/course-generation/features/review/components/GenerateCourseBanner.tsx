@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { createJob } from '@/api/jobs/api'
 import { saveTrainingOutline } from '@/api/course-generation/api'
 import { extractErrorMessage, isFileNotFoundError } from '../../../utils/jobErrorUtils'

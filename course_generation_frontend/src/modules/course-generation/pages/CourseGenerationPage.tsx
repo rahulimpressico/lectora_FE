@@ -6,17 +6,17 @@ import { ThreePanelPhase } from '../features/review/components/ThreePanelPhase'
 import { DocPreviewModal } from '../features/upload/components/DocPreviewModal'
 import { PipelineView } from '../features/pipeline/components/PipelineView'
 import { CourseEditorView } from '../features/pipeline/components/CourseEditorView'
-import { WelcomeScreen } from '../features/onboarding/components/WelcomeScreen'
-import { WizardLayout } from '../features/onboarding/components/WizardLayout'
-import { CourseBasicsStep } from '../features/onboarding/components/steps/CourseBasicsStep'
-import { RequiredTopicsStep } from '../features/onboarding/components/steps/RequiredTopicsStep'
-import { AudienceStep } from '../features/onboarding/components/steps/AudienceStep'
-import { SourceMaterialStep } from '../features/onboarding/components/steps/SourceMaterialStep'
-import { LearningObjectivesStep } from '../features/onboarding/components/steps/LearningObjectivesStep'
-import { CourseDirectionStep } from '../features/onboarding/components/steps/CourseDirectionStep'
-import { OutlinePreferenceStep } from '../features/onboarding/components/steps/OutlinePreferenceStep'
-import { OutlineReviewStep } from '../features/onboarding/components/steps/OutlineReviewStep'
-import { useCourseStore } from '../store/courseStore'
+import { WelcomeScreen } from '../features/onboarding-flow/WelcomeScreen'
+import { WizardLayout } from '../features/onboarding-flow/components/WizardLayout'
+import { CourseBasicsStep } from '../features/onboarding-flow/step-1-course-basics/components/CourseBasicsStep'
+import { RequiredTopicsStep } from '../features/onboarding-flow/step-2-required-topics/components/RequiredTopicsStep'
+import { AudienceStep } from '../features/onboarding-flow/step-3-audience/components/AudienceStep'
+import { SourceMaterialStep } from '../features/onboarding-flow/step-4-source-material/components/SourceMaterialStep'
+import { LearningObjectivesStep } from '../features/onboarding-flow/step-5-learning-objectives/components/LearningObjectivesStep'
+import { CourseDirectionStep } from '../features/onboarding-flow/step-6-course-direction/components/CourseDirectionStep'
+import { OutlinePreferenceStep } from '../features/onboarding-flow/step-7-outline-preference/components/OutlinePreferenceStep'
+import { OutlineReviewStep } from '../features/onboarding-flow/step-8-outline-review/components/OutlineReviewStep'
+import { useCourseStore } from '../features/onboarding-flow/store'
 import { usePipelineStore } from '../store/pipelineStore'
 import { useEditorStore } from '../store/editorStore'
 import { useBrowserHistory } from '../store/useBrowserHistory'
@@ -33,7 +33,7 @@ const WIZARD_PHASES = new Set([
 ])
 
 export const CourseGenerationPage = () => {
-  const { phase, activeJobId, activeTOJobId } = useCourseStore()
+  const { phase, activeJobId, isGeneratingTO } = useCourseStore()
   const { clearPipeline } = usePipelineStore()
   const { resetEditor } = useEditorStore()
 
@@ -43,7 +43,7 @@ export const CourseGenerationPage = () => {
   // Wizard & welcome phases auto-save via Zustand persist — never block navigation there.
   // Only block once real work exists: after TO generation, in three-panel, pipeline, or editor.
   const isOnboardingPhase = phase === 'welcome' || WIZARD_PHASES.has(phase)
-  const hasProgress = !isOnboardingPhase || !!activeTOJobId
+  const hasProgress = !isOnboardingPhase || isGeneratingTO
   const blocker = useBlocker(hasProgress)
 
   useEffect(() => {

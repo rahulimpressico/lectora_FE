@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCourseStore } from '@/modules/course-generation/store/courseStore'
+import { useCourseStore } from '@/modules/course-generation/features/onboarding-flow/store'
 import { useSettingsStore } from '@/shared/store/settingsStore'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { SettingsPanel } from './panels/SettingsPanel'
 import { HelpPanel } from './panels/HelpPanel'
-import { TasksPanel } from './panels/TasksPanel'
+// TasksPanel disabled along with the sidebar's Tasks button (see Sidebar.tsx) —
+// it called useToTasks() unconditionally before its `isOpen` check, so simply
+// hiding the button that opened it wasn't enough to stop the automatic
+// GET /documents/generate-to/jobs request; the panel must not mount at all.
+// import { TasksPanel } from './panels/TasksPanel'
 
 // ─── Apply settings as DOM side-effects ──────────────────────────────────────
 
@@ -103,7 +107,7 @@ export function AppLayout() {
       {/* Global slide-over panels — rendered at layout root */}
       <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <HelpPanel     isOpen={helpOpen}     onClose={() => setHelpOpen(false)}     />
-      <TasksPanel    isOpen={tasksOpen}    onClose={() => setTasksOpen(false)}    />
+      {/* <TasksPanel    isOpen={tasksOpen}    onClose={() => setTasksOpen(false)}    /> */}
     </div>
   )
 }

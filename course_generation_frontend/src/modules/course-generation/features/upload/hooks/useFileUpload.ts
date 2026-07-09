@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useMutation, useQueries } from '@tanstack/react-query'
 import { uploadDocument, pollIngestionStatus } from '@/api/course-generation/api'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { useDocxPreview } from './useDocxPreview'
 import type { UploadedFile, UploadedFileType, UploadRole } from '../../../types'
 

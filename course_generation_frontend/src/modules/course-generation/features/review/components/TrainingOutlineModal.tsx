@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { deepSet } from '../../../utils/deepUpdate'
 import { STEPS } from './training-outline/constants'
 import { detectKey, getStr } from './training-outline/helpers'

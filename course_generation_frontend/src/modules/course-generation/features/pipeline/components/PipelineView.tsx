@@ -14,7 +14,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { usePipelineStore } from "../../../store/pipelineStore";
-import { useCourseStore, clearCourseStorage } from "../../../store/courseStore";
+import { useCourseStore, clearCourseStorage } from "../../onboarding-flow/store";
 import { retryJob, cancelJob } from "@/api/jobs/api";
 import { useJobPipeline } from "../hooks/useJobPipeline";
 import { CourseGifLoader } from "./CourseGifLoader";

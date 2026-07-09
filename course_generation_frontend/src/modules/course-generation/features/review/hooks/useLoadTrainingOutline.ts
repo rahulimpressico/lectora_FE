@@ -1,87 +1,22 @@
-import { useEffect, useState } from 'react'
-import { loadTrainingOutlineFromPath } from '@/api/course-generation/api'
-import { loadJobTrainingOutline } from '@/api/jobs/api'
-import { useCourseStore } from '../../../store/courseStore'
-import { normalizeTrainingOutlineForPanel } from '../utils/trainingOutlinePanel'
-import type { JsonObject } from '../../../types'
+import { useEffect } from 'react'
+import { useCourseStore } from '../../onboarding-flow/store'
 
 /**
- * Hydrate the TO / Rules panels when in-memory Zustand state was lost
- * (page refresh, back-navigation from pipeline) but a blob path or job id exists.
+ * Waits for store rehydration, then seeds preset TO/rules into the persisted
+ * store only when nothing was restored from localStorage.
  */
 export function useLoadTrainingOutline() {
-  const {
-    toData,
-    courseTitle,
-    generatedToBlobPath,
-    activeJobId,
-    setTOData,
-    setRulesData,
-    setCourseTitle,
-    setDetectedRuleFamily,
-  } = useCourseStore()
-
-  const courseTypeHint = useCourseStore((s) => s.courseTypeHint)
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const hasHydrated = useCourseStore((s) => s.hasHydrated)
+  const toData = useCourseStore((s) => s.toData)
+  const hydratePresetTrainingOutline = useCourseStore((s) => s.hydratePresetTrainingOutline)
 
   useEffect(() => {
-    if (toData) return
+    if (!hasHydrated || toData) return
+    hydratePresetTrainingOutline()
+  }, [hasHydrated, toData, hydratePresetTrainingOutline])
 
-    let cancelled = false
-
-    async function hydrate() {
-      setLoading(true)
-      setError(null)
-      try {
-        if (generatedToBlobPath) {
-          const { to, rules } = await loadTrainingOutlineFromPath(generatedToBlobPath, 'uploads')
-          if (cancelled) return
-          const normalizedTo = normalizeTrainingOutlineForPanel(to as JsonObject, courseTypeHint)
-          setTOData(normalizedTo, normalizedTo)
-          setRulesData(rules as JsonObject, rules as JsonObject)
-          if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name)
-          if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family)
-          return
-        }
-
-        if (activeJobId) {
-          const { to, rules } = await loadJobTrainingOutline(activeJobId)
-          if (cancelled) return
-          const normalizedTo = normalizeTrainingOutlineForPanel(to as JsonObject, courseTypeHint)
-          setTOData(normalizedTo, normalizedTo)
-          setRulesData(rules as JsonObject, rules as JsonObject)
-          if (typeof to.course_name === 'string' && !courseTitle) setCourseTitle(to.course_name as string)
-          if (typeof to.rule_family === 'string') setDetectedRuleFamily(to.rule_family as string)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load Training Outline')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    if (generatedToBlobPath || activeJobId) {
-      void hydrate()
-    }
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    toData,
-    courseTitle,
-    generatedToBlobPath,
-    activeJobId,
-    setTOData,
-    setRulesData,
-    setCourseTitle,
-    setDetectedRuleFamily,
-    courseTypeHint,
-  ])
-
-  return { loading: loading && !toData, error: toData ? null : error }
+  return {
+    loading: !hasHydrated,
+    error: null,
+  }
 }

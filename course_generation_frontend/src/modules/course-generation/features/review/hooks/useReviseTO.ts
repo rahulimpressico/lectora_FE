@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { reviseTO } from '@/api/course-generation/api'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import type { JsonObject } from '../../../types'
 
 /**

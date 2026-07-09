@@ -23,7 +23,7 @@ import { useMutation } from "@tanstack/react-query";
 import { cn } from "@/lib/cn";
 import { Button } from "@/shared/components/Button";
 import { UploadZone } from "./UploadZone";
-import { useCourseStore } from "../../../store/courseStore";
+import { useCourseStore } from "../../onboarding-flow/store";
 import { formatBytes } from "@/shared/utils/formatBytes";
 import type { UploadedFile } from "../../../types";
 import { useFileUpload } from "../hooks/useFileUpload";
@@ -840,7 +840,7 @@ export function UploadPhase() {
                       </label>
                       <input
                         type="text"
-                        value={courseId}
+                        value={courseId ?? ""}
                         onChange={(e) => setCourseId(e.target.value)}
                         placeholder="e.g. 533"
                         className={cn(

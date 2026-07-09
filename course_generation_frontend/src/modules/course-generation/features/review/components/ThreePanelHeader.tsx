@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowLeft, Pencil } from 'lucide-react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 
 const RULE_FAMILY_LABELS: Record<string, string> = {
   insurance_ce: 'Insurance CE',

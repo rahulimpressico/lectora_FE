@@ -1,6 +1,6 @@
 import { Shield, RotateCcw } from 'lucide-react'
 import { Spinner } from '@/shared/components/Spinner'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { formatKeyLabel } from '../../../utils/deepUpdate'
 import { CARD_DEFS } from './rules-editor/constants'
 import { getTooltip } from './rules-editor/helpers'

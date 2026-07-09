@@ -51,13 +51,13 @@ All active UI lives under `src/modules/course-generation/`. The module is self-c
 ```
 src/modules/course-generation/
 ├── features/
-│   ├── onboarding/    ← welcome screen + 8-step wizard
+│   ├── onboarding-flow/ ← welcome screen + 8-step wizard, one dir per step (step-1-course-basics … step-8-outline-review). Each step and the onboarding-flow root have components/, utils/, types/, constants/ subdirs; cross-step code (WizardLayout, CoursePreviewPanel, AIGenerationLoader, WizardNavContext, shared animation variants) lives in the root ones
 │   ├── upload/        ← file drop, Azure browser, TO generation
 │   ├── review/        ← three-panel editor + rules editor
 │   └── pipeline/      ← SSE pipeline monitor + course editor
 ├── pages/             ← CourseGenerationPage (phase router)
 ├── shared/components/ ← RecursiveJsonEditor, InlineEditField
-├── store/             ← courseStore, editorStore, pipelineStore, useBrowserHistory, courseEditorDraft
+├── store/             ← editorStore, pipelineStore, useBrowserHistory, courseEditorDraft (courseStore itself now lives in features/onboarding-flow/store/ — the single state store for the whole module, onboarding and beyond)
 ├── types/             ← index, pipeline, editor, wizard
 ├── utils/
 └── config/
@@ -100,7 +100,7 @@ Each feature owns its components and hooks internally — import from the featur
 
 ### State: Zustand stores
 
-- **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job IDs, blob paths, course configuration (`audience`, `courseTitle`, `detectedRuleFamily`, `specialInstructions`, `courseTopic`, `difficultyLevel`, `durationHours`, `courseTypeHint`), and `wizardData` (`WizardData`). Uses `devtools` + `persist`; `partialize` has three modes: (a) `three-panel` — persists full TO/rules JSON + metadata; (b) active job — persists `{ activeJobId, phase }`; (c) otherwise — persists wizard/welcome state with `wizardData` so the wizard survives refresh. `audience` is mandatory — `useGenerateTO` throws if empty.
+- **`features/onboarding-flow/store/` (`onboarding.store.ts` + `onboarding.types.ts`, re-exported via `index.ts` as `useCourseStore`)** — the single centralized store for the entire module: workflow phase, uploaded files, TO/rules JSON, job IDs, blob paths, course configuration (`audience`, `courseTitle`, `detectedRuleFamily`, `specialInstructions`, `courseTopic`, `difficultyLevel`, `durationHours`, `courseTypeHint`, `courseBasicRecord`), and `wizardData` (`WizardData`). Every onboarding step and every post-onboarding phase (upload, three-panel, pipeline, editor) reads/writes this one store — there is no separate per-feature or per-step store. Uses `devtools` + `persist`; `partialize` has three modes: (a) `three-panel` — persists full TO/rules JSON + metadata; (b) active job — persists `{ activeJobId, phase }`; (c) otherwise — persists wizard/welcome state with `wizardData` so the wizard survives refresh. `audience` is mandatory — `useGenerateTO` throws if empty.
 - **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. No persist. Log entries capped at 400; backend log IDs deduplicated via `_maxSeenBackendLogId`.
 - **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state. No persist. Uses Zustand `immer` middleware (with `enableMapSet`). Section mutations: `addSection`/`addSubtopic` (return new ID), `moveSectionByIndex`, `moveChildByIndex`, `moveChildBetweenSections`, `moveSubtopicToSection`. `getCourseSnapshot()` merges all in-progress textarea edits into a `CourseContent` value for sync. `deduplicateSections` handles backend duplicate section IDs (keeps the copy with the most children).
 - **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`.

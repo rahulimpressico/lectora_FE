@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { exportTrainingOutlineToDocx } from '../../../utils/exportTrainingOutline'
 
 export function useDownloadTrainingOutline() {

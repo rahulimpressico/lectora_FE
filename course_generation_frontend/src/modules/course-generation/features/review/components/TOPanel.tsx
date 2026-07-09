@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { BookOpen, Download, Loader2, Wand2 } from 'lucide-react'
 import { JsonEditorPanel } from './JsonEditorPanel'
 import { ReviseOutlineModal } from './ReviseOutlineModal'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { useDownloadTrainingOutline } from '../hooks/useDownloadTrainingOutline'
 import {
   normalizeTrainingOutlineForPanel,

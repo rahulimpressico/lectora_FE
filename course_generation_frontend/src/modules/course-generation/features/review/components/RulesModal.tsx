@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { deepSet } from '../../../utils/deepUpdate'
 import { STEP_DEFS } from './rules-wizard/constants'
 import { RuleStepBar } from './rules-wizard/RuleStepBar'

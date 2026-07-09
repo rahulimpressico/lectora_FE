@@ -4,17 +4,20 @@ import {
   LayoutDashboard,
   Database,
   FileUp,
-  Settings,
-  HelpCircle,
+  // Settings,
+  // HelpCircle,
   X,
   CircleDollarSign,
-  ListTodo,
-  Loader2,
+  // ListTodo,
+  // Loader2,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/shared/components/Logo";
-import { useToTasks } from "@/modules/course-generation/features/upload/hooks/useToTasks";
+// Tasks/Settings/Help sidebar section disabled — see below. `useToTasks()` fired
+// GET /documents/generate-to/jobs unconditionally on every mount of this
+// always-rendered sidebar, which showed up as an unwanted automatic API call.
+// import { useToTasks } from "@/modules/course-generation/features/upload/hooks/useToTasks";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -39,12 +42,11 @@ interface SidebarProps {
 function SidebarContent({
   onClose,
   translucent = false,
-  onSettingsClick,
-  onHelpClick,
-  onTasksClick,
-  isSettingsOpen,
-  isHelpOpen,
-  isTasksOpen,
+  // onSettingsClick, onHelpClick, onTasksClick, isSettingsOpen, isHelpOpen,
+  // isTasksOpen intentionally not destructured — the Tasks/Settings/Help
+  // button section that consumed them is disabled below. Still declared on
+  // the prop type so AppLayout's wiring doesn't need to change if this is
+  // re-enabled later.
 }: {
   onClose?: () => void;
   translucent?: boolean;
@@ -56,31 +58,31 @@ function SidebarContent({
   isTasksOpen?: boolean;
 }) {
   const navigate = useNavigate();
-  const { runningCount } = useToTasks();
+  // const { runningCount } = useToTasks();
 
-  const bottomButtons = [
-    {
-      label: "Tasks",
-      icon: ListTodo,
-      onClick: onTasksClick,
-      isActive: isTasksOpen,
-      badge: runningCount > 0 ? runningCount : null,
-    },
-    {
-      label: "Settings",
-      icon: Settings,
-      onClick: onSettingsClick,
-      isActive: isSettingsOpen,
-      badge: null,
-    },
-    {
-      label: "Help",
-      icon: HelpCircle,
-      onClick: onHelpClick,
-      isActive: isHelpOpen,
-      badge: null,
-    },
-  ];
+  // const bottomButtons = [
+  //   {
+  //     label: "Tasks",
+  //     icon: ListTodo,
+  //     onClick: onTasksClick,
+  //     isActive: isTasksOpen,
+  //     badge: runningCount > 0 ? runningCount : null,
+  //   },
+  //   {
+  //     label: "Settings",
+  //     icon: Settings,
+  //     onClick: onSettingsClick,
+  //     isActive: isSettingsOpen,
+  //     badge: null,
+  //   },
+  //   {
+  //     label: "Help",
+  //     icon: HelpCircle,
+  //     onClick: onHelpClick,
+  //     isActive: isHelpOpen,
+  //     badge: null,
+  //   },
+  // ];
 
   return (
     <aside
@@ -163,6 +165,7 @@ function SidebarContent({
       </nav>
 
       {/* Secondary navigation — Settings & Help as panel triggers */}
+      {/* Tasks/Settings/Help section disabled — see comments above.
       <div
         className={cn(
           "space-y-0.5 border-t px-3 py-3",
@@ -200,6 +203,7 @@ function SidebarContent({
           ),
         )}
       </div>
+      */}
 
       {/* User profile */}
       <div
