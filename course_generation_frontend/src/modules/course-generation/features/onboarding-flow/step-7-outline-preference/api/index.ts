@@ -1,4 +1,4 @@
-import apiClient from '@/api/client'
+import apiClient, { LLM_REQUEST_TIMEOUT_MS } from '@/api/client'
 import type {
   GenerateTimedOutlineBody,
   GenerateTimedOutlineResponse,
@@ -16,7 +16,7 @@ export async function generateTimedOutline(
   const { data } = await apiClient.post<GenerateTimedOutlineResponse>(
     "/documents/generate-to",
     body,
-    { timeout: 5 * 60 * 1_000, signal },
+    { timeout: LLM_REQUEST_TIMEOUT_MS, signal },
   );
   return data
 }
@@ -29,7 +29,7 @@ export async function regenerateTimedOutline(
   const { data } = await apiClient.post<RegenerateTimedOutlineResponse>(
     '/documents/regenerate-timed-outline',
     body,
-    { timeout: 5 * 60 * 1_000 },
+    { timeout: LLM_REQUEST_TIMEOUT_MS },
   )
   return data
 }
@@ -45,7 +45,7 @@ export async function uploadTimedOutline(file: File): Promise<UploadTimedOutline
   form.append('file', file)
   const { data } = await apiClient.post<UploadTimedOutlineResponse>('/documents/upload-to', form, {
     // Large PDFs / DOCX outlines can take a while to extract via the LLM.
-    timeout: 5 * 60 * 1_000,
+    timeout: LLM_REQUEST_TIMEOUT_MS,
   })
   return data
 }

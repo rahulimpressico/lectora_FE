@@ -11,6 +11,7 @@ import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
 import type { JsonObject } from '../../../../types'
 import { suggestOutlineStructure } from '@/api/course-generation/api'
+import { getDisplayErrorMessage } from '@/api/errors'
 import { fadeUp, fadeIn, scaleIn, staggerContainer } from '../../constants/animations'
 import { slideUp, fileItemVariant } from '../constants'
 
@@ -129,7 +130,7 @@ export const OutlinePreferenceStep = () => {
           isNextDisabled: !canLoad,
           onNext: canLoad
             ? () => {
-                setTOData(uploadedOutlineJson, uploadedOutlineJson)
+                setTOData(uploadedOutlineJson)
                 setPhase('wizard-outline-review')
               }
             : undefined,
@@ -475,7 +476,7 @@ export const OutlinePreferenceStep = () => {
               {generateTO.isError && (
                 <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{generateTO.error?.message ?? 'An error occurred. Please try again.'}</span>
+                  <span>{getDisplayErrorMessage(generateTO.error)}</span>
                 </div>
               )}
             </motion.div>
@@ -590,7 +591,7 @@ export const OutlinePreferenceStep = () => {
                 {generateTO.isError && (
                   <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>{generateTO.error?.message ?? 'Extraction failed. Please try again.'}</span>
+                    <span>{getDisplayErrorMessage(generateTO.error, 'Extraction failed. Please try again.')}</span>
                   </div>
                 )}
               </div>

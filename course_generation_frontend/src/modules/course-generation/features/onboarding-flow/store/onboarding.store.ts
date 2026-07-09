@@ -12,6 +12,7 @@ import {
   _applySyncCascade,
   selectPersistedState,
   mergePersistedCourseState,
+  COURSE_STORE_STORAGE_KEY,
 } from './utils/index'
 
 const initialState = createInitialState()
@@ -85,68 +86,92 @@ export const useCourseStore = create<CourseState>()(
           set({ previewOpen: false, previewFileId: null }),
 
         // ── TO ────────────────────────────────────────────────────────────────────
-        setTOData: (data, original) =>
+        // `data` becomes the new original — any prior edit draft no longer
+        // applies to it, so it's discarded along with the dirty-path set.
+        setTOData: (data) =>
           set({
             toData:          data,
-            toOriginal:      original ?? data,
+            updatedToData:   null,
             modifiedTOPaths: new Set(),
           }),
 
         updateTOField: (path, value) =>
           set((s) => {
-            if (!s.toData) return s
+            const base = s.updatedToData ?? s.toData
+            if (!base) return s
             const modified = new Set(s.modifiedTOPaths)
             modified.add(pathKey(path))
             // Write the user's value first, then cascade the sync.
-            const afterSet     = deepSet(s.toData, path, value)
+            const afterSet     = deepSet(base, path, value)
             const afterCascade = _applySyncCascade(afterSet, path, value)
             return {
-              toData:          afterCascade,
+              updatedToData:   afterCascade,
               modifiedTOPaths: modified,
             }
           }),
 
         resetTOField: (path) =>
           set((s) => {
-            if (!s.toData || !s.toOriginal) return s
+            const base = s.updatedToData ?? s.toData
+            if (!base || !s.toData) return s
             const modified = new Set(s.modifiedTOPaths)
             modified.delete(pathKey(path))
+            const restored = restoreToFieldPath(base, s.toData, path)
             return {
-              toData:          restoreToFieldPath(s.toData, s.toOriginal, path),
+              // No dirty paths left → the draft is identical to the original again.
+              updatedToData:   modified.size > 0 ? restored : null,
               modifiedTOPaths: modified,
             }
           }),
 
+        resetAllTOEdits: () =>
+          set({ updatedToData: null, modifiedTOPaths: new Set() }),
+
+        applyTODraft: (data) =>
+          set({ updatedToData: data, modifiedTOPaths: new Set() }),
+
         // ── Rules ─────────────────────────────────────────────────────────────────
-        setRulesData: (data, original) =>
+        // `data` becomes the new original — any prior edit draft no longer
+        // applies to it, so it's discarded along with the dirty-path set.
+        setRulesData: (data) =>
           set({
             rulesData:          data,
-            rulesOriginal:      original ?? data,
+            updatedRulesData:   null,
             modifiedRulesPaths: new Set(),
           }),
 
         updateRulesField: (path, value) =>
           set((s) => {
-            if (!s.rulesData) return s
+            const base = s.updatedRulesData ?? s.rulesData
+            if (!base) return s
             const modified = new Set(s.modifiedRulesPaths)
             modified.add(pathKey(path))
             return {
-              rulesData:          deepSet(s.rulesData, path, value),
+              updatedRulesData:   deepSet(base, path, value),
               modifiedRulesPaths: modified,
             }
           }),
 
         resetRulesField: (path) =>
           set((s) => {
-            if (!s.rulesData || !s.rulesOriginal) return s
-            const original = deepGet(s.rulesOriginal, path) ?? null
+            const base = s.updatedRulesData ?? s.rulesData
+            if (!base || !s.rulesData) return s
+            const original = deepGet(s.rulesData, path) ?? null
             const modified = new Set(s.modifiedRulesPaths)
             modified.delete(pathKey(path))
+            const restored = deepSet(base, path, original)
             return {
-              rulesData:          deepSet(s.rulesData, path, original),
+              // No dirty paths left → the draft is identical to the original again.
+              updatedRulesData:   modified.size > 0 ? restored : null,
               modifiedRulesPaths: modified,
             }
           }),
+
+        resetAllRulesEdits: () =>
+          set({ updatedRulesData: null, modifiedRulesPaths: new Set() }),
+
+        applyRulesDraft: (data) =>
+          set({ updatedRulesData: data, modifiedRulesPaths: new Set() }),
 
         // ── Job / artifacts ───────────────────────────────────────────────────────
         setToDocument: (file) => set({ toDocument: file }),
@@ -178,9 +203,9 @@ export const useCourseStore = create<CourseState>()(
             const patch: Partial<CourseState> = {}
 
             if (needsTO) {
-              const normalizedTo = normalizeTrainingOutlineForPanel(to, s.courseTypeHint)
+              const normalizedTo = normalizeTrainingOutlineForPanel(to, s.courseTypeHint, s.courseCode)
               patch.toData = normalizedTo
-              patch.toOriginal = normalizedTo
+              patch.updatedToData = null
               patch.modifiedTOPaths = new Set<string>()
               if (!s.courseTitle.trim() && typeof to.course_name === 'string') {
                 patch.courseTitle = to.course_name
@@ -192,12 +217,25 @@ export const useCourseStore = create<CourseState>()(
 
             if (needsRules) {
               patch.rulesData = rules
-              patch.rulesOriginal = rules
+              patch.updatedRulesData = null
               patch.modifiedRulesPaths = new Set<string>()
             }
 
             return patch
           }),
+
+        // Backfills TO/Rule Pack (original + draft) directly from a
+        // localStorage snapshot — see `readPersistedTOAndRules`. Only the
+        // keys present in `snapshot` are written; everything else is
+        // left untouched.
+        hydrateFromLocalStorageSnapshot: (snapshot) =>
+          set((s) => ({
+            toData: snapshot.toData !== undefined ? snapshot.toData : s.toData,
+            updatedToData: snapshot.updatedToData !== undefined ? snapshot.updatedToData : s.updatedToData,
+            rulesData: snapshot.rulesData !== undefined ? snapshot.rulesData : s.rulesData,
+            updatedRulesData:
+              snapshot.updatedRulesData !== undefined ? snapshot.updatedRulesData : s.updatedRulesData,
+          })),
 
         // ── Reset ─────────────────────────────────────────────────────────────────
         reset: () =>
@@ -212,7 +250,7 @@ export const useCourseStore = create<CourseState>()(
           }),
       }),
       {
-        name: 'course-workflow-v5',
+        name: COURSE_STORE_STORAGE_KEY,
         partialize: selectPersistedState,
         merge: (persisted, current) =>
           mergePersistedCourseState(

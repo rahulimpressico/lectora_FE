@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, BookOpen, Clock, Download, Loader2, Pencil, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { getDisplayErrorMessage } from '@/api/errors'
 import { AIGenerationLoader } from '../../components/AIGenerationLoader'
 import { OutlineSectionsEditor } from './OutlineSectionsEditor'
 import { getOutlineSections } from '../utils'
@@ -239,9 +240,7 @@ export const OutlineReviewStep = () => {
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>
               {persistError ??
-                generateTO.error?.message ??
-                regenerateTO.error?.message ??
-                'An error occurred. Please try again.'}
+                getDisplayErrorMessage(generateTO.error ?? regenerateTO.error)}
             </span>
           </motion.div>
         )}

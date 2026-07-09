@@ -1,26 +1,42 @@
 import { useEffect } from 'react'
 import { useCourseStore } from '../../onboarding-flow/store'
+import { readPersistedTOAndRules } from '../../onboarding-flow/store/utils'
 
 /**
- * Waits for store rehydration (localStorage restore), then backfills whichever
- * of TO / Rule Pack is still missing — e.g. `toData` came back from the real
- * generate-to API (no `rules` in that response) but `rulesData` never got
- * seeded. Whatever is already present (original generation or a user's
- * persisted edits) is left untouched.
+ * Reads TO / Rule Pack straight out of localStorage instead of waiting on
+ * zustand persist's own rehydration flag — that flag can be left stuck
+ * `false` by an unrelated zustand/devtools interaction even though the data
+ * itself already landed in the store, which left this view stuck behind a
+ * permanent loading spinner. Whatever is still missing after checking both
+ * the live store and localStorage gets backfilled with the client preset.
  */
 export function useLoadTrainingOutline() {
-  const hasHydrated = useCourseStore((s) => s.hasHydrated)
   const toData = useCourseStore((s) => s.toData)
   const rulesData = useCourseStore((s) => s.rulesData)
+  const hydrateFromLocalStorageSnapshot = useCourseStore((s) => s.hydrateFromLocalStorageSnapshot)
   const hydratePresetTrainingOutline = useCourseStore((s) => s.hydratePresetTrainingOutline)
 
   useEffect(() => {
-    if (!hasHydrated || (toData && rulesData)) return
-    hydratePresetTrainingOutline()
-  }, [hasHydrated, toData, rulesData, hydratePresetTrainingOutline])
+    if (toData && rulesData) return
+
+    const persisted = readPersistedTOAndRules()
+
+    if (persisted) {
+      hydrateFromLocalStorageSnapshot({
+        ...(!toData ? { toData: persisted.toData, updatedToData: persisted.updatedToData } : {}),
+        ...(!rulesData ? { rulesData: persisted.rulesData, updatedRulesData: persisted.updatedRulesData } : {}),
+      })
+    }
+
+    const stillNeedsTO = !toData && !persisted?.toData
+    const stillNeedsRules = !rulesData && !persisted?.rulesData
+    if (stillNeedsTO || stillNeedsRules) {
+      hydratePresetTrainingOutline()
+    }
+  }, [toData, rulesData, hydrateFromLocalStorageSnapshot, hydratePresetTrainingOutline])
 
   return {
-    loading: !hasHydrated,
+    loading: false,
     error: null,
   }
 }

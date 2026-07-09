@@ -1,7 +1,13 @@
 import { useMutation } from '@tanstack/react-query'
 import { useCourseStore } from '../../store'
+import { selectEffectiveTO } from '../../store/selectors'
 import { resolveTrainingOutlineBlobPath } from '../../../../utils/resolveTrainingOutlineBlobPath'
 
+/**
+ * "Enter Workspace" persistence step: commits whatever the user is currently
+ * looking at (their edit draft, if any, else the original generation) as the
+ * new original TO before moving into the three-panel view.
+ */
 export function usePersistTrainingOutline() {
   const setGeneratedToBlobPath = useCourseStore((s) => s.setGeneratedToBlobPath)
   const setTOData = useCourseStore((s) => s.setTOData)
@@ -10,12 +16,14 @@ export function usePersistTrainingOutline() {
     mutationFn: async () => {
       const {
         toData,
+        updatedToData,
         generatedToBlobPath,
         uploadFolder,
         rawDocuments,
       } = useCourseStore.getState()
 
-      if (!toData) {
+      const effectiveTO = selectEffectiveTO({ toData, updatedToData })
+      if (!effectiveTO) {
         throw new Error('No Training Outline is available to save.')
       }
 
@@ -32,7 +40,7 @@ export function usePersistTrainingOutline() {
       }
 
       setGeneratedToBlobPath(blobPath)
-      setTOData(toData, toData)
+      setTOData(effectiveTO)
 
       return { blobPath }
     },

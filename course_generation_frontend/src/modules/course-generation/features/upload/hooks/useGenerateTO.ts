@@ -152,12 +152,13 @@ export function useGenerateTO(successPhase: WorkflowPhase = "three-panel") {
       );
     },
     onSuccess: (result) => {
-      const { courseTypeHint } = useCourseStore.getState();
+      const { courseTypeHint, courseCode } = useCourseStore.getState();
       const normalizedTo = normalizeTrainingOutlineForPanel(
         result.timedOutline,
         courseTypeHint,
+        courseCode,
       );
-      setTOData(normalizedTo, normalizedTo);
+      setTOData(normalizedTo);
       setPhase(successPhaseRef.current);
     },
     onSettled: () => {

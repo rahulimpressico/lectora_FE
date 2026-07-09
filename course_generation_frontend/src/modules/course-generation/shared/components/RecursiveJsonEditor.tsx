@@ -19,6 +19,7 @@ const HiddenKeysContext = createContext<Set<string>>(new Set())
 const ReadOnlyKeysContext = createContext<Set<string>>(new Set())
 function useTooltips() { return useContext(TooltipsContext) }
 function useReadOnlyKeys() { return useContext(ReadOnlyKeysContext) }
+function useHiddenKeys() { return useContext(HiddenKeysContext) }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -293,8 +294,9 @@ function NewItemRow({ index, onSave, onCancel }: NewItemRowProps) {
 
 function ObjectNode({ keyName, value, originalValue, path, depth, modifiedPaths, onUpdate, onReset }: NodeProps) {
   const [open, setOpen] = useState(depth < 2)
+  const hiddenKeys = useHiddenKeys()
   const obj = value as JsonObject
-  const entries = Object.entries(obj)
+  const entries = Object.entries(obj).filter(([k]) => !hiddenKeys.has(k))
   const childModified = entries.some(([k]) =>
     [...modifiedPaths].some((p) => p.startsWith(pathKey([...path, k]))),
   )

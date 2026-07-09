@@ -1,5 +1,5 @@
 
-import apiClient from '@/api/client'
+import apiClient, { LLM_REQUEST_TIMEOUT_MS } from '@/api/client'
 import { ApiClientError } from '@/api/errors'
 import type {
   ImportanceLevel,
@@ -107,7 +107,7 @@ export async function reviseTO(
   const { data } = await apiClient.post<ReviseTOResponse>(
     '/documents/revise-to',
     { currentTo, revisionPrompt },
-    { timeout: 5 * 60 * 1_000 },
+    { timeout: LLM_REQUEST_TIMEOUT_MS },
   )
   return data
 }

@@ -1,21 +1,25 @@
 import { useMutation, type MutateOptions } from '@tanstack/react-query'
 import { useCourseStore } from '../../store'
+import { selectEffectiveTO } from '../../store/selectors'
 import { normalizeTrainingOutlineForPanel } from '../../../review/utils/trainingOutlinePanel'
 import { regenerateTimedOutline } from '../../step-7-outline-preference/api'
 import type { RegenerateTimedOutlineResponse } from '../../step-7-outline-preference/types'
 
 /**
  * Drives Training Outline regeneration against `POST /documents/regenerate-timed-outline`.
- * Unlike `useGenerateTO`, this reuses the existing `toData` as a starting point and applies
- * a free-form `regenerationPrompt` describing what to change.
+ * Unlike `useGenerateTO`, this sends the current effective TO (the user's edit
+ * draft if any, else the original) as a starting point, plus a free-form
+ * `regenerationPrompt` describing what to change. The result becomes the new
+ * original — `setTOData` clears any prior edit draft.
  */
 export function useRegenerateTO() {
-  const { toData, courseTypeHint, setTOData, wizardData } = useCourseStore()
+  const { toData, updatedToData, courseTypeHint, courseCode, setTOData, wizardData } = useCourseStore()
+  const effectiveTO = selectEffectiveTO({ toData, updatedToData })
 
   const mutation = useMutation({
     retry: false,
     mutationFn: async (regenerationPrompt: string) => {
-      if (!toData) {
+      if (!effectiveTO) {
         throw new Error('No existing outline to regenerate.')
       }
       if (!regenerationPrompt.trim()) {
@@ -29,15 +33,15 @@ export function useRegenerateTO() {
         preferredChapters != null && !Number.isNaN(preferredChapters) ? preferredChapters : undefined
 
       return regenerateTimedOutline({
-        currentTo: toData,
+        currentTo: effectiveTO,
         regenerationPrompt: regenerationPrompt.trim(),
         preferredChapters: validPreferredChapters,
         lessonStyle: wizardData.lessonStyle,
       })
     },
     onSuccess: (result) => {
-      const normalizedTo = normalizeTrainingOutlineForPanel(result.to, courseTypeHint)
-      setTOData(normalizedTo, normalizedTo)
+      const normalizedTo = normalizeTrainingOutlineForPanel(result.to, courseTypeHint, courseCode)
+      setTOData(normalizedTo)
     },
   })
 

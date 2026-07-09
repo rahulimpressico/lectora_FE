@@ -362,9 +362,9 @@ export function createInitialState() {
     previewOpen:        false,
     previewFileId:      null as string | null,
     toData:             null as JsonObject | null,
-    toOriginal:         null as JsonObject | null,
+    updatedToData:      null as JsonObject | null,
     rulesData:          null as JsonObject | null,
-    rulesOriginal:      null as JsonObject | null,
+    updatedRulesData:   null as JsonObject | null,
     modifiedTOPaths:    new Set<string>(),
     modifiedRulesPaths: new Set<string>(),
     activeJob:            null as JobResponse | null,
@@ -394,6 +394,40 @@ export function createInitialState() {
 }
 
 // ── Persistence (partialize) helpers ────────────────────────────────────────
+
+/** localStorage key the zustand `persist` middleware writes the course store under. */
+export const COURSE_STORE_STORAGE_KEY = 'course-workflow-v5'
+
+/**
+ * Reads TO / Rule Pack straight out of localStorage, bypassing zustand
+ * persist's own async rehydration entirely. Used by the three-panel view so
+ * it never depends on the store's `hasHydrated` flag to display data that's
+ * already sitting on disk.
+ *
+ * Returns both the original (`toData`/`rulesData`) and the user's edit draft
+ * (`updatedToData`/`updatedRulesData`, `null` when no edits have been made).
+ */
+export function readPersistedTOAndRules(): {
+  toData: JsonObject | null
+  updatedToData: JsonObject | null
+  rulesData: JsonObject | null
+  updatedRulesData: JsonObject | null
+} | null {
+  try {
+    const raw = localStorage.getItem(COURSE_STORE_STORAGE_KEY)
+    if (!raw) return null
+    const state = JSON.parse(raw)?.state
+    if (!state) return null
+    return {
+      toData: state.toData ?? null,
+      updatedToData: state.updatedToData ?? null,
+      rulesData: state.rulesData ?? null,
+      updatedRulesData: state.updatedRulesData ?? null,
+    }
+  } catch {
+    return null
+  }
+}
 
 /** Strips non-serialisable `File` objects and large `previewHtml` strings. */
 function stripFileFields<T extends { file?: unknown; previewHtml?: unknown }>(item: T): Omit<T, 'file' | 'previewHtml'> {
@@ -436,11 +470,13 @@ export function buildBasePersistedState(s: CourseState) {
     wizardData:          s.wizardData,
     // Uploaded source documents (metadata only — no File object)
     rawDocuments:        sanitizePersistedRawDocuments(s.rawDocuments),
-    // TO + Rules JSON (present once generation has run)
+    // TO + Rules JSON (present once generation has run).
+    // `toData`/`rulesData` are the original generation; `updatedToData`/
+    // `updatedRulesData` are the user's edit draft (null if unedited).
     toData:              s.toData,
-    toOriginal:          s.toOriginal,
+    updatedToData:       s.updatedToData,
     rulesData:           s.rulesData,
-    rulesOriginal:       s.rulesOriginal,
+    updatedRulesData:    s.updatedRulesData,
     modifiedTOPaths:     Array.from(s.modifiedTOPaths),
     modifiedRulesPaths:  Array.from(s.modifiedRulesPaths),
     generatedToBlobPath: s.generatedToBlobPath,
@@ -476,6 +512,31 @@ type PersistedCourseSlice = ReturnType<typeof buildBasePersistedState> & {
   activeJobId?: string | null
   modifiedTOPaths?: string[]
   modifiedRulesPaths?: string[]
+  /** Pre-refactor field names — a session persisted before original/updated were split out. */
+  toOriginal?: JsonObject | null
+  rulesOriginal?: JsonObject | null
+}
+
+/**
+ * Migrates a pre-refactor persisted slice (where `toData`/`rulesData` held
+ * the live-edited copy and `toOriginal`/`rulesOriginal` held the pristine
+ * baseline) into the current original/updated shape, so an existing session
+ * doesn't appear to silently lose its in-progress edits after this change
+ * ships. No-ops for anything already in the new shape.
+ */
+function migrateLegacyOriginalFields(rest: PersistedCourseSlice): PersistedCourseSlice {
+  const migrated = { ...rest }
+  if (rest.toOriginal !== undefined && migrated.updatedToData === undefined) {
+    migrated.updatedToData = rest.toData ?? null
+    migrated.toData = rest.toOriginal
+  }
+  if (rest.rulesOriginal !== undefined && migrated.updatedRulesData === undefined) {
+    migrated.updatedRulesData = rest.rulesData ?? null
+    migrated.rulesData = rest.rulesOriginal
+  }
+  delete migrated.toOriginal
+  delete migrated.rulesOriginal
+  return migrated
 }
 
 /** Merge persisted localStorage slice back into live store state (Sets, etc.). */
@@ -483,7 +544,7 @@ export function mergePersistedCourseState(
   current: CourseState,
   persisted: PersistedCourseSlice,
 ): CourseState {
-  const { modifiedTOPaths, modifiedRulesPaths, activeJobId, ...rest } = persisted
+  const { modifiedTOPaths, modifiedRulesPaths, activeJobId, ...rest } = migrateLegacyOriginalFields(persisted)
   return {
     ...current,
     ...rest,

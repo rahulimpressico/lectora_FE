@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useCourseStore } from '../../onboarding-flow/store'
+import { selectEffectiveTO } from '../../onboarding-flow/store/selectors'
 import { exportTrainingOutlineToDocx } from '../../../utils/exportTrainingOutline'
 
 export function useDownloadTrainingOutline() {
   const {
     toData,
+    updatedToData,
     courseTitle,
     audience,
     difficultyLevel,
@@ -12,15 +14,17 @@ export function useDownloadTrainingOutline() {
     wizardData,
   } = useCourseStore()
 
+  const effectiveTO = selectEffectiveTO({ toData, updatedToData })
+
   const [downloading, setDownloading] = useState(false)
 
   const download = useCallback(async () => {
-    if (!toData || downloading) return
+    if (!effectiveTO || downloading) return
     setDownloading(true)
     try {
-      await exportTrainingOutlineToDocx(toData, {
+      await exportTrainingOutlineToDocx(effectiveTO, {
         courseTitle,
-        ruleFamily: (toData.rule_family as string | undefined) ?? '',
+        ruleFamily: (effectiveTO.rule_family as string | undefined) ?? '',
         audience,
         difficultyLevel,
         durationHours,
@@ -32,7 +36,7 @@ export function useDownloadTrainingOutline() {
     } finally {
       setDownloading(false)
     }
-  }, [toData, downloading, courseTitle, audience, difficultyLevel, durationHours, wizardData])
+  }, [effectiveTO, downloading, courseTitle, audience, difficultyLevel, durationHours, wizardData])
 
   return { download, downloading }
 }

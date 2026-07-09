@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react'
 import { useCourseStore } from '../../onboarding-flow/store'
+import { selectEffectiveTO } from '../../onboarding-flow/store/selectors'
 import { deepSet } from '../../../utils/deepUpdate'
 import { STEPS } from './training-outline/constants'
 import { detectKey, getStr } from './training-outline/helpers'
@@ -18,17 +19,18 @@ interface TrainingOutlineModalProps {
 export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => {
   const {
     toData,
-    toOriginal,
-    setTOData,
+    updatedToData,
+    applyTODraft,
     difficultyLevel,
     setDifficultyLevel,
     courseTypeHint,
   } = useCourseStore()
+  const effectiveTO = selectEffectiveTO({ toData, updatedToData })
 
   const [currentStep, setCurrentStep] = useState(0)
 
   const [localTO, setLocalTO] = useState<JsonObject>(() => {
-    const copy = JSON.parse(JSON.stringify(toData ?? {})) as JsonObject
+    const copy = JSON.parse(JSON.stringify(effectiveTO ?? {})) as JsonObject
     const hasDiffKey = 'difficulty' in copy || 'difficulty_level' in copy
     if (!hasDiffKey && difficultyLevel) copy.difficulty = difficultyLevel
     if (courseTypeHint.trim()) copy.course_type = courseTypeHint.trim()
@@ -56,7 +58,7 @@ export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => 
 
   const handleNext = useCallback(() => {
     if (isLastStep) {
-      setTOData(localTO, toOriginal ?? localTO)
+      applyTODraft(localTO)
 
       const diffKey = detectKey(localTO, 'difficulty', 'difficulty_level')
       const diffVal = getStr(localTO, diffKey)
@@ -66,7 +68,7 @@ export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => 
     } else {
       setCurrentStep((s) => s + 1)
     }
-  }, [isLastStep, localTO, toOriginal, setTOData, setDifficultyLevel, onClose])
+  }, [isLastStep, localTO, applyTODraft, setDifficultyLevel, onClose])
 
   const handleBack = useCallback(() => {
     if (isFirstStep) {
@@ -76,7 +78,7 @@ export const TrainingOutlineModal = ({ onClose }: TrainingOutlineModalProps) => 
     }
   }, [isFirstStep, onClose])
 
-  if (!toData) return null
+  if (!effectiveTO) return null
 
   return createPortal(
     <div

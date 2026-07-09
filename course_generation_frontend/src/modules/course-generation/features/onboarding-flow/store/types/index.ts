@@ -20,10 +20,16 @@ export interface CourseState {
   previewFileId: string | null;
 
   // ── TO + Rules ──────────────────────────────────────────────────────────────
+  // `toData` / `rulesData` are the ORIGINAL generated Timed Outline and Rule
+  // Pack — set once at generation time and never mutated by user edits.
+  // `updatedToData` / `updatedRulesData` hold the user's edited draft, if any
+  // (null until the first edit). Always read the *effective* value via
+  // `selectEffectiveTO` / `selectEffectiveRulePack` (store/selectors.ts)
+  // rather than reading `toData`/`rulesData` directly.
   toData: JsonObject | null;
-  toOriginal: JsonObject | null;
+  updatedToData: JsonObject | null;
   rulesData: JsonObject | null;
-  rulesOriginal: JsonObject | null;
+  updatedRulesData: JsonObject | null;
 
   // ── Dirty tracking ──────────────────────────────────────────────────────────
   modifiedTOPaths: Set<string>;
@@ -101,13 +107,36 @@ export interface CourseState {
   openPreview: (file: UploadedFile) => void;
   closePreview: () => void;
 
-  setTOData: (data: JsonObject, original?: JsonObject) => void;
+  /** Establish a fresh generated TO as the original — clears any pending edit draft. */
+  setTOData: (data: JsonObject) => void;
   updateTOField: (path: string[], value: JsonValue) => void;
   resetTOField: (path: string[]) => void;
+  /** Reverts to the original TO, discarding the entire edit draft. */
+  resetAllTOEdits: () => void;
+  /** Replaces the edit draft wholesale (e.g. the multi-step TO edit modal), without touching the original. */
+  applyTODraft: (data: JsonObject) => void;
 
-  setRulesData: (data: JsonObject, original?: JsonObject) => void;
+  /** Establish a fresh generated Rule Pack as the original — clears any pending edit draft. */
+  setRulesData: (data: JsonObject) => void;
   updateRulesField: (path: string[], value: JsonValue) => void;
   resetRulesField: (path: string[]) => void;
+  /** Reverts to the original Rule Pack, discarding the entire edit draft. */
+  resetAllRulesEdits: () => void;
+  /** Replaces the edit draft wholesale (e.g. the multi-step Rule Pack edit modal), without touching the original. */
+  applyRulesDraft: (data: JsonObject) => void;
+
+  /**
+   * Backfills TO/Rule Pack state directly from a localStorage snapshot
+   * (see `readPersistedTOAndRules`). Only overwrites fields explicitly
+   * present in `snapshot` — used as a safety net so the three-panel view
+   * never depends on zustand persist's own rehydration timing.
+   */
+  hydrateFromLocalStorageSnapshot: (snapshot: {
+    toData?: JsonObject | null;
+    updatedToData?: JsonObject | null;
+    rulesData?: JsonObject | null;
+    updatedRulesData?: JsonObject | null;
+  }) => void;
 
   setWizardData: (patch: Partial<WizardData>) => void;
   setSourceAnalyses: (analyses: SourceAnalysis[], cacheKey?: string) => void;

@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, Sparkles, Wand2, X } from 'lucide-react'
 import { useReviseTO } from '../hooks/useReviseTO'
 import { cn } from '@/lib/cn'
 import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
+import { getDisplayErrorMessage } from '@/api/errors'
 
 interface ReviseOutlineModalProps {
   onClose: () => void
@@ -82,7 +83,7 @@ export function ReviseOutlineModal({ onClose }: ReviseOutlineModalProps) {
           {isError && (
             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-[12px] text-red-700">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              <span>{error?.message ?? 'An error occurred. Please try again.'}</span>
+              <span>{getDisplayErrorMessage(error)}</span>
             </div>
           )}
         </div>

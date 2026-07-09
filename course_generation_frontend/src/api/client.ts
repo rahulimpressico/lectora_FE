@@ -13,6 +13,9 @@ const apiClient = axios.create({
   timeout: 120_000,
 })
 
+/** Timeout for slow LLM-backed calls (TO generate/regenerate/revise/upload). */
+export const LLM_REQUEST_TIMEOUT_MS = 10 * 60 * 1_000
+
 apiClient.interceptors.request.use(
   (config) => config,
   (error) => Promise.reject(error),
