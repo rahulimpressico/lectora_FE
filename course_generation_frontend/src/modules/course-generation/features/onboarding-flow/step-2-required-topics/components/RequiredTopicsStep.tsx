@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, Loader2, Pencil, RefreshCw, Sparkles, X } from 'lucide-react'
 import { useCourseStore } from '../../store'
 import { useWizardNav } from '../../components/WizardNavContext'
-import { suggestRequiredTopics } from '@/api/course-generation/api'
+import { generateRequiredTopics, regenerateRequiredTopics } from '../api'
 import { cn } from '@/lib/cn'
 import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
 import { fadeUp, staggerContainer } from '../../constants/animations'
@@ -199,37 +199,41 @@ export const RequiredTopicsStep = () => {
     learnerOutcomes: wizardData.learnerOutcomes || undefined,
   })
 
-  const buildRegenerationRequestBody = (regenerationPrompt: string) => ({
-    regenerationPrompt,
-    currentTopics: requiredTopics,
-  })
-
   const hasSufficientData = !!(courseTitle || wizardData.description || audience)
 
-  const generate = (replace: boolean, regenerationPrompt?: string) => {
-    const isRegeneration = regenerationPrompt !== undefined
-    if (!isRegeneration && !hasSufficientData) return
-    if (isRegeneration && requiredTopics.length === 0) return
+  const applyResult = (replace: boolean, topics: string[]) => {
+    if (topics.length === 0) return
+    if (replace) {
+      setWizardData({ requiredTopics: topics })
+    } else {
+      // Merge: append only topics not already present (case-insensitive)
+      const existing = new Set(requiredTopics.map((t) => t.toLowerCase()))
+      const fresh = topics.filter((t) => !existing.has(t.toLowerCase()))
+      setWizardData({ requiredTopics: [...requiredTopics, ...fresh] })
+    }
+  }
+
+  const generate = (replace: boolean) => {
+    if (!hasSufficientData) return
     setIsGenerating(true)
-    suggestRequiredTopics(
-      isRegeneration
-        ? buildRegenerationRequestBody(regenerationPrompt)
-        : buildInitialRequestBody(),
-    )
-      .then((result) => {
-        if (result.requiredTopics.length > 0) {
-          if (replace) {
-            setWizardData({ requiredTopics: result.requiredTopics })
-          } else {
-            // Merge: append only topics not already present (case-insensitive)
-            const existing = new Set(requiredTopics.map((t) => t.toLowerCase()))
-            const fresh = result.requiredTopics.filter((t) => !existing.has(t.toLowerCase()))
-            setWizardData({ requiredTopics: [...requiredTopics, ...fresh] })
-          }
-        }
-      })
+    generateRequiredTopics(buildInitialRequestBody())
+      .then((result) => applyResult(replace, result.requiredTopics))
       .catch((err: unknown) => {
-        console.error('[RequiredTopicsStep] suggestRequiredTopics failed:', err)
+        console.error('[RequiredTopicsStep] generateRequiredTopics failed:', err)
+      })
+      .finally(() => setIsGenerating(false))
+  }
+
+  const regenerate = (regenerationPrompt: string) => {
+    if (requiredTopics.length === 0) {
+      generate(true)
+      return
+    }
+    setIsGenerating(true)
+    regenerateRequiredTopics({ currentTopics: requiredTopics, regenerationPrompt })
+      .then((result) => applyResult(true, result.requiredTopics))
+      .catch((err: unknown) => {
+        console.error('[RequiredTopicsStep] regenerateRequiredTopics failed:', err)
       })
       .finally(() => setIsGenerating(false))
   }
@@ -387,7 +391,7 @@ export const RequiredTopicsStep = () => {
       {/* Regenerate prompt modal */}
       <RegeneratePromptModal
         open={showRegenerateModal}
-        onConfirm={(prompt) => generate(true, prompt)}
+        onConfirm={(prompt) => (prompt.trim() ? regenerate(prompt.trim()) : generate(true))}
         onClose={() => setShowRegenerateModal(false)}
       />
 

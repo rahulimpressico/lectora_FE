@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Check, CheckCircle2, ClipboardList, Loader2, Plus, RefreshCw, Sparkles, Trash2, List, X } from 'lucide-react'
 import { useCourseStore } from '../../store'
 import { useWizardNav } from '../../components/WizardNavContext'
-import { generateLearningObjectives } from '@/api/course-generation/api'
+import { generateLearningObjectives, regenerateLearningObjectives } from '../api'
 import { cn } from '@/lib/cn'
 import { DialogContent, DialogTitle } from '@/shared/components/Dialog'
 import {
@@ -282,7 +282,10 @@ export const LearningObjectivesStep = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectivesMode, objectives.length])
 
-  const handleGenerate = (regenerationPrompt?: string) => {
+  const courseDuration = durationHours != null ? `${durationHours} hour${durationHours !== 1 ? 's' : ''}` : undefined
+  const skillLevel = difficultyLevel || wizardData.experienceLevel || undefined
+
+  const handleGenerate = () => {
     setIsGenerating(true)
 
     // Source analyses were computed on the Materials step and cached in the store.
@@ -292,19 +295,45 @@ export const LearningObjectivesStep = () => {
       courseTitle: courseTitle || undefined,
       courseDescription: wizardData.description || undefined,
       courseType: courseTypeHint || undefined,
-      courseDuration: durationHours != null ? `${durationHours} hour${durationHours !== 1 ? 's' : ''}` : undefined,
-      skillLevel: difficultyLevel || wizardData.experienceLevel || undefined,
+      courseDuration,
+      skillLevel,
       targetAudience: audience || undefined,
       sourceAnalyses: sourceAnalyses.length > 0 ? sourceAnalyses : undefined,
       requiredTopics: wizardData.requiredTopics?.length > 0 ? wizardData.requiredTopics : undefined,
-      regenerationPrompt: regenerationPrompt?.trim() || undefined,
-      currentObjectives: regenerationPrompt && objectives.length > 0 ? objectives : undefined,
     })
       .then((result) => {
         setWizardData({ objectives: result.learningObjectives })
       })
       .catch((err: unknown) => {
         console.error('[LearningObjectivesStep] generateLearningObjectives failed:', err)
+      })
+      .finally(() => {
+        setIsGenerating(false)
+      })
+  }
+
+  const handleRegenerate = (regenerationPrompt: string) => {
+    if (objectives.length === 0) {
+      handleGenerate()
+      return
+    }
+
+    setIsGenerating(true)
+
+    regenerateLearningObjectives({
+      currentObjectives: objectives,
+      regenerationPrompt,
+      courseTitle: courseTitle || undefined,
+      courseType: courseTypeHint || undefined,
+      courseDuration,
+      skillLevel,
+      targetAudience: audience || undefined,
+    })
+      .then((result) => {
+        setWizardData({ objectives: result.learningObjectives })
+      })
+      .catch((err: unknown) => {
+        console.error('[LearningObjectivesStep] regenerateLearningObjectives failed:', err)
       })
       .finally(() => {
         setIsGenerating(false)
@@ -528,7 +557,7 @@ export const LearningObjectivesStep = () => {
     <RegeneratePromptModal
       open={isRegenerateModalOpen}
       onClose={() => setIsRegenerateModalOpen(false)}
-      onConfirm={(prompt) => handleGenerate(prompt || undefined)}
+      onConfirm={(prompt) => (prompt.trim() ? handleRegenerate(prompt.trim()) : handleGenerate())}
     />
     </>
   )
