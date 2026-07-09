@@ -183,8 +183,23 @@ export interface GenerateLearningObjectivesBody {
   additionalInstructions?: string
   sourceAnalyses?: SourceAnalysis[]
   requiredTopics?: string[]
+}
+
+export interface RegenerateLearningObjectivesBody {
+  currentObjectives: string[]
   regenerationPrompt?: string
-  currentObjectives?: string[]
+  sourceMaterials?: string[]
+  courseTitle?: string
+  courseDescription?: string
+  courseType?: string
+  courseDuration?: string
+  targetAudience?: string
+  skillLevel?: string
+  desiredOutcomes?: string
+  certificationFocus?: string
+  additionalInstructions?: string
+  sourceAnalyses?: SourceAnalysis[]
+  requiredTopics?: string[]
 }
 
 export interface LOValidationIssue {
@@ -207,6 +222,18 @@ export async function generateLearningObjectives(
 ): Promise<GenerateLearningObjectivesResponse> {
   const { data } = await apiClient.post<GenerateLearningObjectivesResponse>(
     '/documents/generate-learning-objectives',
+    body,
+    { timeout: 60_000 },
+  )
+  return data
+}
+
+/** Regenerate learning objectives from existing objectives and optional user guidance. */
+export async function regenerateLearningObjectives(
+  body: RegenerateLearningObjectivesBody,
+): Promise<GenerateLearningObjectivesResponse> {
+  const { data } = await apiClient.post<GenerateLearningObjectivesResponse>(
+    '/documents/regenerate-learning-objectives',
     body,
     { timeout: 60_000 },
   )
