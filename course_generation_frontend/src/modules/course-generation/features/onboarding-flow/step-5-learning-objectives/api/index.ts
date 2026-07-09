@@ -26,7 +26,7 @@ export async function generateLearningObjectives(
 export async function regenerateLearningObjectives(
   body: RegenerateLearningObjectivesBody,
 ): Promise<RegenerateLearningObjectivesResponse> {
-  const { data } = await apiClient.post<RegenerateLearningObjectivesResponse>(
+  const { data } = await apiClient.post<RegenerateLearningObjectivesResponse>(      
     "/documents/regenerate-learning-objectives",
     body,
     { timeout: 60_000 },

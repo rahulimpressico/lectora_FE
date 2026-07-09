@@ -156,8 +156,16 @@ export const useCourseStore = create<CourseState>()(
         setIsGeneratingTO: (generating) => set({ isGeneratingTO: generating }),
         setGeneratedToBlobPath: (path) => set({ generatedToBlobPath: path }),
 
+        // Backfills whichever of TO / Rule Pack is missing from the persisted
+        // store (localStorage) without touching the piece that's already
+        // present — e.g. the real generate-to API supplies `toData` but no
+        // `rules`, so this only needs to seed `rulesData` in that case.
         hydratePresetTrainingOutline: () =>
           set((s) => {
+            const needsTO = !s.toData
+            const needsRules = !s.rulesData
+            if (!needsTO && !needsRules) return s
+
             const { to, rules } = buildPresetTrainingOutline({
               courseTitle: s.courseTitle,
               courseTopic: s.courseTopic,
@@ -166,26 +174,29 @@ export const useCourseStore = create<CourseState>()(
               durationHours: s.durationHours,
               learningObjectives: s.wizardData.objectives,
             })
-            const normalizedTo = normalizeTrainingOutlineForPanel(to, s.courseTypeHint)
-            const nextTitle =
-              !s.courseTitle.trim() && typeof to.course_name === 'string'
-                ? to.course_name
-                : s.courseTitle
-            const nextFamily =
-              typeof to.rule_family === 'string' && to.rule_family
-                ? to.rule_family
-                : s.detectedRuleFamily
 
-            return {
-              toData: normalizedTo,
-              toOriginal: normalizedTo,
-              rulesData: rules,
-              rulesOriginal: rules,
-              modifiedTOPaths: new Set<string>(),
-              modifiedRulesPaths: new Set<string>(),
-              courseTitle: nextTitle,
-              detectedRuleFamily: nextFamily,
+            const patch: Partial<CourseState> = {}
+
+            if (needsTO) {
+              const normalizedTo = normalizeTrainingOutlineForPanel(to, s.courseTypeHint)
+              patch.toData = normalizedTo
+              patch.toOriginal = normalizedTo
+              patch.modifiedTOPaths = new Set<string>()
+              if (!s.courseTitle.trim() && typeof to.course_name === 'string') {
+                patch.courseTitle = to.course_name
+              }
+              if (typeof to.rule_family === 'string' && to.rule_family) {
+                patch.detectedRuleFamily = to.rule_family
+              }
             }
+
+            if (needsRules) {
+              patch.rulesData = rules
+              patch.rulesOriginal = rules
+              patch.modifiedRulesPaths = new Set<string>()
+            }
+
+            return patch
           }),
 
         // ── Reset ─────────────────────────────────────────────────────────────────

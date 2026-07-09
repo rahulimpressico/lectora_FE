@@ -8,16 +8,10 @@ import {
   // HelpCircle,
   X,
   CircleDollarSign,
-  // ListTodo,
-  // Loader2,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Logo } from "@/shared/components/Logo";
-// Tasks/Settings/Help sidebar section disabled — see below. `useToTasks()` fired
-// GET /documents/generate-to/jobs unconditionally on every mount of this
-// always-rendered sidebar, which showed up as an unwanted automatic API call.
-// import { useToTasks } from "@/modules/course-generation/features/upload/hooks/useToTasks";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,41 +27,28 @@ interface SidebarProps {
   translucent?: boolean;
   onSettingsClick?: () => void;
   onHelpClick?: () => void;
-  onTasksClick?: () => void;
   isSettingsOpen?: boolean;
   isHelpOpen?: boolean;
-  isTasksOpen?: boolean;
 }
 
 function SidebarContent({
   onClose,
   translucent = false,
-  // onSettingsClick, onHelpClick, onTasksClick, isSettingsOpen, isHelpOpen,
-  // isTasksOpen intentionally not destructured — the Tasks/Settings/Help
-  // button section that consumed them is disabled below. Still declared on
-  // the prop type so AppLayout's wiring doesn't need to change if this is
-  // re-enabled later.
+  // onSettingsClick, onHelpClick, isSettingsOpen, isHelpOpen intentionally
+  // not destructured — the Settings/Help button section that consumed them
+  // is disabled below. Still declared on the prop type so AppLayout's
+  // wiring doesn't need to change if this is re-enabled later.
 }: {
   onClose?: () => void;
   translucent?: boolean;
   onSettingsClick?: () => void;
   onHelpClick?: () => void;
-  onTasksClick?: () => void;
   isSettingsOpen?: boolean;
   isHelpOpen?: boolean;
-  isTasksOpen?: boolean;
 }) {
   const navigate = useNavigate();
-  // const { runningCount } = useToTasks();
 
   // const bottomButtons = [
-  //   {
-  //     label: "Tasks",
-  //     icon: ListTodo,
-  //     onClick: onTasksClick,
-  //     isActive: isTasksOpen,
-  //     badge: runningCount > 0 ? runningCount : null,
-  //   },
   //   {
   //     label: "Settings",
   //     icon: Settings,
@@ -165,7 +146,7 @@ function SidebarContent({
       </nav>
 
       {/* Secondary navigation — Settings & Help as panel triggers */}
-      {/* Tasks/Settings/Help section disabled — see comments above.
+      {/* Settings/Help section disabled — see comments above.
       <div
         className={cn(
           "space-y-0.5 border-t px-3 py-3",
@@ -242,10 +223,8 @@ export function Sidebar({
   translucent = false,
   onSettingsClick,
   onHelpClick,
-  onTasksClick,
   isSettingsOpen,
   isHelpOpen,
-  isTasksOpen,
 }: SidebarProps) {
   return (
     <>
@@ -255,10 +234,8 @@ export function Sidebar({
           translucent={translucent}
           onSettingsClick={onSettingsClick}
           onHelpClick={onHelpClick}
-          onTasksClick={onTasksClick}
           isSettingsOpen={isSettingsOpen}
           isHelpOpen={isHelpOpen}
-          isTasksOpen={isTasksOpen}
         />
       </div>
 
@@ -278,10 +255,8 @@ export function Sidebar({
               translucent={translucent}
               onSettingsClick={onSettingsClick}
               onHelpClick={onHelpClick}
-              onTasksClick={onTasksClick}
               isSettingsOpen={isSettingsOpen}
               isHelpOpen={isHelpOpen}
-              isTasksOpen={isTasksOpen}
             />
           </div>
         </div>

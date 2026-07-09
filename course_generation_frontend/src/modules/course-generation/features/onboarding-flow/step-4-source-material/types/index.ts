@@ -6,6 +6,19 @@ export interface AnalyzableDoc {
   extractHint?: string;
 }
 
+export interface UploadDocumentOptions {
+  /** Stable course identifier for RAG chunk metadata. */
+  courseId?: string;
+  /** Jurisdiction label for RAG chunk metadata. */
+  jurisdiction?: string;
+  /** Source role/type for RAG chunk metadata. */
+  sourceType?: string;
+  /** Source priority for RAG chunk metadata. */
+  sourcePriority?: string;
+  /** Extract hint / source intent for RAG chunk metadata. */
+  sourceIntent?: string;
+}
+
 export interface UploadDocumentResponse {
   blobPath: string;
   uploadFolder: string;
@@ -26,10 +39,7 @@ export interface StorageEntry {
   entryType: "folder" | "file";
   size?: number;
   lastModified?: string;
-  createdAt?: string;
   contentType?: string;
-  fileCount?: number;
-  extension?: string;
 }
 
 export interface BrowseSourceDirectoryResponse {

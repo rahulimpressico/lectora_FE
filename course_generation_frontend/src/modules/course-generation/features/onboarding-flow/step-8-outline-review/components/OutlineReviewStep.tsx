@@ -7,6 +7,7 @@ import { OutlineSectionsEditor } from './OutlineSectionsEditor'
 import { getOutlineSections } from '../utils'
 import { useCourseStore } from '../../store'
 import { useGenerateTO } from '../../../upload/hooks/useGenerateTO'
+import { useRegenerateTO } from '../hooks/useRegenerateTO'
 import { useDownloadTrainingOutline } from '../../../review/hooks/useDownloadTrainingOutline'
 import { usePersistTrainingOutline } from './usePersistTrainingOutline'
 import { useWizardNav } from '../../components/WizardNavContext'
@@ -22,12 +23,15 @@ export const OutlineReviewStep = () => {
   const courseTitle = useCourseStore((s) => s.courseTitle)
   const updateTOField = useCourseStore((s) => s.updateTOField)
   const generateTO = useGenerateTO()
+  const regenerateTO = useRegenerateTO()
   const persistTrainingOutline = usePersistTrainingOutline()
   const { download: handleDownload, downloading } = useDownloadTrainingOutline()
 
   const [isEditing, setIsEditing] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<number>>(new Set())
   const [persistError, setPersistError] = useState<string | null>(null)
+  const [showRegeneratePrompt, setShowRegeneratePrompt] = useState(false)
+  const [regenerationPrompt, setRegenerationPrompt] = useState('')
 
   const { setConfig } = useWizardNav()
 
@@ -59,9 +63,13 @@ export const OutlineReviewStep = () => {
     (toData?.courseTitle as string | undefined) ||
     courseTitle
 
+  const rawCreditHours =
+    toData?.total_credit_hours ??
+    (toData?.totals as JsonObject | undefined)?.credit_hours
   const totalCreditHours =
-    (toData?.total_credit_hours as number | undefined) ??
-    ((toData?.totals as JsonObject | undefined)?.credit_hours as number | undefined)
+    rawCreditHours != null && !Number.isNaN(Number(rawCreditHours))
+      ? Number(rawCreditHours)
+      : undefined
 
   const description =
     (toData?.description as string | undefined) ??
@@ -69,8 +77,23 @@ export const OutlineReviewStep = () => {
 
   const sections = toData ? getOutlineSections(toData) : []
 
-  const handleRegenerate = () => {
-    generateTO.mutate()
+  const handleRegenerateClick = () => {
+    setShowRegeneratePrompt(true)
+  }
+
+  const handleConfirmRegenerate = () => {
+    regenerateTO.mutate(regenerationPrompt, {
+      onSuccess: () => {
+        setShowRegeneratePrompt(false)
+        setRegenerationPrompt('')
+      },
+    })
+  }
+
+  const handleCancelRegenerate = () => {
+    setShowRegeneratePrompt(false)
+    setRegenerationPrompt('')
+    regenerateTO.reset()
   }
 
   const toggleEditMode = () => {
@@ -205,7 +228,7 @@ export const OutlineReviewStep = () => {
 
       {/* Error alert */}
       <AnimatePresence>
-        {(generateTO.isError || persistError) && (
+        {(generateTO.isError || regenerateTO.isError || persistError) && (
           <motion.div
             variants={fadeIn}
             initial="hidden"
@@ -217,8 +240,54 @@ export const OutlineReviewStep = () => {
             <span>
               {persistError ??
                 generateTO.error?.message ??
+                regenerateTO.error?.message ??
                 'An error occurred. Please try again.'}
             </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Regenerate prompt */}
+      <AnimatePresence>
+        {showRegeneratePrompt && (
+          <motion.div
+            variants={fadeIn}
+            initial="hidden"
+            animate="show"
+            exit="hidden"
+            className="bg-brand-50 border border-brand-200 rounded-xl p-4 space-y-3"
+          >
+            <label htmlFor="regeneration-prompt" className="block text-sm font-semibold text-slate-800">
+              What would you like to change?
+            </label>
+            <textarea
+              id="regeneration-prompt"
+              value={regenerationPrompt}
+              onChange={(e) => setRegenerationPrompt(e.target.value)}
+              placeholder="e.g. Add a chapter on advanced topics, make the tone more casual…"
+              rows={3}
+              disabled={regenerateTO.isPending}
+              className="w-full text-sm text-slate-700 bg-white border border-slate-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-50"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={handleCancelRegenerate}
+                disabled={regenerateTO.isPending}
+                className="py-2 px-4 text-sm font-semibold text-slate-600 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRegenerate}
+                disabled={regenerateTO.isPending || !regenerationPrompt.trim()}
+                className="py-2 px-4 text-sm font-semibold text-white bg-brand-500 rounded-xl hover:bg-brand-600 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={cn('w-4 h-4', regenerateTO.isPending && 'animate-spin')} />
+                {regenerateTO.isPending ? 'Regenerating…' : 'Confirm Regenerate'}
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -262,15 +331,15 @@ export const OutlineReviewStep = () => {
         </motion.button>
         <motion.button
           type="button"
-          onClick={handleRegenerate}
-          disabled={generateTO.isPending}
+          onClick={handleRegenerateClick}
+          disabled={generateTO.isPending || regenerateTO.isPending}
           whileHover={{ scale: 1.02, y: -1 }}
           whileTap={{ scale: 0.97 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           className="flex-1 py-2.5 px-4 border border-brand-200 bg-brand-50 text-brand-700 text-sm font-semibold rounded-xl hover:bg-brand-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ willChange: 'transform' }}
         >
-          <RefreshCw className={cn('w-4 h-4', generateTO.isPending && 'animate-spin')} />
+          <RefreshCw className={cn('w-4 h-4', regenerateTO.isPending && 'animate-spin')} />
           Regenerate
         </motion.button>
       </motion.div>

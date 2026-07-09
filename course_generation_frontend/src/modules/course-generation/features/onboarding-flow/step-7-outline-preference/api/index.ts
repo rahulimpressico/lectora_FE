@@ -4,7 +4,6 @@ import type {
   GenerateTimedOutlineResponse,
   RegenerateTimedOutlineBody,
   RegenerateTimedOutlineResponse,
-  SaveTOResponse,
   UploadTimedOutlineResponse,
 } from '../types'
 
@@ -12,12 +11,13 @@ import type {
 
 export async function generateTimedOutline(
   body: GenerateTimedOutlineBody,
+  signal?: AbortSignal,
 ): Promise<GenerateTimedOutlineResponse> {
   const { data } = await apiClient.post<GenerateTimedOutlineResponse>(
-    '/documents/generate-timed-outline',
+    "/documents/generate-to",
     body,
-    { timeout: 5 * 60 * 1_000 },
-  )
+    { timeout: 5 * 60 * 1_000, signal },
+  );
   return data
 }
 
@@ -50,24 +50,9 @@ export async function uploadTimedOutline(file: File): Promise<UploadTimedOutline
   return data
 }
 
-// ─── Persistence ───────────────────────────────────────────────────────────────
 
 
-export async function saveTrainingOutline(
-  blobPath: string,
-  to: Record<string, unknown>,
-  rules: Record<string, unknown> | null,
-): Promise<SaveTOResponse> {
-  const { data } = await apiClient.post<SaveTOResponse>(
-    '/documents/save-to',
-    { blobPath, to, ...(rules !== null ? { rules } : {}) },
-    { timeout: 30_000 },
-  )
-  return data
-}
-
-// ─── Cancel ─────────────────────────────────────────────────────────────────────
-
-export async function cancelGenerateTO(jobId: string): Promise<void> {
-  await apiClient.post(`/documents/generate-to/jobs/${jobId}/cancel`, null, { timeout: 10_000 })
+/** Cancel the in-flight generate-to request on the backend (best-effort, fire-and-forget). */
+export async function cancelGenerateTO(): Promise<void> {
+  await apiClient.post('/documents/generate-to/cancel', null, { timeout: 10_000 })
 }

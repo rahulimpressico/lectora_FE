@@ -3,7 +3,6 @@ import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/shared/components/Button'
 import { useCourseStore } from '../../onboarding-flow/store'
 import { createJob } from '@/api/jobs/api'
-import { saveTrainingOutline } from '@/api/course-generation/api'
 import { extractErrorMessage, isFileNotFoundError } from '../../../utils/jobErrorUtils'
 
 export const GenerateCourseBanner = () => {
@@ -43,20 +42,12 @@ export const GenerateCourseBanner = () => {
 
   const { mutate: startGeneration, isPending, error, reset: resetMutation } = useMutation({
     mutationFn: async () => {
-      let persistedTimedOutlineBlobPath = timedOutlineBlobPath
+      const persistedTimedOutlineBlobPath = timedOutlineBlobPath
 
-      if (modifiedTOPaths.size > 0) {
-        if (!generatedToBlobPath || !toData) {
-          throw new Error(
-            'The persisted course structure could not be found. Please regenerate it before starting course generation.',
-          )
-        }
-        const saved = await saveTrainingOutline(
-          generatedToBlobPath,
-          toData as Record<string, unknown>,
-          (rulesData as Record<string, unknown> | null) ?? null,
+      if (modifiedTOPaths.size > 0 && (!generatedToBlobPath || !toData)) {
+        throw new Error(
+          'The persisted course structure could not be found. Please regenerate it before starting course generation.',
         )
-        persistedTimedOutlineBlobPath = saved.blobPath
       }
 
       return createJob({

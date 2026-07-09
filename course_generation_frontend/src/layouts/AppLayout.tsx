@@ -7,11 +7,6 @@ import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { SettingsPanel } from './panels/SettingsPanel'
 import { HelpPanel } from './panels/HelpPanel'
-// TasksPanel disabled along with the sidebar's Tasks button (see Sidebar.tsx) —
-// it called useToTasks() unconditionally before its `isOpen` check, so simply
-// hiding the button that opened it wasn't enough to stop the automatic
-// GET /documents/generate-to/jobs request; the panel must not mount at all.
-// import { TasksPanel } from './panels/TasksPanel'
 
 // ─── Apply settings as DOM side-effects ──────────────────────────────────────
 
@@ -47,7 +42,6 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [tasksOpen, setTasksOpen] = useState(false)
 
   const location = useLocation()
   const phase = useCourseStore((s: { phase: string }) => s.phase)
@@ -76,10 +70,8 @@ export function AppLayout() {
           onClose={() => setSidebarOpen(false)}
           onSettingsClick={() => setSettingsOpen((v) => !v)}
           onHelpClick={() => setHelpOpen((v) => !v)}
-          onTasksClick={() => setTasksOpen((v) => !v)}
           isSettingsOpen={settingsOpen}
           isHelpOpen={helpOpen}
-          isTasksOpen={tasksOpen}
         />
       </div>
 
@@ -105,9 +97,8 @@ export function AppLayout() {
       </div>
 
       {/* Global slide-over panels — rendered at layout root */}
-      <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <HelpPanel     isOpen={helpOpen}     onClose={() => setHelpOpen(false)}     />
-      {/* <TasksPanel    isOpen={tasksOpen}    onClose={() => setTasksOpen(false)}    /> */}
+      {/* <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <HelpPanel     isOpen={helpOpen}     onClose={() => setHelpOpen(false)}     /> */}
     </div>
   )
 }

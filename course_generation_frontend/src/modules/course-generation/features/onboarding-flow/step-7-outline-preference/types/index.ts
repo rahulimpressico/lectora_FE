@@ -1,23 +1,37 @@
-import type { JsonObject, SourceAnalysis } from '../../../../types'
+import type { JsonObject } from '../../../../types'
 
 export interface GenerateTimedOutlineBody {
-  courseTitle?: string
-  courseDescription?: string
-  courseType?: string
-  courseDuration?: string
-  targetAudience?: string
-  skillLevel?: string
-  requiredTopics?: string[]
-  learningObjectives?: string[]
-  sourceMaterials?: string[]
-  sourceAnalyses?: SourceAnalysis[]
+  blobPaths: string[]
+  courseTitle: string
+  courseDescription: string
+  durationHours: number
+  calculatedWordCount: number
+  audience: string
+  learningObjectives: string[]
+  requiredTopics: string[]
+  courseTopic?: string
+  difficulty?: string
+  difficultyLevel?: string
+  courseTypeHint?: string
+  ruleFamily?: string
+  experienceLevel?: string
+  learnerOutcomes?: string
+  tone?: string
+  depth?: string
+  emphasis?: string
+  avoid?: string
+  includeCaseStudies?: boolean
+  includeExamples?: boolean
+  includeKnowledgeChecks?: boolean
   preferredChapters?: number
   lessonStyle?: 'short' | 'detailed'
 }
 
 export interface GenerateTimedOutlineResponse {
-  to: JsonObject
-  rules: JsonObject | null
+  timedOutline: JsonObject
+  validationPassed: boolean
+  repairAttempts: number
+  finalIssues: JsonObject[]
 }
 
 export interface RegenerateTimedOutlineBody {
@@ -34,8 +48,4 @@ export interface RegenerateTimedOutlineResponse {
 export interface UploadTimedOutlineResponse {
   to: JsonObject
   rules: JsonObject | null
-}
-
-export interface SaveTOResponse {
-  blobPath: string
 }

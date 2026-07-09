@@ -146,7 +146,6 @@ export const OutlinePreferenceStep = () => {
             if (!generateTO.isPending && docOutlineFile.blobPath) {
               generateTO.mutate({
                 outlineBlobPaths: [docOutlineFile.blobPath],
-                useStaticPrompt: true,
               })
             }
           },

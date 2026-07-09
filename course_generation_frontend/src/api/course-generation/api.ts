@@ -1,9 +1,4 @@
-/**
- * api/course-generation/api.ts
- *
- * Document upload, ingestion status, TO background-job tracking (list/cancel),
- * outline structure suggestion, TO persistence/revision, and source analysis.
- */
+
 import apiClient from '@/api/client'
 import { ApiClientError } from '@/api/errors'
 import type {
@@ -64,26 +59,6 @@ export async function pollIngestionStatus(documentId: string): Promise<Ingestion
   }
 }
 
-/** Cancel an in-flight A0 generate-to job on the backend (best-effort, fire-and-forget). */
-export async function cancelGenerateTO(jobId: string): Promise<void> {
-  await apiClient.post(`/documents/generate-to/jobs/${jobId}/cancel`, null, { timeout: 10_000 })
-}
-
-export interface TOTaskSummary {
-  jobId: string
-  status: 'processing' | 'completed' | 'failed' | 'cancelled'
-  message: string
-  createdAt: number   // Unix timestamp
-  finishedAt: number | null
-  error: string | null
-  blobPaths: string[]
-}
-
-/** List all recent TO-generation jobs from the server (newest first). */
-export async function listGenerateTOJobs(): Promise<TOTaskSummary[]> {
-  const { data } = await apiClient.get<TOTaskSummary[]>('/documents/generate-to/jobs', { timeout: 10_000 })
-  return data
-}
 
 // ─── Outline structure suggestion ─────────────────────────────────────────────
 
@@ -109,30 +84,6 @@ export async function suggestOutlineStructure(
   const { data } = await apiClient.post<SuggestOutlineStructureResult>(
     '/documents/suggest-outline-structure',
     body,
-    { timeout: 30_000 },
-  )
-  return data
-}
-
-// ─── TO persistence (user edits → backend blob) ──────────────────────────────
-
-export interface SaveTOResponse {
-  blobPath: string
-}
-
-/**
- * Persist the user-edited Training Outline to the backend blob at `blobPath`.
- * The backend overwrites the file in FE format so that `GET /documents/load-to`
- * returns user edits on the next page refresh, regardless of localStorage state.
- */
-export async function saveTrainingOutline(
-  blobPath: string,
-  to: Record<string, unknown>,
-  rules: Record<string, unknown> | null,
-): Promise<SaveTOResponse> {
-  const { data } = await apiClient.post<SaveTOResponse>(
-    '/documents/save-to',
-    { blobPath, to, ...(rules !== null ? { rules } : {}) },
     { timeout: 30_000 },
   )
   return data

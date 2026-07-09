@@ -1,8 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
-import { saveTrainingOutline } from '@/api/course-generation/api'
 import { useCourseStore } from '../../store'
 import { resolveTrainingOutlineBlobPath } from '../../../../utils/resolveTrainingOutlineBlobPath'
-import type { JsonObject } from '../../../../types'
 
 export function usePersistTrainingOutline() {
   const setGeneratedToBlobPath = useCourseStore((s) => s.setGeneratedToBlobPath)
@@ -12,7 +10,6 @@ export function usePersistTrainingOutline() {
     mutationFn: async () => {
       const {
         toData,
-        rulesData,
         generatedToBlobPath,
         uploadFolder,
         rawDocuments,
@@ -34,16 +31,10 @@ export function usePersistTrainingOutline() {
         )
       }
 
-      const saved = await saveTrainingOutline(
-        blobPath,
-        toData as Record<string, unknown>,
-        (rulesData as JsonObject | null) ?? null,
-      )
-
-      setGeneratedToBlobPath(saved.blobPath)
+      setGeneratedToBlobPath(blobPath)
       setTOData(toData, toData)
 
-      return saved
+      return { blobPath }
     },
   })
 }
