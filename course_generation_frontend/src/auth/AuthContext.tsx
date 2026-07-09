@@ -92,12 +92,13 @@ function MsalAuthProvider({ children }: { children: ReactNode }) {
   }, [instance])
 
   const logout = useCallback(async () => {
+    // Clear RequireAuth loop guard so a future protected-route visit can auto-login.
+    sessionStorage.removeItem('msal_auto_redirect')
     const current = instance.getActiveAccount() ?? accounts[0]
-    await instance.logoutPopup({
+    await instance.logoutRedirect({
       account: current ?? undefined,
       postLogoutRedirectUri: window.location.origin,
     })
-    setAccount(null)
   }, [instance, accounts])
 
   // Session refresh loop — keep the MSAL identity session alive using login

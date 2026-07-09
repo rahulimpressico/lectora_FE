@@ -10,16 +10,16 @@ import { CostingDashboardPage } from "@/modules/costing";
 
 export const router = createBrowserRouter([
   {
+    path: "/",
+    element: <HomePage />,
+  },
+  {
     element: (
       <RequireAuth>
         <Outlet />
       </RequireAuth>
     ),
     children: [
-      {
-        path: "/",
-        element: <HomePage />,
-      },
       {
         element: <AppLayout />,
         children: [

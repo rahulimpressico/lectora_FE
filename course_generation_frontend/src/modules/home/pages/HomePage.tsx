@@ -1,6 +1,6 @@
+import { useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'framer-motion'
-import { useRef } from 'react'
 import {
   Sparkles,
   ArrowRight,
@@ -14,7 +14,9 @@ import {
   Shield,
   Rocket,
   Clock,
+  LogOut,
 } from 'lucide-react'
+import { useAuth } from '@/auth/AuthContext'
 
 // ─── Scroll-aware fade-up wrapper ───────────────────────────────────
 function FadeUp({
@@ -140,10 +142,24 @@ const whyUs = [
 // ─── Component ──────────────────────────────────────────────────────
 export function HomePage() {
   const navigate = useNavigate()
+  const { isAuthenticated, isLoading, user, login, logout } = useAuth()
   const heroRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
   const heroOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0])
   const heroY = useTransform(scrollYProgress, [0, 0.6], [0, 60])
+
+  const goToProtected = useCallback(
+    (path: string) => {
+      if (isAuthenticated) {
+        navigate(path)
+      } else {
+        void login()
+      }
+    },
+    [isAuthenticated, navigate, login],
+  )
+
+  const displayName = user?.displayName ?? user?.username ?? null
 
   return (
     <div className="flex-1 w-full min-h-screen bg-white overflow-x-hidden antialiased flex flex-col">
@@ -161,18 +177,49 @@ export function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="h-8 px-4 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 rounded-lg transition-all duration-200"
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => navigate('/generate')}
-              className="h-8 px-4 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-lg shadow-[0_2px_10px_rgba(99,102,241,0.38)] hover:shadow-[0_4px_18px_rgba(99,102,241,0.5)] hover:from-indigo-500 hover:to-violet-500 hover:scale-[1.03] active:scale-[0.97] transition-all duration-200"
-            >
-              Get Started
-            </button>
+            {isAuthenticated ? (
+              <>
+                {displayName ? (
+                  <span className="hidden sm:inline max-w-[140px] truncate text-xs font-medium text-slate-600 px-2">
+                    {displayName}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard')}
+                  disabled={isLoading}
+                  className="h-8 px-4 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 rounded-lg transition-all duration-200 disabled:opacity-50"
+                >
+                  Dashboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/generate')}
+                  disabled={isLoading}
+                  className="h-8 px-4 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-lg shadow-[0_2px_10px_rgba(99,102,241,0.38)] hover:shadow-[0_4px_18px_rgba(99,102,241,0.5)] hover:from-indigo-500 hover:to-violet-500 hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 disabled:opacity-50"
+                >
+                  Get Started
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  disabled={isLoading}
+                  className="h-8 px-3 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 rounded-lg transition-all duration-200 disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  <LogOut size={13} />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void login()}
+                disabled={isLoading}
+                className="h-8 px-4 text-xs font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-lg shadow-[0_2px_10px_rgba(99,102,241,0.38)] hover:shadow-[0_4px_18px_rgba(99,102,241,0.5)] hover:from-indigo-500 hover:to-violet-500 hover:scale-[1.03] active:scale-[0.97] transition-all duration-200 disabled:opacity-50"
+              >
+                {isLoading ? 'Signing in…' : 'Sign in with Microsoft'}
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -272,8 +319,10 @@ export function HomePage() {
             className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2"
           >
             <button
-              onClick={() => navigate('/generate')}
-              className="group relative inline-flex items-center gap-2.5 h-13 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-semibold shadow-[0_4px_24px_rgba(99,102,241,0.42)] hover:shadow-[0_8px_40px_rgba(99,102,241,0.6)] hover:scale-[1.04] active:scale-[0.97] transition-all duration-300"
+              type="button"
+              onClick={() => goToProtected('/generate')}
+              disabled={isLoading}
+              className="group relative inline-flex items-center gap-2.5 h-13 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-sm font-semibold shadow-[0_4px_24px_rgba(99,102,241,0.42)] hover:shadow-[0_8px_40px_rgba(99,102,241,0.6)] hover:scale-[1.04] active:scale-[0.97] transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100"
             >
               {/* Inner shine */}
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent to-white/10 pointer-events-none" />
@@ -285,8 +334,10 @@ export function HomePage() {
               />
             </button>
             <button
-              onClick={() => navigate('/dashboard')}
-              className="group inline-flex items-center gap-2 h-13 px-7 py-3.5 rounded-2xl bg-white/90 border border-slate-200 text-slate-700 text-sm font-medium shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-slate-300 hover:shadow-[0_6px_24px_rgba(0,0,0,0.09)] hover:scale-[1.02] active:scale-[0.97] transition-all duration-250 backdrop-blur-sm"
+              type="button"
+              onClick={() => goToProtected('/dashboard')}
+              disabled={isLoading}
+              className="group inline-flex items-center gap-2 h-13 px-7 py-3.5 rounded-2xl bg-white/90 border border-slate-200 text-slate-700 text-sm font-medium shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-slate-300 hover:shadow-[0_6px_24px_rgba(0,0,0,0.09)] hover:scale-[1.02] active:scale-[0.97] transition-all duration-250 backdrop-blur-sm disabled:opacity-50 disabled:hover:scale-100"
             >
               View Dashboard
               <ChevronRight size={14} className="text-slate-400 group-hover:translate-x-0.5 transition-transform" />
@@ -566,8 +617,10 @@ export function HomePage() {
 
           <FadeUp delay={0.2} className="mt-14 text-center">
             <button
-              onClick={() => navigate('/generate')}
-              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-violet-600 transition-colors duration-200"
+              type="button"
+              onClick={() => goToProtected('/generate')}
+              disabled={isLoading}
+              className="group inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-violet-600 transition-colors duration-200 disabled:opacity-50"
             >
               Try the pipeline yourself
               <ArrowRight
@@ -670,8 +723,10 @@ export function HomePage() {
                 </p>
 
                 <button
-                  onClick={() => navigate('/generate')}
-                  className="group inline-flex items-center gap-2.5 h-12 px-9 rounded-2xl bg-white text-indigo-700 text-sm font-semibold shadow-[0_4px_24px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.26)] hover:scale-[1.04] active:scale-[0.97] transition-all duration-300"
+                  type="button"
+                  onClick={() => goToProtected('/generate')}
+                  disabled={isLoading}
+                  className="group inline-flex items-center gap-2.5 h-12 px-9 rounded-2xl bg-white text-indigo-700 text-sm font-semibold shadow-[0_4px_24px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_40px_rgba(0,0,0,0.26)] hover:scale-[1.04] active:scale-[0.97] transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100"
                 >
                   <Sparkles size={15} className="text-indigo-500" />
                   Generate Your Course
@@ -707,8 +762,10 @@ export function HomePage() {
             ].map(({ label, path }) => (
               <button
                 key={label}
-                onClick={() => navigate(path)}
-                className="hover:text-slate-700 font-medium transition-colors duration-150"
+                type="button"
+                onClick={() => goToProtected(path)}
+                disabled={isLoading}
+                className="hover:text-slate-700 font-medium transition-colors duration-150 disabled:opacity-50"
               >
                 {label}
               </button>
