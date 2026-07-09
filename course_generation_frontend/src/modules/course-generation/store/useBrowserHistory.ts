@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useCourseStore } from './courseStore'
+import { useCourseStore } from '../features/onboarding-flow/store'
 import type { WorkflowPhase } from '../types'
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { X, FileText, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { formatBytes } from '@/shared/utils/formatBytes'
 
 export function DocPreviewModal() {

@@ -11,7 +11,7 @@
  */
 import { useEffect } from 'react'
 import { usePipelineStore } from '../../../store/pipelineStore'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { PipelineSSEClient } from '@/api/pipeline/sse'
 import { getJobDetail } from '@/api/jobs/api'
 import { isExpiredJobError } from '@/api/errors'

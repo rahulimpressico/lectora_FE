@@ -1,43 +1,11 @@
-/**
- * api/course-generation/api.ts
- *
- * Document upload and Training Outline (TO) generation.
- * Covers the upload phase and TO async-poll flow.
- */
-import apiClient from '@/api/client'
+
+import apiClient, { LLM_REQUEST_TIMEOUT_MS } from '@/api/client'
 import { ApiClientError } from '@/api/errors'
 import type {
-  GenerateTOJobAccepted,
-  GenerateTOJobPollResponse,
-  GenerateTOResponse,
   ImportanceLevel,
   SourceAnalysis,
   SourceRole,
 } from '@/modules/course-generation/types'
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-const GENERATE_TO_START_TIMEOUT_MS = 10 * 60 * 1_000
-// When the server is busy (503), retry the initial POST with backoff before giving up.
-const BUSY_RETRY_DELAYS_MS = [3_000, 6_000, 12_000, 20_000]
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'))
-      return
-    }
-    const timer = setTimeout(() => resolve(), ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        reject(new DOMException('Aborted', 'AbortError'))
-      },
-      { once: true },
-    )
-  })
-}
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
@@ -91,167 +59,6 @@ export async function pollIngestionStatus(documentId: string): Promise<Ingestion
   }
 }
 
-/** Cancel an in-flight A0 generate-to job on the backend (best-effort, fire-and-forget). */
-export async function cancelGenerateTO(jobId: string): Promise<void> {
-  await apiClient.post(`/documents/generate-to/jobs/${jobId}/cancel`, null, { timeout: 10_000 })
-}
-
-/**
- * Fire the POST to start a TO-generation job.
- *
- * Returns either a synchronous result (200) or an accepted response (202) with
- * a `jobId` to poll.  Applies 503 back-off retries before giving up.
- *
- * Does NOT poll — use `pollGenerateTOJob` + TanStack Query for that.
- */
-export async function startGenerateTO(
-  body: Record<string, unknown>,
-  signal?: AbortSignal,
-): Promise<GenerateTOResponse | GenerateTOJobAccepted> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const { data } = await apiClient.post<GenerateTOResponse | GenerateTOJobAccepted>(
-        '/documents/generate-to',
-        body,
-        { signal, timeout: GENERATE_TO_START_TIMEOUT_MS },
-      )
-      return data
-    } catch (err) {
-      const isBusy = err instanceof ApiClientError && err.status === 503
-      const delay = BUSY_RETRY_DELAYS_MS[attempt]
-      if (isBusy && delay !== undefined) {
-        await sleep(delay, signal)
-        continue
-      }
-      throw err
-    }
-  }
-}
-
-/**
- * Fetch the current status of a single async TO-generation job.
- * Throws ApiClientError(404) if the server restarted and lost the job.
- */
-export async function pollGenerateTOJob(jobId: string): Promise<GenerateTOJobPollResponse> {
-  const { data } = await apiClient.get<GenerateTOJobPollResponse>(
-    `/documents/generate-to/jobs/${jobId}`,
-    { timeout: 30_000 },
-  )
-  return data
-}
-
-export interface TOTaskSummary {
-  jobId: string
-  status: 'processing' | 'completed' | 'failed' | 'cancelled'
-  message: string
-  createdAt: number   // Unix timestamp
-  finishedAt: number | null
-  error: string | null
-  blobPaths: string[]
-}
-
-/** List all recent TO-generation jobs from the server (newest first). */
-export async function listGenerateTOJobs(): Promise<TOTaskSummary[]> {
-  const { data } = await apiClient.get<TOTaskSummary[]>('/documents/generate-to/jobs', { timeout: 10_000 })
-  return data
-}
-
-/** Load a previously saved TO JSON (generated_to.json or llm_to_outline.json). */
-export async function loadTrainingOutlineFromPath(
-  path: string,
-  source: 'uploads' | 'artifacts' = 'uploads',
-): Promise<GenerateTOResponse> {
-  const { data } = await apiClient.get<GenerateTOResponse>('/documents/load-to', {
-    params: { path, source },
-    timeout: 30_000,
-  })
-  return data
-}
-
-// ─── Learning Objectives ──────────────────────────────────────────────────────
-
-export interface GenerateLearningObjectivesBody {
-  sourceMaterials?: string[]
-  courseTitle?: string
-  courseDescription?: string
-  courseType?: string
-  courseDuration?: string
-  targetAudience?: string
-  skillLevel?: string
-  desiredOutcomes?: string
-  certificationFocus?: string
-  additionalInstructions?: string
-  sourceAnalyses?: SourceAnalysis[]
-  requiredTopics?: string[]
-  regenerationPrompt?: string
-  currentObjectives?: string[]
-}
-
-export interface LOValidationIssue {
-  type: string
-  message: string
-  affected_objectives: string[]
-  expected_action: string
-}
-
-export interface GenerateLearningObjectivesResponse {
-  learningObjectives: string[]
-  validationPassed: boolean
-  repairAttempts: number
-  finalIssues: LOValidationIssue[]
-}
-
-/** AI-generate measurable learning objectives from course metadata. */
-export async function generateLearningObjectives(
-  body: GenerateLearningObjectivesBody,
-): Promise<GenerateLearningObjectivesResponse> {
-  const { data } = await apiClient.post<GenerateLearningObjectivesResponse>(
-    '/documents/generate-learning-objectives',
-    body,
-    { timeout: 60_000 },
-  )
-  return data
-}
-
-// ─── Required topics suggestion ───────────────────────────────────────────────
-
-export interface SuggestRequiredTopicsBody {
-  courseTitle?: string
-  courseDescription?: string
-  courseType?: string
-  courseDuration?: string
-  targetAudience?: string
-  skillLevel?: string
-  learnerOutcomes?: string
-  regenerationPrompt?: string
-  currentTopics?: string[]
-}
-
-export interface RTValidationIssue {
-  type: string
-  message: string
-  affectedTopics: string[]
-  expectedAction: string
-}
-
-export interface SuggestRequiredTopicsResult {
-  requiredTopics: string[]
-  validationPassed: boolean
-  repairAttempts: number
-  finalIssues: RTValidationIssue[]
-}
-
-/** AI-suggest required topics from course metadata. */
-export async function suggestRequiredTopics(
-  body: SuggestRequiredTopicsBody,
-): Promise<SuggestRequiredTopicsResult> {
-  const { data } = await apiClient.post<SuggestRequiredTopicsResult>(
-    '/documents/suggest-required-topics',
-    body,
-    { timeout: 90_000 },
-  )
-  return data
-}
 
 // ─── Outline structure suggestion ─────────────────────────────────────────────
 
@@ -282,30 +89,6 @@ export async function suggestOutlineStructure(
   return data
 }
 
-// ─── TO persistence (user edits → backend blob) ──────────────────────────────
-
-export interface SaveTOResponse {
-  blobPath: string
-}
-
-/**
- * Persist the user-edited Training Outline to the backend blob at `blobPath`.
- * The backend overwrites the file in FE format so that `GET /documents/load-to`
- * returns user edits on the next page refresh, regardless of localStorage state.
- */
-export async function saveTrainingOutline(
-  blobPath: string,
-  to: Record<string, unknown>,
-  rules: Record<string, unknown> | null,
-): Promise<SaveTOResponse> {
-  const { data } = await apiClient.post<SaveTOResponse>(
-    '/documents/save-to',
-    { blobPath, to, ...(rules !== null ? { rules } : {}) },
-    { timeout: 30_000 },
-  )
-  return data
-}
-
 // ─── TO revision ─────────────────────────────────────────────────────────────
 
 export interface ReviseTOResponse {
@@ -324,7 +107,7 @@ export async function reviseTO(
   const { data } = await apiClient.post<ReviseTOResponse>(
     '/documents/revise-to',
     { currentTo, revisionPrompt },
-    { timeout: 5 * 60 * 1_000 },
+    { timeout: LLM_REQUEST_TIMEOUT_MS },
   )
   return data
 }
@@ -341,9 +124,9 @@ export interface AnalyzeSourcePayload {
 
 /**
  * Extract the TOC from an uploaded document and run LLM source analysis.
- * Call this for every uploaded source document before POST /documents/generate-to.
- * Returns a SourceAnalysis object that should be aggregated and passed to
- * generate-to as `sourceAnalyses`.
+ * Call this for every uploaded source document before generating a timed
+ * outline. Returns a SourceAnalysis object that should be aggregated and
+ * passed along as `sourceAnalyses`.
  */
 export async function analyzeSource(payload: AnalyzeSourcePayload): Promise<SourceAnalysis> {
   const { data } = await apiClient.post<SourceAnalysis>(

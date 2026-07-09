@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useMutation, useQueries } from '@tanstack/react-query'
 import { uploadDocument, pollIngestionStatus } from '@/api/course-generation/api'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 import { useDocxPreview } from './useDocxPreview'
 import type { UploadedFile, UploadedFileType, UploadRole } from '../../../types'
 
@@ -24,7 +24,7 @@ export type EnqueueFilesOptions = {
   uploadRole?: UploadRole
 }
 
-export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
+export function useFileUpload() {
   const {
     rawDocuments,
     addRawDocument,
@@ -134,7 +134,6 @@ export function useFileUpload(_slot: 'raw' | 'outline' = 'raw') {
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [addRawDocument, updateRawDocument, parseFile, uploadToServer, courseTopic, setUploadFolder],
   )
 

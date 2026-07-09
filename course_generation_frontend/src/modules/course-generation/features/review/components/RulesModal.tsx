@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
+import { selectEffectiveRulePack } from '../../onboarding-flow/store/selectors'
 import { deepSet } from '../../../utils/deepUpdate'
 import { STEP_DEFS } from './rules-wizard/constants'
 import { RuleStepBar } from './rules-wizard/RuleStepBar'
@@ -14,10 +15,11 @@ interface RulesModalProps {
 }
 
 export function RulesModal({ onClose }: RulesModalProps) {
-  const { rulesData, rulesOriginal, setRulesData } = useCourseStore()
+  const { rulesData, updatedRulesData, applyRulesDraft } = useCourseStore()
+  const effectiveRules = selectEffectiveRulePack({ rulesData, updatedRulesData })
 
   const [localRules, setLocalRules] = useState<JsonObject>(() =>
-    JSON.parse(JSON.stringify(rulesData ?? {})) as JsonObject,
+    JSON.parse(JSON.stringify(effectiveRules ?? {})) as JsonObject,
   )
 
   const [currentStep, setCurrentStep] = useState(0)
@@ -56,12 +58,12 @@ export function RulesModal({ onClose }: RulesModalProps) {
 
   const handleNext = useCallback(() => {
     if (isLastStep) {
-      setRulesData(localRules, rulesOriginal ?? localRules)
+      applyRulesDraft(localRules)
       onClose()
     } else {
       setCurrentStep((s) => s + 1)
     }
-  }, [isLastStep, localRules, rulesOriginal, setRulesData, onClose])
+  }, [isLastStep, localRules, applyRulesDraft, onClose])
 
   const handleBack = useCallback(() => {
     if (isFirstStep) {
@@ -71,7 +73,7 @@ export function RulesModal({ onClose }: RulesModalProps) {
     }
   }, [isFirstStep, onClose])
 
-  if (!rulesData) return null
+  if (!effectiveRules) return null
 
   const currentStepDef = activeSteps[currentStep]
 

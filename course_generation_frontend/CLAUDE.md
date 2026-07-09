@@ -40,7 +40,7 @@ There is no test suite yet.
 - `/documents_library` → `DocumentsLibraryPage`
 - `/costing` → `CostingDashboardPage`
 
-`AppLayout` (`src/layouts/AppLayout.tsx`) provides the sidebar + topbar shell for all routes except `/`. It includes three slide-over panels (`src/layouts/panels/`): `HelpPanel`, `SettingsPanel`, and `TasksPanel`. `TasksPanel` shows TO-generation background jobs with status badges, cancel controls, and expandable detail rows — it sources data from `useToTasks` and displays a running-count badge in the sidebar.
+`AppLayout` (`src/layouts/AppLayout.tsx`) provides the sidebar + topbar shell for all routes except `/`. It includes two slide-over panels (`src/layouts/panels/`): `HelpPanel` and `SettingsPanel`.
 
 ### Feature: course-generation
 
@@ -51,13 +51,13 @@ All active UI lives under `src/modules/course-generation/`. The module is self-c
 ```
 src/modules/course-generation/
 ├── features/
-│   ├── onboarding/    ← welcome screen + 8-step wizard
+│   ├── onboarding-flow/ ← welcome screen + 8-step wizard, one dir per step (step-1-course-basics … step-8-outline-review). Each step and the onboarding-flow root have components/, utils/, types/, constants/ subdirs; cross-step code (WizardLayout, CoursePreviewPanel, AIGenerationLoader, WizardNavContext, shared animation variants) lives in the root ones
 │   ├── upload/        ← file drop, Azure browser, TO generation
 │   ├── review/        ← three-panel editor + rules editor
 │   └── pipeline/      ← SSE pipeline monitor + course editor
 ├── pages/             ← CourseGenerationPage (phase router)
 ├── shared/components/ ← RecursiveJsonEditor, InlineEditField
-├── store/             ← courseStore, editorStore, pipelineStore, useBrowserHistory, courseEditorDraft
+├── store/             ← editorStore, pipelineStore, useBrowserHistory, courseEditorDraft (courseStore itself now lives in features/onboarding-flow/store/ — the single state store for the whole module, onboarding and beyond)
 ├── types/             ← index, pipeline, editor, wizard
 ├── utils/
 └── config/
@@ -74,13 +74,13 @@ Each feature owns its components and hooks internally — import from the featur
 | Phase | Component | Description |
 |---|---|---|
 | `welcome` | `WelcomeScreen` | Full-viewport landing; user chooses wizard or direct upload |
-| `wizard-basics` … `wizard-outline-review` | `WizardLayout` + step components | 8 animated steps collecting course configuration into `courseStore.wizardData` (`WizardData`). Steps in order: `CourseBasicsStep`, `RequiredTopicsStep`, `AudienceStep`, `SourceMaterialStep`, `LearningObjectivesStep`, `CourseDirectionStep`, `OutlinePreferenceStep`, `OutlineReviewStep`. `OutlineReviewStep` triggers TO generation; on success advances to `three-panel`. `WizardNavContext` lets each step override Next/Back label and behavior via `setConfig()`. |
+| `wizard-basics` … `wizard-outline-review` | `WizardLayout` + step components | 8 animated steps collecting course configuration into `courseStore.wizardData` (`WizardData`). Steps in order: `CourseBasicsStep`, `RequiredTopicsStep`, `AudienceStep`, `SourceMaterialStep`, `LearningObjectivesStep`, `CourseDirectionStep`, `OutlinePreferenceStep`, `OutlineReviewStep`. `OutlineReviewStep` triggers initial TO generation via `useGenerateTO`; on success advances to `three-panel`. Its own `useRegenerateTO` hook (`hooks/useRegenerateTO.ts`) drives a separate free-form "Regenerate" flow against `POST /documents/regenerate-timed-outline`, reusing the current TO plus a user-typed prompt — distinct from initial generation. `WizardNavContext` lets each step override Next/Back label and behavior via `setConfig()`. |
 
 **Path B — Direct upload**
 
 | Phase | Component | Description |
 |---|---|---|
-| `upload` | `UploadPhase` (`features/upload/`) | Drop `.docx` files (parsed client-side with `mammoth`), or pick from Azure via `InlineAzureBrowser`. "Generate TO" calls `POST /documents/generate-to`, which runs **A0 → A1 → S1 (`full`)** up to 3 cycles on the backend. Response `to`/`rules` come from **A0** output. If S1 still blocks after all retries, `S1BlockedPanel` shows quality scores, blocker issues, and recommendations. |
+| `upload` | `UploadPhase` (`features/upload/`) | Drop `.docx` files (parsed client-side with `mammoth`), or pick from Azure via `InlineAzureBrowser`. "Generate TO" and the wizard's `OutlineReviewStep` share one hook, `useGenerateTO` (`features/upload/hooks/`), which validates the store fields (audience, title, description, duration/difficulty, objectives, required topics) and calls `generateTimedOutline` (`POST /documents/generate-to`) synchronously — no job/poll cycle. `S1BlockedPanel` still exists for blocked-outline messaging. |
 
 **Shared phases**
 
@@ -100,7 +100,7 @@ Each feature owns its components and hooks internally — import from the featur
 
 ### State: Zustand stores
 
-- **`courseStore.ts`** — workflow phase, uploaded files, TO/rules JSON, job IDs, blob paths, course configuration (`audience`, `courseTitle`, `detectedRuleFamily`, `specialInstructions`, `courseTopic`, `difficultyLevel`, `durationHours`, `courseTypeHint`), and `wizardData` (`WizardData`). Uses `devtools` + `persist`; `partialize` has three modes: (a) `three-panel` — persists full TO/rules JSON + metadata; (b) active job — persists `{ activeJobId, phase }`; (c) otherwise — persists wizard/welcome state with `wizardData` so the wizard survives refresh. `audience` is mandatory — `useGenerateTO` throws if empty.
+- **`features/onboarding-flow/store/` (`onboarding.store.ts` + `onboarding.types.ts`, re-exported via `index.ts` as `useCourseStore`)** — the single centralized store for the entire module: workflow phase, uploaded files, TO/rules JSON, job IDs, blob paths, course configuration (`audience`, `courseTitle`, `detectedRuleFamily`, `specialInstructions`, `courseTopic`, `difficultyLevel`, `durationHours`, `courseTypeHint`, `courseBasicRecord`), and `wizardData` (`WizardData`). Every onboarding step and every post-onboarding phase (upload, three-panel, pipeline, editor) reads/writes this one store — there is no separate per-feature or per-step store. Uses `devtools` + `persist`; `partialize` has three modes: (a) `three-panel` — persists full TO/rules JSON + metadata; (b) active job — persists `{ activeJobId, phase }`; (c) otherwise — persists wizard/welcome state with `wizardData` so the wizard survives refresh. `audience` is mandatory — `useGenerateTO` throws if empty.
 - **`pipelineStore.ts`** — `PipelineOverview` (stage states, active stage, error), log entries, fatal error flag. No persist. Log entries capped at 400; backend log IDs deduplicated via `_maxSeenBackendLogId`.
 - **`editorStore.ts`** — `CourseContent`, per-section `SectionEditState` (Map keyed by section ID), expand/collapse state. No persist. Uses Zustand `immer` middleware (with `enableMapSet`). Section mutations: `addSection`/`addSubtopic` (return new ID), `moveSectionByIndex`, `moveChildByIndex`, `moveChildBetweenSections`, `moveSubtopicToSection`. `getCourseSnapshot()` merges all in-progress textarea edits into a `CourseContent` value for sync. `deduplicateSections` handles backend duplicate section IDs (keeps the copy with the most children).
 - **`settingsStore.ts`** (`src/store/`) — persisted UI preferences (theme, animations, autoSave, compactMode). Saved to localStorage under `lactora-settings`.
@@ -140,7 +140,7 @@ All modules under `src/api/`:
 
 - `client.ts` — shared Axios instance (120 s timeout, error-normalisation interceptor). Always import this; never create ad-hoc instances.
 - `errors.ts` — `ApiClientError` (preserves HTTP status), `isExpiredJobError()`.
-- `course-generation/api.ts` — `uploadDocument`, `generateTO` (backend: A0 → A1 → S1 per cycle; async-poll: 202 → `GET /documents/generate-to/jobs/{jobId}` every 1 s up to 15 min), `saveTrainingOutline` (`POST /documents/save-to`). `useGenerateTO` forwards populated `wizardData` to `POST /documents/generate-to` for A0 prompt construction.
+- `course-generation/api.ts` — `uploadDocument`, `pollIngestionStatus`, `suggestOutlineStructure`, `saveTrainingOutline` (`POST /documents/save-to`), `reviseTO` (`POST /regenerate-timed-outline` — edits an existing TO with a prompt, no A0/source re-run), `analyzeSource`. There is no job/poll model for TO generation anymore — `generateTimedOutline` (in `onboarding-flow/step-7-outline-preference/api`) calls `POST /documents/generate-to` synchronously and returns `{ to, rules }` directly; a `.json` Timed Outline among the blob paths short-circuits AI generation server-side but the request/response shape is unchanged. `useGenerateTO` (`features/upload/hooks/`) is the single hook driving this for both the direct-upload and wizard paths — it forwards populated `wizardData` for prompt construction and accepts an `outlineBlobPaths` override so an uploaded outline doc bypasses source-material generation.
 - `jobs/api.ts` — `createJob`, `getJobDetail`, `retryJob`, `getArtifacts`. `GenerateCoursePayload` (sent by `GenerateCourseBanner`) carries: an optional `courseConfig` field forwarding `wizardData` for A2 dynamic prompt construction; an optional `sourceFileSpecs` array (`SourceFileSpec[]`) with per-file blob path, extract hint, and `ImportanceLevel` so A2 can build a chunk index and apply per-file guidance. Both `generateTO` and `createJob` receive wizard data so it influences the full pipeline (A0 → A2).
 - `pipeline/sse.ts` — `PipelineSSEClient`.
 - `editor/api.ts` — `getCourseContent`, `performAIOperation`, `saveSectionContent`, `downloadCourseArtifact`, `saveToAzure` (`POST /jobs/{jobId}/artifacts/save-to-azure`), `syncCourseContent` (bulk-sync full course tree before download/save), `deleteSectionAPI` (`DELETE /jobs/{jobId}/sections/{sectionId}`), `persistSectionOrder` (`PATCH /jobs/{jobId}/sections/reorder` — sends depth-first flat ID list via `buildFlatSectionOrder`), `updateCourseTitleAPI` (`PATCH /jobs/{jobId}/course`). Download handles binary blob (local → browser download) and JSON `{ url }` (prod → signed blob URL).

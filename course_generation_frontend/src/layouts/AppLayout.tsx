@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCourseStore } from '@/modules/course-generation/store/courseStore'
+import { useCourseStore } from '@/modules/course-generation/features/onboarding-flow/store'
 import { useSettingsStore } from '@/shared/store/settingsStore'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { SettingsPanel } from './panels/SettingsPanel'
 import { HelpPanel } from './panels/HelpPanel'
-import { TasksPanel } from './panels/TasksPanel'
 
 // ─── Apply settings as DOM side-effects ──────────────────────────────────────
 
@@ -43,7 +42,6 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [tasksOpen, setTasksOpen] = useState(false)
 
   const location = useLocation()
   const phase = useCourseStore((s: { phase: string }) => s.phase)
@@ -72,10 +70,8 @@ export function AppLayout() {
           onClose={() => setSidebarOpen(false)}
           onSettingsClick={() => setSettingsOpen((v) => !v)}
           onHelpClick={() => setHelpOpen((v) => !v)}
-          onTasksClick={() => setTasksOpen((v) => !v)}
           isSettingsOpen={settingsOpen}
           isHelpOpen={helpOpen}
-          isTasksOpen={tasksOpen}
         />
       </div>
 
@@ -101,9 +97,8 @@ export function AppLayout() {
       </div>
 
       {/* Global slide-over panels — rendered at layout root */}
-      <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <HelpPanel     isOpen={helpOpen}     onClose={() => setHelpOpen(false)}     />
-      <TasksPanel    isOpen={tasksOpen}    onClose={() => setTasksOpen(false)}    />
+      {/* <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <HelpPanel     isOpen={helpOpen}     onClose={() => setHelpOpen(false)}     /> */}
     </div>
   )
 }

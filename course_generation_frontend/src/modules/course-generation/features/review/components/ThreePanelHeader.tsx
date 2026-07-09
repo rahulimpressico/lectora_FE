@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowLeft, Pencil } from 'lucide-react'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
 
 const RULE_FAMILY_LABELS: Record<string, string> = {
   insurance_ce: 'Insurance CE',
@@ -21,6 +21,7 @@ export const ThreePanelHeader = () => {
     audience,
     courseTitle,
     setCourseTitle,
+    courseCode,
     detectedRuleFamily,
     setDetectedRuleFamily,
   } = useCourseStore()
@@ -94,6 +95,11 @@ export const ThreePanelHeader = () => {
           {fileCount > 0
             ? `${fileCount} file${fileCount !== 1 ? 's' : ''} ready`
             : 'Review the Training Outline and Rules before generating'}
+          {courseCode && (
+            <span className="ml-1.5 text-slate-500 font-semibold">
+              · Course Code: {courseCode}
+            </span>
+          )}
           {audience.trim() && (
             <span className="ml-1.5 text-indigo-500 font-semibold">
               · Audience: {audience.trim()}

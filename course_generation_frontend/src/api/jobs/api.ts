@@ -42,17 +42,6 @@ export async function cancelJob(
   const { data } = await apiClient.delete(`/jobs/${jobId}`)
   return data
 }
-
-export async function loadJobTrainingOutline(
-  jobId: string,
-): Promise<{ to: Record<string, unknown>; rules: Record<string, unknown> }> {
-  const { data } = await apiClient.get<{ to: Record<string, unknown>; rules: Record<string, unknown> }>(
-    `/jobs/${jobId}/training-outline`,
-    { timeout: 30_000 },
-  )
-  return data
-}
-
 export async function getJobByCourseSlug(
   slug: string,
 ): Promise<{ jobId: string; status: string; courseTitle: string } | null> {

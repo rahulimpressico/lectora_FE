@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { BookOpen, Download, Loader2, Wand2 } from 'lucide-react'
 import { JsonEditorPanel } from './JsonEditorPanel'
 import { ReviseOutlineModal } from './ReviseOutlineModal'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
+import { selectEffectiveTO } from '../../onboarding-flow/store/selectors'
 import { useDownloadTrainingOutline } from '../hooks/useDownloadTrainingOutline'
 import {
   normalizeTrainingOutlineForPanel,
@@ -19,31 +20,32 @@ interface TOPanelProps {
 export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
   const {
     toData,
-    toOriginal,
+    updatedToData,
     modifiedTOPaths,
     updateTOField,
     resetTOField,
-    setTOData,
+    resetAllTOEdits,
     courseTypeHint,
+    courseCode,
   } = useCourseStore()
 
+  const effectiveTO = selectEffectiveTO({ toData, updatedToData })
+
   const panelTO = useMemo(
-    () => (toData ? normalizeTrainingOutlineForPanel(toData, courseTypeHint) : null),
-    [toData, courseTypeHint],
+    () => (effectiveTO ? normalizeTrainingOutlineForPanel(effectiveTO, courseTypeHint, courseCode) : null),
+    [effectiveTO, courseTypeHint, courseCode],
   )
   const panelOriginal = useMemo(
-    () => (toOriginal ? normalizeTrainingOutlineForPanel(toOriginal, courseTypeHint) : null),
-    [toOriginal, courseTypeHint],
+    () => (toData ? normalizeTrainingOutlineForPanel(toData, courseTypeHint, courseCode) : null),
+    [toData, courseTypeHint, courseCode],
   )
 
   const [showReviseModal, setShowReviseModal] = useState(false)
   const { download: handleDownload, downloading } = useDownloadTrainingOutline()
 
-  const handleResetAll = () => {
-    if (toOriginal) setTOData(toOriginal, toOriginal)
-  }
+  const handleResetAll = () => resetAllTOEdits()
 
-  const headerActions = toData ? (
+  const headerActions = panelTO ? (
     <div className="flex items-center gap-1.5">
       <button
         type="button"

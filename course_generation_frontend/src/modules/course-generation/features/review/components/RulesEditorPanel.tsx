@@ -1,6 +1,7 @@
 import { Shield, RotateCcw } from 'lucide-react'
 import { Spinner } from '@/shared/components/Spinner'
-import { useCourseStore } from '../../../store/courseStore'
+import { useCourseStore } from '../../onboarding-flow/store'
+import { selectEffectiveRulePack } from '../../onboarding-flow/store/selectors'
 import { formatKeyLabel } from '../../../utils/deepUpdate'
 import { CARD_DEFS } from './rules-editor/constants'
 import { getTooltip } from './rules-editor/helpers'
@@ -18,29 +19,29 @@ interface RulesEditorPanelProps {
 export const RulesEditorPanel = ({ loading = false, loadError = null }: RulesEditorPanelProps) => {
   const {
     rulesData,
-    rulesOriginal,
+    updatedRulesData,
     modifiedRulesPaths,
     updateRulesField,
     resetRulesField,
-    setRulesData,
+    resetAllRulesEdits,
   } = useCourseStore()
 
-  const handleResetAll = () => {
-    if (rulesOriginal) setRulesData(rulesOriginal, rulesOriginal)
-  }
+  const effectiveRules = selectEffectiveRulePack({ rulesData, updatedRulesData })
+
+  const handleResetAll = () => resetAllRulesEdits()
 
   const dirtyCount = modifiedRulesPaths.size
 
-  // Resolve which card defs have a matching top-level key in rulesData
+  // Resolve which card defs have a matching top-level key in the effective rule pack
   const matchedCards: Array<{ def: typeof CARD_DEFS[number]; sectionKey: string; sectionData: JsonObject }> = []
   const knownObjectKeys = new Set<string>()
 
-  if (rulesData) {
+  if (effectiveRules) {
     for (const def of CARD_DEFS) {
       if (def.candidateKeys === null) continue
       for (const candidate of def.candidateKeys) {
-        if (candidate in rulesData) {
-          const val = rulesData[candidate]
+        if (candidate in effectiveRules) {
+          const val = effectiveRules[candidate]
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             matchedCards.push({ def, sectionKey: candidate, sectionData: val as JsonObject })
             knownObjectKeys.add(candidate)
@@ -52,8 +53,8 @@ export const RulesEditorPanel = ({ loading = false, loadError = null }: RulesEdi
   }
 
   // Top-level primitive / array fields for the Overview card
-  const primitiveFields: [string, JsonValue][] = rulesData
-    ? Object.entries(rulesData).filter(([key, val]) => {
+  const primitiveFields: [string, JsonValue][] = effectiveRules
+    ? Object.entries(effectiveRules).filter(([key, val]) => {
         if (knownObjectKeys.has(key)) return false
         if (typeof val === 'object' && val !== null && !Array.isArray(val)) return false
         return true
@@ -61,8 +62,8 @@ export const RulesEditorPanel = ({ loading = false, loadError = null }: RulesEdi
     : []
 
   // Top-level object keys not matched by any card def (catch-all)
-  const unmatchedObjectEntries: [string, JsonObject][] = rulesData
-    ? (Object.entries(rulesData).filter(
+  const unmatchedObjectEntries: [string, JsonObject][] = effectiveRules
+    ? (Object.entries(effectiveRules).filter(
         ([key, val]) =>
           !knownObjectKeys.has(key) &&
           typeof val === 'object' &&
@@ -118,7 +119,7 @@ export const RulesEditorPanel = ({ loading = false, loadError = null }: RulesEdi
           <div className="flex h-full items-center justify-center px-6 text-center">
             <p className="text-sm text-red-600">{loadError}</p>
           </div>
-        ) : !rulesData ? (
+        ) : !effectiveRules ? (
           <div className="flex h-full items-center justify-center px-6 text-center">
             <p className="text-sm text-slate-500">Rule pack loads with the Training Outline.</p>
           </div>

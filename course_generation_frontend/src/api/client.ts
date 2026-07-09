@@ -21,6 +21,8 @@ const apiClient = axios.create({
   timeout: 120_000,
 })
 
+/** Timeout for slow LLM-backed calls (TO generate/regenerate/revise/upload). */
+export const LLM_REQUEST_TIMEOUT_MS = 10 * 60 * 1_000
 /**
  * Map typed auth/token errors to `ApiClientError` so callers get a consistent
  * shape. Re-throws anything that is not a known access-token error.
