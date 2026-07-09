@@ -13,7 +13,7 @@ export async function generateLearningObjectives(
   body: GenerateLearningObjectivesBody,
 ): Promise<GenerateLearningObjectivesResponse> {
   const { data } = await apiClient.post<GenerateLearningObjectivesResponse>(
-    "/documents/generate-learning-objectives",
+    "/generate-learning-objectives",
     body,
     { timeout: 60_000 },
   );
@@ -27,7 +27,7 @@ export async function regenerateLearningObjectives(
   body: RegenerateLearningObjectivesBody,
 ): Promise<RegenerateLearningObjectivesResponse> {
   const { data } = await apiClient.post<RegenerateLearningObjectivesResponse>(      
-    "/documents/regenerate-learning-objectives",
+    "/regenerate-learning-objectives",
     body,
     { timeout: 60_000 },
   );

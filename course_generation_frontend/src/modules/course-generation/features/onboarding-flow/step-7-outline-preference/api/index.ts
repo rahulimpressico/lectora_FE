@@ -14,7 +14,7 @@ export async function generateTimedOutline(
   signal?: AbortSignal,
 ): Promise<GenerateTimedOutlineResponse> {
   const { data } = await apiClient.post<GenerateTimedOutlineResponse>(
-    "/documents/generate-to",
+    "/generate-to",
     body,
     { timeout: LLM_REQUEST_TIMEOUT_MS, signal },
   );
@@ -27,7 +27,7 @@ export async function regenerateTimedOutline(
   body: RegenerateTimedOutlineBody,
 ): Promise<RegenerateTimedOutlineResponse> {
   const { data } = await apiClient.post<RegenerateTimedOutlineResponse>(
-    '/documents/regenerate-timed-outline',
+    '/regenerate-timed-outline',
     body,
     { timeout: LLM_REQUEST_TIMEOUT_MS },
   )
@@ -54,5 +54,5 @@ export async function uploadTimedOutline(file: File): Promise<UploadTimedOutline
 
 /** Cancel the in-flight generate-to request on the backend (best-effort, fire-and-forget). */
 export async function cancelGenerateTO(): Promise<void> {
-  await apiClient.post('/documents/generate-to/cancel', null, { timeout: 10_000 })
+  await apiClient.post('/generate-to/cancel', null, { timeout: 10_000 })
 }

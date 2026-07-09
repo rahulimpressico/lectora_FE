@@ -194,8 +194,18 @@ export async function getAccessToken(): Promise<string> {
     }
 
     if (error instanceof InteractionRequiredAuthError) {
+      // Stale sessions often have identity tokens but no API-scope token yet.
+      // Trigger a one-time interactive consent flow instead of failing silently.
+      try {
+        await msalInstance.acquireTokenRedirect({
+          ...getApiTokenRequest(),
+          account,
+        })
+      } catch (redirectError) {
+        console.error('[auth] acquireTokenRedirect failed', redirectError)
+      }
       throw new InteractiveAuthRequiredError(
-        'Silent API token acquisition failed; interactive sign-in may be required.',
+        'API access requires Microsoft sign-in consent. Redirecting…',
         { cause: error },
       )
     }
