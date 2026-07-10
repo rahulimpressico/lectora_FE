@@ -609,6 +609,8 @@ interface RecursiveJsonEditorProps {
   hiddenKeys?: Set<string>
   /** Root-level keys shown read-only in the Overview card. */
   readOnlyKeys?: Set<string>
+  /** Extra entries appended to the Overview card (e.g. totals pulled out of a hidden nested object). */
+  overviewExtraEntries?: Array<{ key: string; value: JsonValue; originalValue: JsonValue; path: string[] }>
 }
 
 export function RecursiveJsonEditor({
@@ -620,10 +622,12 @@ export function RecursiveJsonEditor({
   tooltips = {},
   hiddenKeys = new Set(),
   readOnlyKeys = new Set(),
+  overviewExtraEntries = [],
 }: RecursiveJsonEditorProps) {
   const entries = Object.entries(data).filter(([key]) => !hiddenKeys.has(key))
   const primitiveEntries = entries.filter(([, v]) => isPrimitive(v))
   const complexEntries   = entries.filter(([, v]) => !isPrimitive(v))
+  const overviewFieldCount = primitiveEntries.length + overviewExtraEntries.length
 
   return (
     <TooltipsContext.Provider value={tooltips}>
@@ -632,12 +636,12 @@ export function RecursiveJsonEditor({
     <div className="space-y-3">
 
       {/* ── Overview card: all root-level primitive fields ─────────── */}
-      {primitiveEntries.length > 0 && (
+      {overviewFieldCount > 0 && (
         <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-[0_1px_4px_0_rgb(0,0,0,0.05)]">
           <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/40 px-4 py-3">
             <span className="text-sm font-semibold text-slate-800">Overview</span>
             <span className="text-[11px] text-slate-400">
-              {primitiveEntries.length} {primitiveEntries.length === 1 ? 'field' : 'fields'}
+              {overviewFieldCount} {overviewFieldCount === 1 ? 'field' : 'fields'}
             </span>
           </div>
           <div className="divide-y divide-slate-100/80">
@@ -648,6 +652,19 @@ export function RecursiveJsonEditor({
                 value={value}
                 originalValue={originalData[key] ?? value}
                 path={[key]}
+                depth={0}
+                modifiedPaths={modifiedPaths}
+                onUpdate={onUpdate}
+                onReset={onReset}
+              />
+            ))}
+            {overviewExtraEntries.map((entry) => (
+              <JsonNode
+                key={entry.key}
+                keyName={entry.key}
+                value={entry.value}
+                originalValue={entry.originalValue}
+                path={entry.path}
                 depth={0}
                 modifiedPaths={modifiedPaths}
                 onUpdate={onUpdate}

@@ -36,7 +36,7 @@ export interface GenerateTimedOutlineResponse {
 
 export interface RegenerateTimedOutlineBody {
   currentTo: JsonObject
-  regenerationPrompt: string
+  regenerationPrompt?: string
   preferredChapters?: number
   lessonStyle?: 'short' | 'detailed'
 }

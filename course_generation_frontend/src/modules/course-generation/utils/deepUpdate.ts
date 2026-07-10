@@ -76,3 +76,28 @@ export function isJsonArray(val: JsonValue): val is JsonValue[] {
 export function isPrimitive(val: JsonValue): val is string | number | boolean | null {
   return !isJsonObject(val) && !isJsonArray(val)
 }
+
+/**
+ * Recursively compares `original` and `updated`, returning dot-joined paths
+ * (matching the `modifiedRulesPaths`/`modifiedTOPaths` key format) for every
+ * leaf that differs. Used to derive overrides even when the edit didn't go
+ * through a path-tracking setter (e.g. a modal that replaces a whole subtree).
+ */
+export function diffLeafPaths(original: JsonValue | undefined, updated: JsonValue | undefined, prefix: string[] = []): string[] {
+  if (original === updated) return []
+
+  const originalIsObj = original !== undefined && isJsonObject(original)
+  const updatedIsObj = updated !== undefined && isJsonObject(updated)
+
+  if (originalIsObj && updatedIsObj) {
+    const keys = new Set([...Object.keys(original), ...Object.keys(updated)])
+    const paths: string[] = []
+    for (const key of keys) {
+      paths.push(...diffLeafPaths(original[key], updated[key], [...prefix, key]))
+    }
+    return paths
+  }
+
+  if (JSON.stringify(original ?? null) === JSON.stringify(updated ?? null)) return []
+  return prefix.length > 0 ? [prefix.join('.')] : []
+}

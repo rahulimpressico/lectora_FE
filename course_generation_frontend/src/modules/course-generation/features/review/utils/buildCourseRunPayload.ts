@@ -7,7 +7,7 @@
 import type { CourseRunInputCreate, CourseRunRuleOverrideCreate, CourseRunSpecCreate } from '@/api/course-run/types'
 import type { CourseRunSubmission } from '@/api/course-run/api'
 import type { CourseState } from '../../onboarding-flow/store/types'
-import { deepGet } from '../../../utils/deepUpdate'
+import { deepGet, diffLeafPaths } from '../../../utils/deepUpdate'
 
 type SpecSourceState = Pick<
   CourseState,
@@ -75,14 +75,24 @@ export function buildCourseRunInputs(state: InputsSourceState): Omit<CourseRunIn
   return inputs
 }
 
-/** Diffs `modifiedRulesPaths` against `rulesData`/`updatedRulesData` into per-field overrides. */
+/**
+ * Diffs `rulesData` against `updatedRulesData` into per-field overrides.
+ *
+ * `modifiedRulesPaths` is merged in but isn't relied on alone: it's only
+ * populated by the inline `RuleCard` editors, not by `RulesModal`'s
+ * wholesale `applyRulesDraft` replace, so a full leaf-level diff is the
+ * source of truth for which rules actually changed.
+ */
 export function buildCourseRunRuleOverrides(
   state: RuleOverridesSourceState,
 ): Omit<CourseRunRuleOverrideCreate, 'course_run_id'>[] {
   const { rulesData, updatedRulesData, modifiedRulesPaths } = state
-  if (!rulesData || !updatedRulesData || modifiedRulesPaths.size === 0) return []
+  if (!rulesData || !updatedRulesData) return []
 
-  return Array.from(modifiedRulesPaths).map((ruleName) => {
+  const changedPaths = new Set([...modifiedRulesPaths, ...diffLeafPaths(rulesData, updatedRulesData)])
+  if (changedPaths.size === 0) return []
+
+  return Array.from(changedPaths).map((ruleName) => {
     const path = ruleName.split('.')
     const originalValue = deepGet(rulesData, path) ?? null
     const overrideValue = deepGet(updatedRulesData, path) ?? null

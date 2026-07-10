@@ -22,6 +22,7 @@ interface JsonEditorPanelProps {
   hiddenKeys?: Set<string>
   readOnlyKeys?: Set<string>
   headerActions?: React.ReactNode
+  overviewExtraEntries?: Array<{ key: string; value: JsonValue; originalValue: JsonValue; path: string[] }>
 }
 
 export function JsonEditorPanel({
@@ -42,6 +43,7 @@ export function JsonEditorPanel({
   hiddenKeys,
   readOnlyKeys,
   headerActions,
+  overviewExtraEntries,
 }: JsonEditorPanelProps) {
   const dirtyCount = modifiedPaths.size
 
@@ -108,6 +110,7 @@ export function JsonEditorPanel({
             tooltips={tooltips}
             hiddenKeys={hiddenKeys}
             readOnlyKeys={readOnlyKeys}
+            overviewExtraEntries={overviewExtraEntries}
           />
         )}
       </div>

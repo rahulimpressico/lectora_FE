@@ -1,5 +1,5 @@
 
-import apiClient, { LLM_REQUEST_TIMEOUT_MS } from '@/api/client'
+import apiClient from '@/api/client'
 import { ApiClientError } from '@/api/errors'
 import type {
   ImportanceLevel,
@@ -82,32 +82,9 @@ export async function suggestOutlineStructure(
   body: SuggestOutlineStructureBody,
 ): Promise<SuggestOutlineStructureResult> {
   const { data } = await apiClient.post<SuggestOutlineStructureResult>(
-    '/documents/suggest-outline-structure',
+    '/suggest-outline-structure',
     body,
     { timeout: 30_000 },
-  )
-  return data
-}
-
-// ─── TO revision ─────────────────────────────────────────────────────────────
-
-export interface ReviseTOResponse {
-  to: Record<string, unknown>
-}
-
-/**
- * Revise an existing Training Outline in-place using a user-supplied prompt.
- * Sends the current TO JSON + the user's instruction to the LLM and returns
- * the revised TO. Does NOT re-run A0 or regenerate from source documents.
- */
-export async function reviseTO(
-  currentTo: Record<string, unknown>,
-  revisionPrompt: string,
-): Promise<ReviseTOResponse> {
-  const { data } = await apiClient.post<ReviseTOResponse>(
-    '/documents/revise-to',
-    { currentTo, revisionPrompt },
-    { timeout: LLM_REQUEST_TIMEOUT_MS },
   )
   return data
 }

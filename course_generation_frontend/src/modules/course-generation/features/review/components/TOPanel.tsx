@@ -10,7 +10,10 @@ import {
   TO_PANEL_HIDDEN_KEYS,
   TO_PANEL_READONLY_KEYS,
 } from '../utils/trainingOutlinePanel'
+import { resolveTotalsField } from './training-outline/helpers'
 import type { JsonValue } from '../../../types'
+
+const TOTALS_FIELDS = ['word_count', 'minutes', 'credit_hours'] as const
 
 interface TOPanelProps {
   loading?: boolean
@@ -39,6 +42,15 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
     () => (toData ? normalizeTrainingOutlineForPanel(toData, courseTypeHint, courseCode) : null),
     [toData, courseTypeHint, courseCode],
   )
+
+  const overviewExtraEntries = useMemo(() => {
+    if (!panelTO) return []
+    return TOTALS_FIELDS.map((field) => {
+      const current = resolveTotalsField(panelTO, field)
+      const original = panelOriginal ? resolveTotalsField(panelOriginal, field) : current
+      return { key: `total_${field}`, value: current.value, originalValue: original.value, path: current.path }
+    })
+  }, [panelTO, panelOriginal])
 
   const [showReviseModal, setShowReviseModal] = useState(false)
   const { download: handleDownload, downloading } = useDownloadTrainingOutline()
@@ -93,6 +105,7 @@ export function TOPanel({ loading = false, loadError = null }: TOPanelProps) {
         hiddenKeys={TO_PANEL_HIDDEN_KEYS}
         readOnlyKeys={TO_PANEL_READONLY_KEYS}
         headerActions={headerActions}
+        overviewExtraEntries={overviewExtraEntries}
       />
 
       {showReviseModal && (

@@ -45,8 +45,8 @@ export interface CourseRunSubmissionResult {
 }
 
 /**
- * Creates a course_run, then its spec/inputs/rule-overrides in parallel
- * against the returned run id.
+ * Creates a course_run, then persists its spec, rule overrides, and inputs
+ * against the returned run id, in that order.
  */
 export async function submitCourseRun(
   submission: CourseRunSubmission,
@@ -54,15 +54,15 @@ export async function submitCourseRun(
   const run = await createCourseRun({ course_id: submission.courseId })
   const courseRunId = run.id
 
-  await Promise.all([
-    createCourseRunSpec({ ...submission.spec, course_run_id: courseRunId }),
-    ...submission.inputs.map((input) =>
-      createCourseRunInput({ ...input, course_run_id: courseRunId }),
-    ),
-    ...submission.ruleOverrides.map((override) =>
-      createCourseRunRuleOverride({ ...override, course_run_id: courseRunId }),
-    ),
-  ])
+  await createCourseRunSpec({ ...submission.spec, course_run_id: courseRunId })
+
+  for (const override of submission.ruleOverrides) {
+    await createCourseRunRuleOverride({ ...override, course_run_id: courseRunId })
+  }
+
+  for (const input of submission.inputs) {
+    await createCourseRunInput({ ...input, course_run_id: courseRunId })
+  }
 
   return { courseRunId }
 }
