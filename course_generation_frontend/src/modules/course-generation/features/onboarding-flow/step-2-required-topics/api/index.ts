@@ -13,7 +13,7 @@ export async function generateRequiredTopics(
   body: GenerateRequiredTopicsBody,
 ): Promise<GenerateRequiredTopicsResponse> {
   const { data } = await apiClient.post<GenerateRequiredTopicsResponse>(
-    '/generate-recommended-topics',
+    '/generate-required-topics',
     body,
     { timeout: 60_000 },
   )
@@ -31,7 +31,7 @@ export async function regenerateRequiredTopics(
   body: RegenerateRequiredTopicsBody,
 ): Promise<RegenerateRequiredTopicsResponse> {
   const { data } = await apiClient.post<RegenerateRequiredTopicsResponse>(
-    '/regenerate-recommended-topics',
+    '/regenerate-required-topics',
     body,
     { timeout: 60_000 },
   )
