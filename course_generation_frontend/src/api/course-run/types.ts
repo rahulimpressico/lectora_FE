@@ -13,14 +13,22 @@ export interface CourseRunCreate {
 }
 
 export interface CourseRunData {
-  id: string
+  id: number
   course_id: number
   version_number: number
-  created_from_run_id: string | null
+  created_from_run_id: number | null
   status_code: string
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+/** `POST /course-runs` returns the run together with everything created alongside it. */
+export interface CourseRunDetailData {
+  run: CourseRunData
+  spec: unknown | null
+  inputs: unknown[]
+  rule_overrides: unknown[]
 }
 
 export interface CourseRunSpecCreate {

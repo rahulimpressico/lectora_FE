@@ -6,7 +6,6 @@ import { useCourseStore } from '../../store'
 import { useFileUpload } from '../../../upload/hooks/useFileUpload'
 import { useWizardNav } from '../../components/WizardNavContext'
 import { InlineAzureBrowser } from '../../../upload/components/InlineAzureBrowser'
-import { analyzeSource } from '@/api/course-generation/api'
 import { formatBytes } from '@/shared/utils/formatBytes'
 import { cn } from '@/lib/cn'
 import {
@@ -14,10 +13,9 @@ import {
   isSkipIndexStatus,
   SKIP_INDEX_BLOCK_MESSAGE,
 } from '../../../../utils/ingestionStatus'
-import type { IngestionStatus, SourceAnalysis, SourceRole } from '../../../../types'
+import type { IngestionStatus } from '../../../../types'
 import { fadeUp, fadeIn, staggerContainer } from '../../constants/animations'
 import { fileCardVariants, hintVariants, checkmarkSpring } from '../constants'
-import { buildAnalysisCacheKey } from '../utils'
 
 function IngestionBadge({ status }: { status: IngestionStatus | undefined }) {
   if (!status || status === 'indexed' || status === 'parsed') return null
@@ -60,14 +58,9 @@ export const SourceMaterialStep = () => {
   const removeRawDocument = useCourseStore((s) => s.removeRawDocument)
   const updateRawDocument = useCourseStore((s) => s.updateRawDocument)
   const setPhase = useCourseStore((s) => s.setPhase)
-  const setSourceAnalyses = useCourseStore((s) => s.setSourceAnalyses)
-  const sourceAnalysesCacheKey = useCourseStore((s) => s.sourceAnalysesCacheKey)
-  const existingAnalyses = useCourseStore((s) => s.sourceAnalyses)
   const { enqueueFiles, enqueueAzureFiles } = useFileUpload()
   const [isDragging, setIsDragging] = useState(false)
   const [sourceMode, setSourceMode] = useState<'upload' | 'azure'>('upload')
-  const [isAnalysing, setIsAnalysing] = useState(false)
-  const [analysisError, setAnalysisError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const successDocs = rawDocuments.filter(
@@ -80,70 +73,14 @@ export const SourceMaterialStep = () => {
     (d) => d.ingestionStatus === 'pending' || d.ingestionStatus === 'processing',
   )
 
-  const analyzableDocs = successDocs.filter(
-    (d) => d.blobPath && (d.fileType === 'docx' || d.fileType === 'pdf'),
-  )
-
   const { setConfig } = useWizardNav()
 
+  // lectora_BE_refine has no `/documents/analyze-source` route — its
+  // generate-learning-objectives / generate-to contracts don't take a
+  // `sourceAnalyses` field at all, so this step just forwards to Objectives.
   const handleNext = () => {
     if (hasIndexingFailures) return
-
-    setAnalysisError(null)
-
-    // Compute cache key only from docs that will actually be sent
-    const currentCacheKey = buildAnalysisCacheKey(
-      analyzableDocs
-        .filter((d) => d.extractHint?.trim())
-        .map((d) => ({
-          blobPath: d.blobPath as string,
-          sourceRole: d.sourceRole,
-          extractHint: d.extractHint?.trim() || undefined,
-        })),
-    )
-
-    // Cache hit: analyses already exist for these exact docs → skip API
-    if (
-      currentCacheKey === sourceAnalysesCacheKey &&
-      existingAnalyses.length > 0
-    ) {
-      setPhase('wizard-objectives')
-      return
-    }
-
-    // Only send docs that have at least one user-provided metadata field.
-    const docsToAnalyze = analyzableDocs.filter((d) => d.extractHint?.trim())
-
-    // Cache miss: run analyzeSource for all qualifying docs in parallel
-    if (docsToAnalyze.length === 0) {
-      // No docs with metadata (or no analyzable docs at all) — navigate directly
-      setPhase('wizard-objectives')
-      return
-    }
-
-    setIsAnalysing(true)
-    Promise.allSettled(
-      docsToAnalyze.map((d) =>
-        analyzeSource({
-          blobPath: d.blobPath as string,
-          sourceRole: (d.sourceRole ?? 'primary_source') as SourceRole,
-          extractHint: d.extractHint?.trim() || undefined,
-        }),
-      ),
-    )
-      .then((results) => {
-        const analyses: SourceAnalysis[] = results
-          .filter((r): r is PromiseFulfilledResult<SourceAnalysis> => r.status === 'fulfilled')
-          .map((r) => r.value)
-        setSourceAnalyses(analyses, currentCacheKey)
-        setPhase('wizard-objectives')
-      })
-      .catch(() => {
-        setAnalysisError('Source analysis failed. Please try again.')
-      })
-      .finally(() => {
-        setIsAnalysing(false)
-      })
+    setPhase('wizard-objectives')
   }
 
   const handleReupload = (fileId: string) => {
@@ -153,25 +90,22 @@ export const SourceMaterialStep = () => {
   }
 
   useEffect(() => {
-    const isBlocked =
-      successDocs.length === 0 || isIngesting || isAnalysing || hasIndexingFailures
+    const isBlocked = successDocs.length === 0 || isIngesting || hasIndexingFailures
     setConfig({
       backPhase: 'wizard-audience',
       backLabel: 'Back',
-      nextLabel: isAnalysing
-        ? 'Analysing Sources…'
-        : isIngesting
-          ? 'Indexing…'
-          : hasIndexingFailures
-            ? 'Resolve indexing errors'
-            : 'Next: Objectives',
+      nextLabel: isIngesting
+        ? 'Indexing…'
+        : hasIndexingFailures
+          ? 'Resolve indexing errors'
+          : 'Next: Objectives',
       isNextDisabled: isBlocked,
-      isNextLoading: isIngesting || isAnalysing,
-      loadingLabel: isIngesting ? 'Uploading…' : 'Analysing…',
+      isNextLoading: isIngesting,
+      loadingLabel: 'Uploading…',
       onNext: handleNext,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [successDocs.length, isIngesting, isAnalysing, hasIndexingFailures, skipIndexDocs.length])
+  }, [successDocs.length, isIngesting, hasIndexingFailures, skipIndexDocs.length])
 
   useEffect(() => {
     if (!courseTopic.trim() && courseTitle.trim()) {
@@ -347,30 +281,6 @@ export const SourceMaterialStep = () => {
           >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span className="flex-1">{SKIP_INDEX_BLOCK_MESSAGE}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Analysis error */}
-      <AnimatePresence>
-        {analysisError && (
-          <motion.div
-            key="analysis-error"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700"
-          >
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{analysisError}</span>
-            <button
-              type="button"
-              onClick={handleNext}
-              className="flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-800 transition-colors"
-            >
-              <RefreshCw className="w-3 h-3" />
-              Retry
-            </button>
           </motion.div>
         )}
       </AnimatePresence>

@@ -3,6 +3,13 @@
  *
  * Course editor operations: loading course content, AI section operations,
  * persisting section edits, and downloading the final DOCX artifact.
+ *
+ * TODO(lectora_BE_refine): only `getCourseContent` (`GET /jobs/{id}/course`)
+ * has a matching route today. `performAIOperation`, `saveSectionContent`,
+ * `deleteSectionAPI`, `persistSectionOrder`, `updateCourseTitleAPI`,
+ * `syncCourseContent`, `downloadCourseArtifact`, and `saveToAzure` all target
+ * routes lectora_BE_refine does not implement yet — these will 404 until the
+ * editor/artifact endpoints are added backend-side.
  */
 import apiClient from '@/api/client'
 import type { CourseContent, AIOperationRequest, AIOperationResponse, SaveToAzureResponse } from '@/modules/course-generation/types/editor'

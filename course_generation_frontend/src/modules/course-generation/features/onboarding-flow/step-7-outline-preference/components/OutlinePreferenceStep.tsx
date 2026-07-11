@@ -45,6 +45,22 @@ export const OutlinePreferenceStep = () => {
 
   const outlineFiles = rawDocuments.filter((f) => f.uploadRole === 'outline')
 
+  // Stable primitives for the nav effect — avoid array/object identity churn
+  const isGenerating = generateTO.isPending
+  const hasJsonOutline = outlineFiles.some(
+    (f) => f.status === 'success' && f.name.toLowerCase().endsWith('.json'),
+  )
+  const docOutlineBlobPath =
+    outlineFiles.find(
+      (f) =>
+        f.status === 'success' &&
+        (f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.pdf')),
+    )?.blobPath ?? null
+
+  // Keep latest mutate/pending without putting the whole generateTO object in effect deps
+  const generateTORef = useRef(generateTO)
+  generateTORef.current = generateTO
+
   // ── Case 3: client-side JSON parsing ──────────────────────────────────────
   const [jsonParseError, setJsonParseError] = useState<string | null>(null)
 
@@ -83,7 +99,7 @@ export const OutlinePreferenceStep = () => {
 
   useEffect(() => {
     if (outlineMode === 'generate') {
-      if (hasExistingTO && !generateTO.isPending) {
+      if (hasExistingTO && !isGenerating) {
         // TO already generated — skip API, go straight to review
         setConfig({
           backPhase: 'wizard-direction',
@@ -95,76 +111,73 @@ export const OutlinePreferenceStep = () => {
         })
       } else {
         // Case 1: generate from source — duration + difficulty required
-        const canGenerate = !generateTO.isPending && !!durationHours && !!difficultyLevel
+        const canGenerate = !isGenerating && !!durationHours && !!difficultyLevel
         setConfig({
           backPhase: 'wizard-direction',
           backLabel: 'Back',
-          nextLabel: generateTO.isPending ? 'Generating...' : 'Generate Outline',
-          isNextLoading: generateTO.isPending,
+          nextLabel: isGenerating ? 'Generating...' : 'Generate Outline',
+          isNextLoading: isGenerating,
           isNextDisabled: !canGenerate,
           onNext: () => {
             if (canGenerate) {
-              generateTO.mutate()
+              generateTORef.current.mutate()
             }
           },
         })
       }
+    } else if (hasJsonOutline) {
+      // Case 3: JSON upload — load parsed content client-side, no LLM call
+      const canLoad = !!uploadedOutlineJson && !jsonParseError
+      setConfig({
+        backPhase: 'wizard-direction',
+        backLabel: 'Back',
+        nextLabel: 'Load Outline',
+        isNextDisabled: !canLoad,
+        onNext: canLoad
+          ? () => {
+              setTOData(uploadedOutlineJson)
+              setPhase('wizard-outline-review')
+            }
+          : undefined,
+      })
+    } else if (docOutlineBlobPath) {
+      // Case 2: DOCX/PDF upload — extract TO via API using GENERATE_TO_PROMPT
+      setConfig({
+        backPhase: 'wizard-direction',
+        backLabel: 'Back',
+        nextLabel: isGenerating ? 'Extracting...' : 'Extract Outline',
+        isNextLoading: isGenerating,
+        isNextDisabled: isGenerating,
+        onNext: () => {
+          if (!generateTORef.current.isPending) {
+            generateTORef.current.mutate({
+              outlineBlobPaths: [docOutlineBlobPath],
+            })
+          }
+        },
+      })
     } else {
-      // Upload mode — determine which sub-case applies based on file type
-      const jsonOutlineFile = outlineFiles.find(
-        (f) => f.status === 'success' && f.name.toLowerCase().endsWith('.json'),
-      )
-      const docOutlineFile = outlineFiles.find(
-        (f) =>
-          f.status === 'success' &&
-          (f.name.toLowerCase().endsWith('.docx') || f.name.toLowerCase().endsWith('.pdf')),
-      )
-
-      if (jsonOutlineFile) {
-        // Case 3: JSON upload — load parsed content client-side, no LLM call
-        const canLoad = !!uploadedOutlineJson && !jsonParseError
-        setConfig({
-          backPhase: 'wizard-direction',
-          backLabel: 'Back',
-          nextLabel: 'Load Outline',
-          isNextDisabled: !canLoad,
-          onNext: canLoad
-            ? () => {
-                setTOData(uploadedOutlineJson)
-                setPhase('wizard-outline-review')
-              }
-            : undefined,
-        })
-      } else if (docOutlineFile) {
-        // Case 2: DOCX/PDF upload — extract TO via API using GENERATE_TO_PROMPT
-        setConfig({
-          backPhase: 'wizard-direction',
-          backLabel: 'Back',
-          nextLabel: generateTO.isPending ? 'Extracting...' : 'Extract Outline',
-          isNextLoading: generateTO.isPending,
-          isNextDisabled: generateTO.isPending,
-          onNext: () => {
-            if (!generateTO.isPending && docOutlineFile.blobPath) {
-              generateTO.mutate({
-                outlineBlobPaths: [docOutlineFile.blobPath],
-              })
-            }
-          },
-        })
-      } else {
-        // No valid outline file yet
-        setConfig({
-          backPhase: 'wizard-direction',
-          backLabel: 'Back',
-          nextLabel: 'Review Outline',
-          isNextDisabled: true,
-        })
-      }
+      // No valid outline file yet
+      setConfig({
+        backPhase: 'wizard-direction',
+        backLabel: 'Back',
+        nextLabel: 'Review Outline',
+        isNextDisabled: true,
+      })
     }
   }, [
-    outlineMode, hasExistingTO, generateTO.isPending, outlineFiles, wizardData, audience,
-    setConfig, setPhase, generateTO, durationHours, difficultyLevel,
-    uploadedOutlineJson, jsonParseError, setTOData,
+    outlineMode,
+    hasExistingTO,
+    isGenerating,
+    hasJsonOutline,
+    docOutlineBlobPath,
+    durationHours,
+    difficultyLevel,
+    uploadedOutlineJson,
+    jsonParseError,
+    setConfig,
+    setPhase,
+    setTOData,
   ])
 
   const handleRemoveOutlineFile = (fileId: string, fileName: string) => {

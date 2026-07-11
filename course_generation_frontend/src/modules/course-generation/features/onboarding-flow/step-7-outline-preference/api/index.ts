@@ -39,6 +39,9 @@ export async function regenerateTimedOutline(
 /**
  * Upload a DOCX/PDF outline document and extract its timed outline (static
  * prompt, no course metadata) in one call. Returns the TO/rules JSON directly.
+ *
+ * TODO: lectora_BE_refine has no `/documents/upload-to` route yet — this has
+ * no call sites today, but wire it up backend-side before using it.
  */
 export async function uploadTimedOutline(file: File): Promise<UploadTimedOutlineResponse> {
   const form = new FormData()

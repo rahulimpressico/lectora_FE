@@ -8,6 +8,11 @@ import type { GenerateCoursePayload, JobDetail } from '@/modules/course-generati
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
+/**
+ * TODO(lectora_BE_refine): no `POST /jobs` route exists — job creation is
+ * `POST /course-runs/{course_run_id}/jobs` (see `@/api/course-run/api`,
+ * `submitCourseRun`/`createCourseGenerationJob`). No call sites use this.
+ */
 export async function createJob(
   payload: GenerateCoursePayload,
 ): Promise<{ jobId: string }> {
@@ -21,6 +26,7 @@ export async function getJobDetail(jobId: string): Promise<JobDetail> {
   return data
 }
 
+/** TODO(lectora_BE_refine): no `/jobs/{id}/retry` route exists yet — this call will 404. */
 export async function retryJob(
   jobId: string,
   fromStage: string,
@@ -29,6 +35,7 @@ export async function retryJob(
   return data
 }
 
+/** TODO(lectora_BE_refine): no `/jobs/{id}/artifacts` route exists yet — this call will 404. */
 export async function getArtifacts(
   jobId: string,
 ): Promise<{ artifactUrl: string; filename: string }[]> {
@@ -42,6 +49,8 @@ export async function cancelJob(
   const { data } = await apiClient.delete(`/jobs/${jobId}`)
   return data
 }
+
+/** TODO(lectora_BE_refine): no `/jobs/by-course-slug/{slug}` route exists yet — always 404s. */
 export async function getJobByCourseSlug(
   slug: string,
 ): Promise<{ jobId: string; status: string; courseTitle: string } | null> {
