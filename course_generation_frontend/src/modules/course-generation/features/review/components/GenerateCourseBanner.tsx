@@ -21,7 +21,10 @@ export const GenerateCourseBanner = () => {
     rulesData,
     updatedRulesData,
     courseId,
+    toData,
+    updatedToData,
     setPhase,
+    setActiveJobId,
     updateRawDocument,
   } = useCourseStore()
 
@@ -53,8 +56,14 @@ export const GenerateCourseBanner = () => {
         rulesData,
         updatedRulesData,
         modifiedRulesPaths,
+        toData,
+        updatedToData,
       })
       return submitCourseRun(submission)
+    },
+    onSuccess: ({ jobId }) => {
+      setActiveJobId(jobId)
+      setPhase('pipeline')
     },
   })
 

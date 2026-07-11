@@ -22,7 +22,11 @@ export async function generateRequiredTopics(
 
 // ─── Regenerate ────────────────────────────────────────────────────────────────
 
-/** Revise existing required topics based on user feedback. */
+/**
+ * Revise existing required topics based on user feedback.
+ * TODO(lectora_BE_refine): no `/regenerate-recommended-topics` route exists
+ * yet (only `/generate-recommended-topics`) — this call will 404.
+ */
 export async function regenerateRequiredTopics(
   body: RegenerateRequiredTopicsBody,
 ): Promise<RegenerateRequiredTopicsResponse> {

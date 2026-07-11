@@ -17,6 +17,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Target is lectora_BE_refine (`uvicorn app.main:app --reload --port 8000`).
       // SSE endpoint — no timeout; connection lives up to 30 minutes
       '/api/jobs': {
         target: 'http://localhost:8000',

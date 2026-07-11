@@ -82,7 +82,7 @@ export async function suggestOutlineStructure(
   body: SuggestOutlineStructureBody,
 ): Promise<SuggestOutlineStructureResult> {
   const { data } = await apiClient.post<SuggestOutlineStructureResult>(
-    '/documents/suggest-outline-structure',
+    '/suggest-outline-structure',
     body,
     { timeout: 30_000 },
   )
@@ -104,9 +104,11 @@ export async function reviseTO(
   currentTo: Record<string, unknown>,
   revisionPrompt: string,
 ): Promise<ReviseTOResponse> {
+  // lectora_BE_refine has no dedicated `/documents/revise-to` route — this same
+  // "revise in place with a prompt" contract is served by `/regenerate-timed-outline`.
   const { data } = await apiClient.post<ReviseTOResponse>(
-    '/documents/revise-to',
-    { currentTo, revisionPrompt },
+    '/regenerate-timed-outline',
+    { currentTo, regenerationPrompt: revisionPrompt },
     { timeout: LLM_REQUEST_TIMEOUT_MS },
   )
   return data

@@ -7,6 +7,7 @@
 import type { CourseRunInputCreate, CourseRunRuleOverrideCreate, CourseRunSpecCreate } from '@/api/course-run/types'
 import type { CourseRunSubmission } from '@/api/course-run/api'
 import type { CourseState } from '../../onboarding-flow/store/types'
+import { selectEffectiveTO } from '../../onboarding-flow/store/selectors'
 import { deepGet } from '../../../utils/deepUpdate'
 
 type SpecSourceState = Pick<
@@ -95,7 +96,10 @@ export function buildCourseRunRuleOverrides(
 }
 
 export function buildCourseRunSubmission(
-  state: SpecSourceState & InputsSourceState & RuleOverridesSourceState & Pick<CourseState, 'courseId'>,
+  state: SpecSourceState &
+    InputsSourceState &
+    RuleOverridesSourceState &
+    Pick<CourseState, 'courseId' | 'toData' | 'updatedToData'>,
 ): CourseRunSubmission {
   if (!state.courseId) {
     throw new Error('This course has not been saved yet — missing course id.')
@@ -110,5 +114,6 @@ export function buildCourseRunSubmission(
     spec: buildCourseRunSpec(state),
     inputs: buildCourseRunInputs(state),
     ruleOverrides: buildCourseRunRuleOverrides(state),
+    trainingOutline: selectEffectiveTO(state) as Record<string, unknown> | null,
   }
 }
