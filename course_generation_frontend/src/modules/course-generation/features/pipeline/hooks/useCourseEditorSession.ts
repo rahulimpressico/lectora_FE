@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useDebouncedCallback } from 'use-debounce'
 import { useQuery } from '@tanstack/react-query'
-import { getCourseContent, downloadCourseArtifact, syncCourseContent } from '@/api/editor/api'
+import { getCourseContent, downloadCourseArtifact } from '@/api/editor/api'
 import { loadDraft, clearDraft, saveDraft } from '../../../store/courseEditorDraft'
 import { useEditorStore } from '../../../store/editorStore'
 import { useSaveToAzure } from './useSaveToAzure'
@@ -61,12 +61,16 @@ export function useCourseEditorSession({
 
   const [draftChecked, setDraftChecked] = useState(false)
   const [draftExists, setDraftExists] = useState(false)
+  /** True when the editor differs from the last successful Azure save (or initial load). */
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const draftLoadedRef = useRef(false)
   const contentLoadedRef = useRef(false)
   const appliedFetchRef = useRef<CourseContent | null>(null)
   const draftHasLocalEditsRef = useRef(false)
   /** When true, the next autosave preserves/clears dirty rather than marking new edits. */
   const suppressDirtyAutosaveRef = useRef(false)
+  /** Skip one autosave cycle after committing the post-Azure-save baseline. */
+  const skipNextAutosaveRef = useRef(false)
 
   // Stable refs for optional callbacks — inline handlers in parents must not
   // retrigger content-loading effects (causes infinite setCourseContent loop).
@@ -77,7 +81,6 @@ export function useCourseEditorSession({
 
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
-  const [syncingBeforeSave, setSyncingBeforeSave] = useState(false)
 
   const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
 
@@ -97,12 +100,16 @@ export function useCourseEditorSession({
     appliedFetchRef.current = null
     draftHasLocalEditsRef.current = false
     suppressDirtyAutosaveRef.current = false
+    skipNextAutosaveRef.current = false
     setDraftChecked(false)
+    setHasUnsavedChanges(false)
 
     loadDraft(jobId).then((draft) => {
       if (cancelled) return
       if (draft) {
-        draftHasLocalEditsRef.current = draft.hasLocalEdits ?? false
+        const dirty = draft.hasLocalEdits ?? false
+        draftHasLocalEditsRef.current = dirty
+        setHasUnsavedChanges(dirty)
         suppressDirtyAutosaveRef.current = true
         setCourseContent(draft.content)
         draftLoadedRef.current = true
@@ -151,6 +158,7 @@ export function useCourseEditorSession({
       // Stale/cache-only draft — replace with API.
       draftLoadedRef.current = false
       draftHasLocalEditsRef.current = false
+      setHasUnsavedChanges(false)
       debouncedSave.cancel()
       void clearDraft(jobId).then(() => setDraftExists(false))
     }
@@ -171,6 +179,11 @@ export function useCourseEditorSession({
   // sectionEditStates is a dep so inline edits (not yet "Saved") also trigger auto-save
   useEffect(() => {
     if (!draftChecked || !courseContent) return
+    if (skipNextAutosaveRef.current) {
+      skipNextAutosaveRef.current = false
+      suppressDirtyAutosaveRef.current = false
+      return
+    }
     const snapshot = useEditorStore.getState().getCourseSnapshot()
     if (!snapshot) return
 
@@ -182,6 +195,7 @@ export function useCourseEditorSession({
     } else {
       hasLocalEdits = true
       draftHasLocalEditsRef.current = true
+      setHasUnsavedChanges(true)
     }
 
     debouncedSave(jobId, snapshot, hasLocalEdits)
@@ -189,13 +203,21 @@ export function useCourseEditorSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseContent, sectionEditStates, draftChecked, jobId])
 
-  // ── Clear draft after successful Azure save ───────────────────────────────
+  // ── Commit baseline + clear draft after successful Azure save ─────────────
   useEffect(() => {
-    if (saveStatus === 'success') {
-      draftHasLocalEditsRef.current = false
-      void clearDraft(jobId).then(() => setDraftExists(false))
+    if (saveStatus !== 'success') return
+    const snapshot = useEditorStore.getState().getCourseSnapshot()
+    draftHasLocalEditsRef.current = false
+    setHasUnsavedChanges(false)
+    debouncedSave.cancel()
+    if (snapshot) {
+      // Re-apply the saved snapshot so in-progress section edits become the new baseline.
+      skipNextAutosaveRef.current = true
+      suppressDirtyAutosaveRef.current = true
+      setCourseContent(snapshot)
     }
-  }, [saveStatus, jobId])
+    void clearDraft(jobId).then(() => setDraftExists(false))
+  }, [saveStatus, jobId, setCourseContent, debouncedSave])
 
   // ── Download DOCX ─────────────────────────────────────────────────────────
   // Render-only: POSTs the full editor snapshot. Does not sync or Save to Azure.
@@ -220,21 +242,16 @@ export function useCourseEditorSession({
   }
 
   // ── Save to Azure ─────────────────────────────────────────────────────────
-  async function handleSaveToAzure() {
-    if (!courseContent) return
-    setSyncingBeforeSave(true)
-    try {
-      const snapshot = useEditorStore.getState().getCourseSnapshot()
-      if (snapshot) await syncCourseContent(jobId, snapshot)
-    } catch {
-      // Sync failed — proceed with save anyway
-    } finally {
-      setSyncingBeforeSave(false)
-    }
+  // Single persistence call: full snapshot only. Backend owns versioning/Azure.
+  function handleSaveToAzure() {
+    if (!courseContent || !hasUnsavedChanges) return
+    debouncedSave.flush()
+    const snapshot = useEditorStore.getState().getCourseSnapshot()
+    if (!snapshot) return
     resetSaveToAzure()
     saveToAzure({
       jobId,
-      courseTitle: courseContent.courseTitle,
+      course: snapshot,
       courseSlug,
     })
   }
@@ -246,11 +263,11 @@ export function useCourseEditorSession({
     draftChecked,
     draftExists,
     setDraftExists,
+    hasUnsavedChanges,
     isLoading,
     error,
     isDownloading,
     downloadError,
-    syncingBeforeSave,
     saveStatus,
     saveResult,
     saveError,

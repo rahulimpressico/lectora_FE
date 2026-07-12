@@ -2,14 +2,14 @@
  * api/editor/api.ts
  *
  * Course editor operations: loading course content, AI section operations,
- * persisting section edits, and downloading the final DOCX artifact.
+ * persisting section edits, and downloading / saving artifacts.
  *
  * TODO(lectora_BE_refine): only `getCourseContent` (`GET /jobs/{id}/course`)
  * has a matching route today. `performAIOperation`, `saveSectionContent`,
  * `deleteSectionAPI`, `persistSectionOrder`, `updateCourseTitleAPI`,
- * `syncCourseContent`, `downloadCourseArtifact`, and `saveToAzure` all target
- * routes lectora_BE_refine does not implement yet — these will 404 until the
- * editor/artifact endpoints are added backend-side.
+ * `downloadCourseArtifact`, and `saveToAzure` all target routes lectora_BE_refine
+ * does not implement yet — these will 404 until the editor/artifact endpoints
+ * are added backend-side.
  */
 import apiClient from '@/api/client'
 import type { CourseContent, AIOperationRequest, AIOperationResponse, SaveToAzureResponse } from '@/modules/course-generation/types/editor'
@@ -74,31 +74,6 @@ export async function persistSectionOrder(jobId: string, sectionOrder: string[])
 
 export async function updateCourseTitleAPI(jobId: string, courseTitle: string): Promise<void> {
   await apiClient.patch(`/jobs/${jobId}/course`, { courseTitle })
-}
-
-export interface SyncCourseResponse {
-  jobId: string
-  status: 'synced'
-  generatedAt: string
-  meta: {
-    totalWordCount: number
-    sectionCount: number
-    chapterCount: number
-    estimatedReadTime: string
-  }
-}
-
-/** Bulk-sync the full course tree to the backend. Called before Save to Azure. */
-export async function syncCourseContent(
-  jobId: string,
-  content: CourseContent,
-): Promise<SyncCourseResponse> {
-  const { data } = await apiClient.post<SyncCourseResponse>(
-    `/jobs/${jobId}/course/sync`,
-    content,
-    { timeout: LONG_JOB_TIMEOUT_MS },
-  )
-  return data
 }
 
 /**
@@ -167,23 +142,24 @@ export async function downloadCourseArtifact(
   setTimeout(() => URL.revokeObjectURL(blobUrl), 1_000)
 }
 
-export interface SaveToAzureOptions {
-  courseTitle?: string
+export interface SaveToAzurePayload {
+  /** Complete current editor snapshot. Backend owns versioning and Azure paths. */
+  course: CourseContent
+  /** Optional Azure layout hint — not used for path construction on the client. */
   courseSlug?: string
-  /** Flat ordered list of content section IDs (L1 then their L2 children). Backend reorders DOCX accordingly. */
-  sectionOrder?: string[]
 }
 
+/**
+ * Persist + upload: POSTs the full editor snapshot. Backend allocates the next
+ * version, builds artifacts, and uploads to Azure. Frontend must not compute
+ * versions, blob paths, or upload directly.
+ */
 export async function saveToAzure(
   jobId: string,
-  options?: SaveToAzureOptions,
+  payload: SaveToAzurePayload,
 ): Promise<SaveToAzureResponse> {
-  const body: Record<string, unknown> = {}
-  if (options?.courseTitle?.trim()) body.courseTitle = options.courseTitle.trim()
-  if (options?.courseSlug?.trim()) body.courseSlug = options.courseSlug.trim()
-  if (options?.sectionOrder && options.sectionOrder.length > 0) {
-    body.sectionOrder = options.sectionOrder
-  }
+  const body: SaveToAzurePayload = { course: payload.course }
+  if (payload.courseSlug?.trim()) body.courseSlug = payload.courseSlug.trim()
 
   const { data } = await apiClient.post<SaveToAzureResponse>(
     `/jobs/${jobId}/artifacts/save-to-azure`,

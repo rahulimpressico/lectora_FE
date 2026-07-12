@@ -56,9 +56,9 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
   }, [session, resetEditor, onClose])
 
   const handleClose = useCallback(() => {
-    if (session.draftExists) setConfirmLeave(true)
+    if (session.hasUnsavedChanges) setConfirmLeave(true)
     else doClose()
-  }, [session.draftExists, doClose])
+  }, [session.hasUnsavedChanges, doClose])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') handleClose() }
@@ -80,7 +80,7 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
       <ConfirmLeaveModal
         open={confirmLeave}
         title="Leave without saving?"
-        message="Your edits are saved locally but haven't been synced to the backend yet. Close anyway?"
+        message="Your edits are saved locally but haven't been saved to Azure yet. Close anyway?"
         confirmLabel="Discard & close"
         cancelLabel="Keep editing"
         onConfirm={() => {

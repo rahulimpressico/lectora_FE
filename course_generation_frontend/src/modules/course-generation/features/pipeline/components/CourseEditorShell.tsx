@@ -90,7 +90,7 @@ export function CourseEditorShell({
   const {
     isDownloading,
     downloadError,
-    syncingBeforeSave,
+    hasUnsavedChanges,
     saveStatus,
     saveResult,
     saveError,
@@ -197,10 +197,15 @@ export function CourseEditorShell({
               size="sm"
               icon={<CloudUpload size={13} />}
               onClick={() => { void handleSaveToAzure() }}
-              disabled={!courseContent}
-              loading={syncingBeforeSave || saveStatus === 'loading'}
+              disabled={!courseContent || !hasUnsavedChanges || saveStatus === 'loading'}
+              loading={saveStatus === 'loading'}
+              title={
+                hasUnsavedChanges
+                  ? 'Save current course to Azure'
+                  : 'No changes to save'
+              }
             >
-              Save to Azure
+              {saveStatus === 'loading' ? 'Saving…' : 'Save to Azure'}
             </Button>
           )}
 
@@ -228,7 +233,7 @@ export function CourseEditorShell({
       {/* ── Azure status banners ───────────────────────────────────────────── */}
       {saveStatus === 'loading' && (
         <div className="mx-4 mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-[12px] text-indigo-700 shrink-0">
-          Uploading to Azure… large courses can take several minutes. Please keep this tab open.
+          Saving to Azure… large courses can take several minutes. Please keep this tab open.
         </div>
       )}
       {saveStatus === 'success' && saveResult && (
@@ -238,6 +243,11 @@ export function CourseEditorShell({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[13px] font-semibold text-emerald-800">Course saved to Azure</p>
+            {saveResult.versionNumber != null && (
+              <p className="text-[11px] text-emerald-600 mt-0.5">
+                Version {saveResult.versionNumber}
+              </p>
+            )}
             <p className="text-[11px] text-emerald-600 mt-0.5 break-all leading-relaxed">{saveResult.blobPath}</p>
             {saveResult.savedAt && (
               <p className="text-[11px] text-emerald-500 mt-0.5">

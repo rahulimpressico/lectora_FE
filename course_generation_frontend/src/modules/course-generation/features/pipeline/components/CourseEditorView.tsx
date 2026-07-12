@@ -71,7 +71,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
       <ConfirmLeaveModal
         open={confirmLeave}
         title="Leave without saving?"
-        message="Your edits are saved locally but haven't been synced to the backend yet. Go back anyway?"
+        message="Your edits are saved locally but haven't been saved to Azure yet. Go back anyway?"
         confirmLabel="Leave"
         cancelLabel="Keep editing"
         onConfirm={() => { setConfirmLeave(false); setPhase('three-panel') }}
@@ -84,7 +84,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
         topBarLeading={
           <button
             type="button"
-            onClick={() => session.draftExists ? setConfirmLeave(true) : setPhase('three-panel')}
+            onClick={() => session.hasUnsavedChanges ? setConfirmLeave(true) : setPhase('three-panel')}
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors shrink-0"
           >
             <ArrowLeft size={15} />
