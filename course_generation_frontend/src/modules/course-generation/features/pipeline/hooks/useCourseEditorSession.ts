@@ -76,6 +76,7 @@ export function useCourseEditorSession({
   onExpiredJobRef.current = onExpiredJob
 
   const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
   const [syncingBeforeSave, setSyncingBeforeSave] = useState(false)
 
   const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
@@ -197,21 +198,22 @@ export function useCourseEditorSession({
   }, [saveStatus, jobId])
 
   // ── Download DOCX ─────────────────────────────────────────────────────────
+  // Render-only: POSTs the full editor snapshot. Does not sync or Save to Azure.
   async function handleDownload() {
     if (!courseContent) return
     setIsDownloading(true)
-    debouncedSave.cancel()
+    setDownloadError(null)
+    // Flush pending IDB write so in-flight edits are not dropped by cancel().
+    debouncedSave.flush()
     try {
-      // Full tree sync: order, subtopic moves, titles, and in-progress edits
-      // must match the editor before DOCX is rebuilt from shared_state.
       const snapshot = useEditorStore.getState().getCourseSnapshot()
-      if (snapshot) {
-        await syncCourseContent(jobId, snapshot)
-      }
-      await downloadCourseArtifact(jobId)
-      draftHasLocalEditsRef.current = false
-      await clearDraft(jobId)
-      setDraftExists(false)
+      if (!snapshot) return
+      await downloadCourseArtifact(jobId, snapshot)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to download DOCX'
+      setDownloadError(message)
+      console.error('[downloadCourseArtifact]', err)
     } finally {
       setIsDownloading(false)
     }
@@ -247,6 +249,7 @@ export function useCourseEditorSession({
     isLoading,
     error,
     isDownloading,
+    downloadError,
     syncingBeforeSave,
     saveStatus,
     saveResult,

@@ -115,10 +115,23 @@ function normalizeErrorMessage(value: unknown): string {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    let payload = error.response?.data
+
+    // Blob downloads (`responseType: 'blob'`) still return JSON error bodies as
+    // Blobs — parse them so callers get the real `detail` / `message`.
+    if (payload instanceof Blob) {
+      try {
+        const text = await payload.text()
+        payload = text ? JSON.parse(text) : undefined
+      } catch {
+        payload = undefined
+      }
+    }
+
     const message = normalizeErrorMessage(
-      error.response?.data?.detail ??
-        error.response?.data?.message ??
+      payload?.detail ??
+        payload?.message ??
         error.message ??
         'An unexpected error occurred',
     )
