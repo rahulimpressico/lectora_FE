@@ -9,15 +9,14 @@ import {
   ImageOff,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { downloadCourseArtifact } from '@/api/editor/api'
 import { RichContentRenderer } from './RichContentRenderer'
 import type { CourseContent, CourseSection, SectionImage } from '../../../types/editor'
 
 interface CoursePreviewModalProps {
   courseContent: CourseContent
   onClose: () => void
-  /** When set, used instead of a raw artifact download (e.g. sync editor tree first). */
-  onDownload?: () => void
+  /** Must use the parent session download so the current editor snapshot is sent. */
+  onDownload: () => void
 }
 
 // ─── Reading progress bar ──────────────────────────────────────────────────
@@ -420,10 +419,7 @@ export function CoursePreviewModal({
           <div className="relative shrink-0 px-3 py-3 border-t border-white/[0.07]">
             <button
               type="button"
-              onClick={() => {
-                if (onDownload) onDownload()
-                else void downloadCourseArtifact(courseContent.jobId)
-              }}
+              onClick={onDownload}
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-white/60 rounded-xl border border-white/[0.09] hover:bg-white/[0.09] hover:text-white/85 hover:border-white/[0.16] transition-all duration-200 active:scale-[0.98] group"
             >
               <Download

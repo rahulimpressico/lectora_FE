@@ -88,7 +88,7 @@ export interface SyncCourseResponse {
   }
 }
 
-/** Bulk-sync the full course tree to the backend. Called before Download DOCX and Save to Azure. */
+/** Bulk-sync the full course tree to the backend. Called before Save to Azure. */
 export async function syncCourseContent(
   jobId: string,
   content: CourseContent,
@@ -102,39 +102,69 @@ export async function syncCourseContent(
 }
 
 /**
- * Download the generated study guide DOCX.
- * Handles two response shapes:
- *   - Local dev:  FileResponse (binary blob) → triggers browser download
- *   - Production: JSON { url: string }       → opens signed blob URL
- *
- * Pass sectionOrder to have the backend apply the current editor order before
- * building the DOCX so the file matches what the user sees in the editor.
+ * Parse a filename from a Content-Disposition header.
+ * Supports `filename="…"` and RFC 5987 `filename*=UTF-8''…`.
  */
-export async function downloadCourseArtifact(jobId: string, sectionOrder?: string[]): Promise<void> {
-  const params: Record<string, string> = {}
-  if (sectionOrder && sectionOrder.length > 0) {
-    params.sectionOrder = sectionOrder.join(',')
-  }
-  const { data, headers } = await apiClient.get(
-    `/jobs/${jobId}/artifacts/download`,
-    { responseType: 'blob', timeout: LONG_JOB_TIMEOUT_MS, params },
-  )
-  const contentType = String(headers['content-type'] ?? '')
+export function filenameFromContentDisposition(header: string | undefined | null): string | null {
+  if (!header) return null
 
-  if (contentType.includes('application/json')) {
-    const text = await (data as Blob).text()
-    const json = JSON.parse(text) as { url?: string }
-    if (json.url) window.open(json.url, '_blank')
-  } else {
-    const blobUrl = URL.createObjectURL(data as Blob)
-    const anchor = document.createElement('a')
-    anchor.href = blobUrl
-    anchor.download = `course_${jobId}.docx`
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
-    URL.revokeObjectURL(blobUrl)
+  const star = /filename\*\s*=\s*(?:UTF-8''|utf-8'')([^;\s]+)/i.exec(header)
+  if (star?.[1]) {
+    const raw = star[1].trim().replace(/^"|"$/g, '')
+    try {
+      return decodeURIComponent(raw)
+    } catch {
+      return raw
+    }
   }
+
+  const quoted = /filename\s*=\s*"((?:\\.|[^"\\])*)"/i.exec(header)
+  if (quoted?.[1]) return quoted[1].replace(/\\"/g, '"')
+
+  const plain = /filename\s*=\s*([^;\s]+)/i.exec(header)
+  if (plain?.[1]) return plain[1].replace(/^"|"$/g, '')
+
+  return null
+}
+
+/**
+ * Render-only DOCX download: POSTs the full editor snapshot to the backend and
+ * triggers a browser download from the binary response. Does not sync, persist,
+ * or upload to Azure.
+ */
+export async function downloadCourseArtifact(
+  jobId: string,
+  snapshot: CourseContent,
+): Promise<void> {
+  const { data, headers } = await apiClient.post(
+    `/jobs/${jobId}/artifacts/render-docx`,
+    snapshot,
+    { responseType: 'blob', timeout: LONG_JOB_TIMEOUT_MS },
+  )
+  const blob = data as Blob
+
+  // Empty / tiny payloads are almost never a real DOCX (ZIP header is larger).
+  if (blob.size < 100) {
+    const text = await blob.text().catch(() => '')
+    throw new Error(
+      text.trim() || `Download failed: empty or invalid file (${blob.size} bytes)`,
+    )
+  }
+
+  const fromHeader = filenameFromContentDisposition(
+    headers['content-disposition'] ?? headers['Content-Disposition'],
+  )
+  const filename = fromHeader?.trim() || `course_${jobId}.docx`
+
+  const blobUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = blobUrl
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  // Defer revoke — immediate revoke can abort the download in Chrome.
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1_000)
 }
 
 export interface SaveToAzureOptions {

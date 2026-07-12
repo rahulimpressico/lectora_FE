@@ -89,6 +89,7 @@ export function CourseEditorShell({
 }: CourseEditorShellProps) {
   const {
     isDownloading,
+    downloadError,
     syncingBeforeSave,
     saveStatus,
     saveResult,
@@ -210,12 +211,19 @@ export function CourseEditorShell({
             onClick={() => { void handleDownload() }}
             disabled={!courseContent || isDownloading}
           >
-            {isDownloading ? 'Saving…' : 'Download DOCX'}
+            {isDownloading ? 'Downloading…' : 'Download DOCX'}
           </Button>
         </div>
 
         {topBarTrailing}
       </div>
+
+      {downloadError && (
+        <div className="mx-4 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3 shrink-0">
+          <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
+          <p className="text-[12px] text-red-700">{downloadError}</p>
+        </div>
+      )}
 
       {/* ── Azure status banners ───────────────────────────────────────────── */}
       {saveStatus === 'loading' && (
