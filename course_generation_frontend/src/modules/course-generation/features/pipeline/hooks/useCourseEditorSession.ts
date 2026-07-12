@@ -17,23 +17,35 @@ export interface CourseEditorSessionOptions {
   onExpiredJob?: () => void
 }
 
-/** True when the API payload should replace a locally cached draft. */
-function shouldPreferApiOverDraft(draft: CourseContent, api: CourseContent): boolean {
+/**
+ * Prefer the API when:
+ * - backend generation is newer,
+ * - API has more/new sections, or
+ * - the draft has no real user edits (so in-place backend content updates win).
+ *
+ * Keep the draft only when it has local edits and the API is the same generation
+ * with the same section topology.
+ */
+function shouldPreferApiOverDraft(
+  draft: CourseContent,
+  api: CourseContent,
+  hasLocalEdits: boolean,
+): boolean {
   const draftAt = draft.generatedAt ?? ''
   const apiAt = api.generatedAt ?? ''
 
   if (apiAt && draftAt && apiAt > draftAt) return true
   if (apiAt && draftAt && apiAt < draftAt) return false
 
-  // Same generation (or missing timestamps): take API when it has more
-  // structure. Do NOT require a higher word count — meta.totalWordCount can
-  // already match the full course while a stale draft still has fewer sections.
   if (api.sections.length > draft.sections.length) return true
   if ((api.meta.sectionCount ?? 0) > (draft.meta.sectionCount ?? 0)) return true
   if ((api.meta.chapterCount ?? 0) > (draft.meta.chapterCount ?? 0)) return true
 
   const draftIds = new Set(draft.sections.map((s) => s.id))
-  return api.sections.some((s) => !draftIds.has(s.id))
+  if (api.sections.some((s) => !draftIds.has(s.id))) return true
+
+  // Same generation + same topology: backend content wins unless the user edited.
+  return !hasLocalEdits
 }
 
 export function useCourseEditorSession({
@@ -52,6 +64,9 @@ export function useCourseEditorSession({
   const draftLoadedRef = useRef(false)
   const contentLoadedRef = useRef(false)
   const appliedFetchRef = useRef<CourseContent | null>(null)
+  const draftHasLocalEditsRef = useRef(false)
+  /** When true, the next autosave preserves/clears dirty rather than marking new edits. */
+  const suppressDirtyAutosaveRef = useRef(false)
 
   // Stable refs for optional callbacks — inline handlers in parents must not
   // retrigger content-loading effects (causes infinite setCourseContent loop).
@@ -65,7 +80,12 @@ export function useCourseEditorSession({
 
   const { save: saveToAzure, reset: resetSaveToAzure, status: saveStatus, result: saveResult, errorMessage: saveError } = useSaveToAzure()
 
-  const debouncedSave = useDebouncedCallback(saveDraft, 400)
+  const debouncedSave = useDebouncedCallback(
+    (id: string, content: CourseContent, hasLocalEdits: boolean) => {
+      void saveDraft(id, content, hasLocalEdits)
+    },
+    400,
+  )
 
   // ── Draft: resolve BEFORE applying API, so a slow IDB read cannot overwrite
   // a fresh API payload (race that left the editor stuck on 2 sections).
@@ -74,11 +94,15 @@ export function useCourseEditorSession({
     draftLoadedRef.current = false
     contentLoadedRef.current = false
     appliedFetchRef.current = null
+    draftHasLocalEditsRef.current = false
+    suppressDirtyAutosaveRef.current = false
     setDraftChecked(false)
 
     loadDraft(jobId).then((draft) => {
       if (cancelled) return
       if (draft) {
+        draftHasLocalEditsRef.current = draft.hasLocalEdits ?? false
+        suppressDirtyAutosaveRef.current = true
         setCourseContent(draft.content)
         draftLoadedRef.current = true
         contentLoadedRef.current = true
@@ -111,18 +135,27 @@ export function useCourseEditorSession({
 
     if (draftLoadedRef.current) {
       const draftContent = useEditorStore.getState().courseContent
-      if (draftContent && !shouldPreferApiOverDraft(draftContent, fetchedContent)) {
+      if (
+        draftContent &&
+        !shouldPreferApiOverDraft(
+          draftContent,
+          fetchedContent,
+          draftHasLocalEditsRef.current,
+        )
+      ) {
         appliedFetchRef.current = fetchedContent
         return
       }
 
-      // Stale draft from an older/partial backend result — replace with API.
+      // Stale/cache-only draft — replace with API.
       draftLoadedRef.current = false
+      draftHasLocalEditsRef.current = false
       debouncedSave.cancel()
       void clearDraft(jobId).then(() => setDraftExists(false))
     }
 
     appliedFetchRef.current = fetchedContent
+    suppressDirtyAutosaveRef.current = true
     setCourseContent(fetchedContent)
     contentLoadedRef.current = true
     onContentLoadedRef.current?.(fetchedContent)
@@ -138,16 +171,27 @@ export function useCourseEditorSession({
   useEffect(() => {
     if (!draftChecked || !courseContent) return
     const snapshot = useEditorStore.getState().getCourseSnapshot()
-    if (snapshot) {
-      debouncedSave(jobId, snapshot)
-      setDraftExists(true)
+    if (!snapshot) return
+
+    let hasLocalEdits: boolean
+    if (suppressDirtyAutosaveRef.current) {
+      // Re-saving after draft/API load — keep existing dirty flag, don't invent edits.
+      hasLocalEdits = draftHasLocalEditsRef.current
+      suppressDirtyAutosaveRef.current = false
+    } else {
+      hasLocalEdits = true
+      draftHasLocalEditsRef.current = true
     }
+
+    debouncedSave(jobId, snapshot, hasLocalEdits)
+    setDraftExists(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseContent, sectionEditStates, draftChecked, jobId])
 
   // ── Clear draft after successful Azure save ───────────────────────────────
   useEffect(() => {
     if (saveStatus === 'success') {
+      draftHasLocalEditsRef.current = false
       void clearDraft(jobId).then(() => setDraftExists(false))
     }
   }, [saveStatus, jobId])
@@ -165,6 +209,7 @@ export function useCourseEditorSession({
         await syncCourseContent(jobId, snapshot)
       }
       await downloadCourseArtifact(jobId)
+      draftHasLocalEditsRef.current = false
       await clearDraft(jobId)
       setDraftExists(false)
     } finally {
