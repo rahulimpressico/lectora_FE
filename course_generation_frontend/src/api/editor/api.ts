@@ -5,14 +5,15 @@
  * persisting section edits, and downloading / saving artifacts.
  *
  * TODO(lectora_BE_refine): only `getCourseContent` (`GET /jobs/{id}/course`)
- * has a matching route today. `performAIOperation`, `saveSectionContent`,
- * `deleteSectionAPI`, `persistSectionOrder`, `updateCourseTitleAPI`,
- * `downloadCourseArtifact`, and `saveToAzure` all target routes lectora_BE_refine
- * does not implement yet — these will 404 until the editor/artifact endpoints
- * are added backend-side.
+ * has a matching route today. `deleteSectionAPI`, `persistSectionOrder`,
+ * `updateCourseTitleAPI`, `downloadCourseArtifact`, and `saveToAzure` all
+ * target routes lectora_BE_refine does not implement yet — these will 404
+ * until the editor/artifact endpoints are added backend-side.
+ * `performAIOperation` posts to `POST /ai/content-transformations`.
  */
 import apiClient from '@/api/client'
 import type { CourseContent, AIOperationRequest, AIOperationResponse, SaveToAzureResponse } from '@/modules/course-generation/types/editor'
+import { ensureParagraphIds } from '@/modules/course-generation/utils/aiContentStructure'
 
 /** DOCX rebuild + multi-file Azure sync for large courses can exceed 2 minutes. */
 const LONG_JOB_TIMEOUT_MS = 10 * 60 * 1_000
@@ -37,31 +38,34 @@ export async function getCourseContent(
 export async function performAIOperation(
   req: AIOperationRequest,
 ): Promise<AIOperationResponse> {
+  const body: {
+    sectionId: string
+    operation: AIOperationRequest['operation']
+    content: string
+    userPrompt?: string
+    paragraphs?: AIOperationRequest['paragraphs']
+    preserveStructure?: boolean
+  } = {
+    sectionId: req.sectionId,
+    operation: req.operation,
+    content: req.content,
+  }
+  if (req.userPrompt !== undefined) body.userPrompt = req.userPrompt
+  if (req.paragraphs && req.paragraphs.length > 0) {
+    // Backend requires every block to have a non-empty `id` — stamp here so no
+    // call site can POST paragraphs that still lack ids from course load.
+    body.paragraphs = ensureParagraphIds(req.paragraphs, req.sectionId)
+    body.preserveStructure = req.preserveStructure ?? true
+  } else if (req.preserveStructure !== undefined) {
+    body.preserveStructure = req.preserveStructure
+  }
+
   const { data } = await apiClient.post<AIOperationResponse>(
-    `/jobs/${req.jobId}/ai`,
-    {
-      sectionId: req.sectionId,
-      operation: req.operation,
-      content: req.content,
-      userPrompt: req.userPrompt,
-    },
+    '/ai/content-transformations',
+    body,
     { timeout: 120_000 },
   )
   return data
-}
-
-export async function saveSectionContent(
-  jobId: string,
-  sectionId: string,
-  content: string,
-  sectionType?: string,
-  title?: string,
-): Promise<void> {
-  await apiClient.patch(`/jobs/${jobId}/sections/${sectionId}`, {
-    content,
-    sectionType,
-    ...(title !== undefined ? { title } : {}),
-  })
 }
 
 export async function deleteSectionAPI(jobId: string, sectionId: string): Promise<void> {

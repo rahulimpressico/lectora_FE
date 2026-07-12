@@ -28,14 +28,23 @@ import { cn } from '@/lib/cn'
 import { useEditorStore } from '../../../store/editorStore'
 import { useAIOperation } from '../hooks/useAIOperation'
 import { performAIOperation } from '@/api/editor/api'
+import {
+  allowsStructuralChange,
+  buildAIContentPayload,
+  resolveAIOperationResult,
+} from '../../../utils/aiContentStructure'
 import { AIToolbar } from './AIToolbar'
 import { AIOperationModal } from './AIOperationModal'
 import { RichContentRenderer } from './RichContentRenderer'
-import type { AIOperationType, CourseSection } from '../../../types/editor'
+import type { AIOperationType, BodyParagraph, CourseSection } from '../../../types/editor'
+
+interface AIContentSnapshot {
+  content: string
+  paragraphs?: BodyParagraph[]
+}
 
 interface CourseSectionCardProps {
   section: CourseSection
-  jobId: string
   depth: number
   index: number
   dragHandleProps?: DraggableProvidedDragHandleProps | null
@@ -43,7 +52,6 @@ interface CourseSectionCardProps {
 
 export function CourseSectionCard({
   section,
-  jobId,
   depth,
   index,
   dragHandleProps,
@@ -74,10 +82,10 @@ export function CourseSectionCard({
   const isActive = activeSectionId === section.id
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const { triggerOperation, error: aiOperationError } = useAIOperation(jobId)
+  const { triggerOperation, error: aiOperationError } = useAIOperation()
 
   const [modalOp, setModalOp] = useState<'rewrite' | 'improve_tone' | null>(null)
-  const [modalResult, setModalResult] = useState<string | null>(null)
+  const [modalResult, setModalResult] = useState<AIContentSnapshot | null>(null)
   const [isTitleEditing, setIsTitleEditing] = useState(false)
   const [titleValue, setTitleValue] = useState(section.title)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -95,7 +103,7 @@ export function CourseSectionCard({
     [courseContent?.sections, section.parentId, section.id],
   )
 
-  const [undoContent, setUndoContent] = useState<string | null>(null)
+  const [undoSnapshot, setUndoSnapshot] = useState<AIContentSnapshot | null>(null)
   const [showUndoBanner, setShowUndoBanner] = useState(false)
   const [prevWordCount, setPrevWordCount] = useState<number | null>(null)
   const wasProcessingRef = useRef(false)
@@ -139,22 +147,37 @@ export function CourseSectionCard({
       ? combinedChildrenContent
       : (editState?.currentContent ?? section.content)
 
+  // Prefer live structured blocks when the section is not mid-markdown-edit.
+  const aiParagraphs: BodyParagraph[] | undefined =
+    editState && !editState.isDirty && section.paragraphs && section.paragraphs.length > 0
+      ? section.paragraphs
+      : undefined
+
   const modalMutation = useMutation({
-    mutationFn: ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
+    mutationFn: async ({ op, userPrompt }: { op: AIOperationType; userPrompt: string }) => {
       isModalOpRef.current = true
       setAIProcessing(section.id, op)
-      return performAIOperation({
-        jobId,
+      const payload = buildAIContentPayload(section.id, aiContent, aiParagraphs)
+      const preserveStructure = !allowsStructuralChange(op, userPrompt)
+      const raw = await performAIOperation({
         sectionId: section.id,
         operation: op,
-        content: aiContent,
+        content: payload.content,
+        paragraphs: payload.paragraphs,
         userPrompt,
+        preserveStructure,
+      })
+      return resolveAIOperationResult(payload.paragraphs ?? aiParagraphs, raw, {
+        sectionId: section.id,
+        operation: op,
+        userPrompt,
+        preserveStructure,
       })
     },
     onSuccess: (result) => {
       clearAIOperation(section.id)
       wasProcessingRef.current = false
-      setModalResult(result.content)
+      setModalResult(result)
     },
     onError: () => {
       isModalOpRef.current = false
@@ -262,17 +285,34 @@ export function CourseSectionCard({
         const child = children[i]
         const childState = sectionEditStates.get(child.id)
         const childContent = childState?.currentContent ?? child.content
+        const childParagraphs =
+          childState && !childState.isDirty && child.paragraphs && child.paragraphs.length > 0
+            ? child.paragraphs
+            : undefined
         setAIProcessing(child.id, op)
         try {
-          const result = await performAIOperation({
-            jobId,
+          const payload = buildAIContentPayload(child.id, childContent, childParagraphs)
+          const preserveStructure = !allowsStructuralChange(op, userPrompt)
+          const raw = await performAIOperation({
             sectionId: child.id,
             operation: op,
-            content: childContent,
+            content: payload.content,
+            paragraphs: payload.paragraphs,
             userPrompt,
+            preserveStructure,
           })
+          const resolved = resolveAIOperationResult(
+            payload.paragraphs ?? childParagraphs,
+            raw,
+            {
+              sectionId: child.id,
+              operation: op,
+              userPrompt,
+              preserveStructure,
+            },
+          )
           if (isMountedRef.current) {
-            applyAIResult(child.id, result.content, result.paragraphs)
+            applyAIResult(child.id, resolved.content, resolved.paragraphs)
           }
         } catch {
           if (isMountedRef.current) clearAIOperation(child.id)
@@ -282,7 +322,7 @@ export function CourseSectionCard({
       if (isMountedRef.current) setBatchProgress(null)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [section.children, section.id, jobId, sectionEditStates],
+    [section.children, section.id, sectionEditStates],
   )
 
   const isBatchProcessing = batchProgress !== null
@@ -292,10 +332,18 @@ export function CourseSectionCard({
       void handleBatchAITrigger(op)
       return
     }
-    setUndoContent(content)
+    setUndoSnapshot({
+      content,
+      paragraphs: aiParagraphs ? aiParagraphs.map((p) => ({ ...p })) : undefined,
+    })
     setPrevWordCount(content.trim().split(/\s+/).filter(Boolean).length)
     setShowUndoBanner(false)
-    triggerOperation({ sectionId: section.id, operation: op, content })
+    triggerOperation({
+      sectionId: section.id,
+      operation: op,
+      content,
+      paragraphs: aiParagraphs,
+    })
   }
 
   const isEditing = editState.isEditing
@@ -720,8 +768,10 @@ export function CourseSectionCard({
           operation={modalOp}
           sectionTitle={section.title}
           currentContent={aiContent}
+          currentParagraphs={aiParagraphs}
           isProcessing={isAIProcessing}
-          result={modalResult}
+          result={modalResult?.content ?? null}
+          resultParagraphs={modalResult?.paragraphs}
           batchCount={isL1 && hasChildren ? section.children.length : undefined}
           onConfirm={(userPrompt) => {
             setModalResult(null)
@@ -736,9 +786,15 @@ export function CourseSectionCard({
           }}
           onApply={() => {
             if (modalResult) {
-              updateEditContent(section.id, modalResult)
-              startEditing(section.id)
+              setUndoSnapshot({
+                content: editState.currentContent,
+                paragraphs: section.paragraphs
+                  ? section.paragraphs.map((p) => ({ ...p }))
+                  : undefined,
+              })
+              applyAIResult(section.id, modalResult.content, modalResult.paragraphs)
               expandSection(section.id)
+              setShowUndoBanner(true)
             }
             isModalOpRef.current = false
             setModalOp(null)
@@ -811,9 +867,15 @@ export function CourseSectionCard({
                   <button
                     type="button"
                     onClick={() => {
-                      if (undoContent !== null) updateEditContent(section.id, undoContent)
+                      if (undoSnapshot) {
+                        applyAIResult(
+                          section.id,
+                          undoSnapshot.content,
+                          undoSnapshot.paragraphs,
+                        )
+                      }
                       setShowUndoBanner(false)
-                      setUndoContent(null)
+                      setUndoSnapshot(null)
                     }}
                     className="flex items-center gap-1 text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
                   >
@@ -924,7 +986,6 @@ export function CourseSectionCard({
                                 >
                                   <CourseSectionCard
                                     section={child}
-                                    jobId={jobId}
                                     depth={1}
                                     index={childIndex}
                                     dragHandleProps={draggableProvided.dragHandleProps}

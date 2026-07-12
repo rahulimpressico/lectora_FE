@@ -163,7 +163,7 @@ export function CourseEditorModal({ jobId, courseSlug, onClose }: CourseEditorMo
                               style={drag.draggableProps.style as CSSProperties}
                               className={ds.isDragging ? 'opacity-90 shadow-xl' : ''}
                             >
-                              <CourseSectionCard section={section} jobId={jobId} depth={0} index={idx} dragHandleProps={drag.dragHandleProps} />
+                              <CourseSectionCard section={section} depth={0} index={idx} dragHandleProps={drag.dragHandleProps} />
                             </div>
                           )}
                         </Draggable>

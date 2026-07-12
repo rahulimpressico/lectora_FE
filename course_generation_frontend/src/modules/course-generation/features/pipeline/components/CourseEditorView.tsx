@@ -118,7 +118,7 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
                         style={dp.draggableProps.style as CSSProperties}
                         className={ds.isDragging ? 'opacity-90 shadow-xl' : ''}
                       >
-                        <CourseSectionCard section={section} jobId={jobId} depth={0} index={index} dragHandleProps={dp.dragHandleProps} />
+                        <CourseSectionCard section={section} depth={0} index={index} dragHandleProps={dp.dragHandleProps} />
                       </div>
                     )}
                   </Draggable>

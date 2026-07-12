@@ -498,32 +498,33 @@ export function RichContentRenderer({
   return (
     <div className={cn('space-y-3', className)}>
       {paragraphs.map((para, i) => {
+        const key = para.id ?? `${para.type}-${i}`
         const { type } = para
         if (type === 'text') {
-          return <TextBlock key={i} content={para.content ?? ''} />
+          return <TextBlock key={key} content={para.content ?? ''} />
         }
         if (type === 'heading_3') {
-          return <HeadingBlock key={i} content={para.content ?? ''} level={3} />
+          return <HeadingBlock key={key} content={para.content ?? ''} level={3} />
         }
         if (type === 'heading_4') {
-          return <HeadingBlock key={i} content={para.content ?? ''} level={4} />
+          return <HeadingBlock key={key} content={para.content ?? ''} level={4} />
         }
         if (type === 'bullet_list') {
-          return <BulletList key={i} items={para.items ?? []} />
+          return <BulletList key={key} items={para.items ?? []} />
         }
         if (type === 'numbered_list') {
-          return <NumberedList key={i} items={para.items ?? []} />
+          return <NumberedList key={key} items={para.items ?? []} />
         }
         if (type === 'sub_bullet_list') {
-          return <SubBulletList key={i} items={para.items ?? []} />
+          return <SubBulletList key={key} items={para.items ?? []} />
         }
         if (type === 'important_callout' || type === 'callout') {
-          return <CalloutBlock key={i} label={para.label} content={para.content ?? ''} />
+          return <CalloutBlock key={key} label={para.label} content={para.content ?? ''} />
         }
         if (type === 'knowledge_check') {
           return (
             <KnowledgeCheckBlock
-              key={i}
+              key={key}
               question={para.question}
               options={para.options}
               correct_answer={para.correct_answer}
@@ -533,11 +534,11 @@ export function RichContentRenderer({
         }
         if (type === 'table') {
           return (
-            <TableBlock key={i} headers={para.headers} rows={para.rows} caption={para.caption} />
+            <TableBlock key={key} headers={para.headers} rows={para.rows} caption={para.caption} />
           )
         }
         if (para.content) {
-          return <TextBlock key={i} content={para.content} />
+          return <TextBlock key={key} content={para.content} />
         }
         return null
       })}

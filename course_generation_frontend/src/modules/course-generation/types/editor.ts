@@ -3,6 +3,8 @@ export type SectionType = 'overview' | 'learning-objectives' | 'conclusion' | 'c
 
 // Structured paragraph block from A2 body_paragraphs
 export interface BodyParagraph {
+  /** Stable block id — assigned client-side when missing; required for AI round-trips. */
+  id?: string
   type: string
   // text / heading_3 / heading_4 / important_callout / callout
   content?: string
@@ -86,12 +88,15 @@ export interface AIOperationConfig {
 }
 
 export interface AIOperationRequest {
-  jobId: string
   sectionId: string
   operation: AIOperationType
   content: string
+  /** Structured body blocks — preferred over flat content when present. */
+  paragraphs?: BodyParagraph[]
   context?: string
   userPrompt?: string
+  /** Hint for the model: keep block ids/types/order (default true). */
+  preserveStructure?: boolean
 }
 
 export interface AIOperationResponse {
@@ -99,7 +104,7 @@ export interface AIOperationResponse {
   operation: AIOperationType
   content: string
   paragraphs?: BodyParagraph[]
-  processingTimeMs: number
+  processingTimeMs?: number
 }
 
 // ─── Per-section UI edit state ────────────────────────────────────────────────

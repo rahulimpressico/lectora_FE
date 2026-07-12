@@ -3,13 +3,17 @@ import { X, Sparkles, PenLine, SmilePlus, Check, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/cn'
+import type { BodyParagraph } from '../../../types/editor'
+import { RichContentRenderer } from './RichContentRenderer'
 
 interface AIOperationModalProps {
   operation: 'rewrite' | 'improve_tone'
   sectionTitle: string
   currentContent: string
+  currentParagraphs?: BodyParagraph[]
   isProcessing: boolean
   result: string | null
+  resultParagraphs?: BodyParagraph[]
   /** When set, the modal shows a batch-scope note and the confirm button says "Apply to All N Subtopics". */
   batchCount?: number
   onConfirm: (userPrompt: string) => void
@@ -47,12 +51,39 @@ const CONFIG: Record<'rewrite' | 'improve_tone', {
   },
 }
 
+function ContentPreview({
+  content,
+  paragraphs,
+  className,
+}: {
+  content: string
+  paragraphs?: BodyParagraph[]
+  className?: string
+}) {
+  if (paragraphs && paragraphs.length > 0) {
+    return (
+      <RichContentRenderer
+        paragraphs={paragraphs}
+        fallbackText={content}
+        className={className}
+      />
+    )
+  }
+  return (
+    <div className={cn('prose-sm max-w-none', className)}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </div>
+  )
+}
+
 export function AIOperationModal({
   operation,
   sectionTitle,
   currentContent,
+  currentParagraphs,
   isProcessing,
   result,
+  resultParagraphs,
   batchCount,
   onConfirm,
   onApply,
@@ -77,7 +108,9 @@ export function AIOperationModal({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const hasResult = result !== null && result.trim().length > 0
+  const hasResult =
+    (result !== null && result.trim().length > 0) ||
+    (resultParagraphs !== undefined && resultParagraphs.length > 0)
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overlay-fade-in">
@@ -122,8 +155,11 @@ export function AIOperationModal({
             </p>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs font-semibold text-slate-700 mb-2">{sectionTitle}</p>
-              <div className="text-xs text-slate-500 leading-relaxed max-h-32 overflow-y-auto pr-1 prose-sm max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentContent}</ReactMarkdown>
+              <div className="text-xs text-slate-500 leading-relaxed max-h-32 overflow-y-auto pr-1">
+                <ContentPreview
+                  content={currentContent}
+                  paragraphs={currentParagraphs}
+                />
               </div>
             </div>
           </div>
@@ -155,8 +191,11 @@ export function AIOperationModal({
                   AI Result — Preview
                 </p>
               </div>
-              <div className="rounded-lg border border-brand-200 bg-brand-50/40 px-4 py-3 text-xs text-slate-700 leading-relaxed max-h-48 overflow-y-auto prose-sm max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result!}</ReactMarkdown>
+              <div className="rounded-lg border border-brand-200 bg-brand-50/40 px-4 py-3 text-xs text-slate-700 leading-relaxed max-h-48 overflow-y-auto">
+                <ContentPreview
+                  content={result ?? ''}
+                  paragraphs={resultParagraphs}
+                />
               </div>
             </div>
           )}

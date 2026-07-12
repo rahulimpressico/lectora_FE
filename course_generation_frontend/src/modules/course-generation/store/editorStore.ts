@@ -9,6 +9,7 @@ import type {
   AIOperationType,
   BodyParagraph,
 } from '../types/editor'
+import { paragraphsToContentString } from '../utils/aiContentStructure'
 
 // ─── Store shape ──────────────────────────────────────────────────────────────
 interface EditorStoreState {
@@ -307,19 +308,29 @@ export const useEditorStore = create<EditorStoreState>()(
       applyAIResult: (sectionId, content, paragraphs) => set((draft) => {
         if (!draft.courseContent) return
         const section = findInDraft(draft.courseContent.sections as CourseSection[], sectionId)
-        if (section) {
-          section.content = content
-          section.wordCount = content.trim().split(/\s+/).filter(Boolean).length
-          section.paragraphs = paragraphs && paragraphs.length > 0 ? paragraphs : undefined
-        }
+        if (!section) return
+
+        // paragraphs are source of truth when present — derive content/wordCount from them
+        // so a stale top-level `content` string can never win.
+        const nextParagraphs =
+          paragraphs && paragraphs.length > 0 ? paragraphs : undefined
+        const nextContent =
+          nextParagraphs && nextParagraphs.length > 0
+            ? paragraphsToContentString(nextParagraphs)
+            : content
+
+        section.content = nextContent
+        section.paragraphs = nextParagraphs ?? section.paragraphs
+        section.wordCount = nextContent.trim().split(/\s+/).filter(Boolean).length
+
         const s = draft.sectionEditStates.get(sectionId)
         if (s) {
           s.isAIProcessing = false
           s.currentAIOperation = undefined
           s.isEditing = false
           s.isDirty = false
-          s.currentContent = content
-          s.originalContent = content
+          s.currentContent = nextContent
+          s.originalContent = nextContent
         }
       }),
 

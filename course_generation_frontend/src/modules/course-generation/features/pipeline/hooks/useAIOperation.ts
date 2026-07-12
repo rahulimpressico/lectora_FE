@@ -1,13 +1,27 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEditorStore } from '../../../store/editorStore'
-import { performAIOperation, saveSectionContent } from '@/api/editor/api'
-import type { AIOperationType } from '../../../types/editor'
+import { performAIOperation } from '@/api/editor/api'
+import {
+  allowsStructuralChange,
+  buildAIContentPayload,
+  resolveAIOperationResult,
+} from '../../../utils/aiContentStructure'
+import type { AIOperationType, BodyParagraph } from '../../../types/editor'
+
+export interface AIOperationVariables {
+  sectionId: string
+  operation: AIOperationType
+  content: string
+  paragraphs?: BodyParagraph[]
+  userPrompt?: string
+}
 
 /**
  * Drives an AI operation on a single section.
- * Manages the loading + result-apply lifecycle via the editor store.
+ * Sends structured `paragraphs` when available and applies the resolved
+ * response (content + paragraphs) via `applyAIResult`.
  */
-export function useAIOperation(jobId: string) {
+export function useAIOperation() {
   const { setAIProcessing, applyAIResult, clearAIOperation } = useEditorStore()
 
   const mutation = useMutation({
@@ -15,22 +29,37 @@ export function useAIOperation(jobId: string) {
       sectionId,
       operation,
       content,
+      paragraphs,
       userPrompt,
-    }: {
-      sectionId: string
-      operation: AIOperationType
-      content: string
-      userPrompt?: string
-    }) => {
+    }: AIOperationVariables) => {
       setAIProcessing(sectionId, operation)
-      // Sync the current section content before the AI operation so the
-      // backend works from the latest edited state (critical for regenerate).
-      try {
-        await saveSectionContent(jobId, sectionId, content)
-      } catch {
-        // Non-fatal — proceed with the AI call using the inline content param
+      const payload = buildAIContentPayload(sectionId, content, paragraphs)
+      const preserveStructure = !allowsStructuralChange(operation, userPrompt)
+      const raw = await performAIOperation({
+        sectionId,
+        operation,
+        content: payload.content,
+        paragraphs: payload.paragraphs,
+        userPrompt,
+        preserveStructure,
+      })
+      const resolved = resolveAIOperationResult(
+        payload.paragraphs ?? paragraphs,
+        raw,
+        {
+          sectionId,
+          operation,
+          userPrompt,
+          preserveStructure,
+        },
+      )
+      // Always apply against the request sectionId — never trust a mismatched
+      // response sectionId that would miss findInDraft and leave the UI stale.
+      return {
+        sectionId,
+        content: resolved.content,
+        paragraphs: resolved.paragraphs,
       }
-      return performAIOperation({ jobId, sectionId, operation, content, userPrompt })
     },
 
     onSuccess: (result) => {
