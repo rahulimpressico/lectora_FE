@@ -33,7 +33,8 @@ export function CourseEditorView({ jobId }: CourseEditorViewProps) {
   const [originalSectionIds, setOriginalSectionIds] = useState<string[] | null>(null)
 
   const captureInitialOrder = useCallback((content: CourseContent) => {
-    setOriginalSectionIds((prev) => prev ?? content.sections.map((s) => s.id))
+    // Always refresh when content is (re)loaded — e.g. API superseding a stale draft.
+    setOriginalSectionIds(content.sections.map((s) => s.id))
   }, [])
 
   const handleExpiredJob = useCallback(() => {

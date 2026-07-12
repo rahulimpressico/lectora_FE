@@ -17,6 +17,25 @@ export interface CourseEditorSessionOptions {
   onExpiredJob?: () => void
 }
 
+/** True when the API payload should replace a locally cached draft. */
+function shouldPreferApiOverDraft(draft: CourseContent, api: CourseContent): boolean {
+  const draftAt = draft.generatedAt ?? ''
+  const apiAt = api.generatedAt ?? ''
+
+  if (apiAt && draftAt && apiAt > draftAt) return true
+  if (apiAt && draftAt && apiAt < draftAt) return false
+
+  // Same generation (or missing timestamps): take API when it has more
+  // structure. Do NOT require a higher word count — meta.totalWordCount can
+  // already match the full course while a stale draft still has fewer sections.
+  if (api.sections.length > draft.sections.length) return true
+  if ((api.meta.sectionCount ?? 0) > (draft.meta.sectionCount ?? 0)) return true
+  if ((api.meta.chapterCount ?? 0) > (draft.meta.chapterCount ?? 0)) return true
+
+  const draftIds = new Set(draft.sections.map((s) => s.id))
+  return api.sections.some((s) => !draftIds.has(s.id))
+}
+
 export function useCourseEditorSession({
   jobId,
   courseSlug,
@@ -48,13 +67,17 @@ export function useCourseEditorSession({
 
   const debouncedSave = useDebouncedCallback(saveDraft, 400)
 
-  // ── Draft: load on mount, cancel debounced write on unmount ──────────────
+  // ── Draft: resolve BEFORE applying API, so a slow IDB read cannot overwrite
+  // a fresh API payload (race that left the editor stuck on 2 sections).
   useEffect(() => {
+    let cancelled = false
     draftLoadedRef.current = false
     contentLoadedRef.current = false
     appliedFetchRef.current = null
+    setDraftChecked(false)
 
     loadDraft(jobId).then((draft) => {
+      if (cancelled) return
       if (draft) {
         setCourseContent(draft.content)
         draftLoadedRef.current = true
@@ -64,33 +87,46 @@ export function useCourseEditorSession({
       }
       setDraftChecked(true)
     })
-    return () => { debouncedSave.cancel() }
+    return () => {
+      cancelled = true
+      debouncedSave.cancel()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId])
 
-  // ── API fetch (skipped when a draft was loaded) ───────────────────────────
+  // ── API fetch (waits for draft check so ordering is draft → compare → API) ─
   const { data: fetchedContent, isLoading, error } = useQuery({
     queryKey: ['course-content', jobId, courseSlug ?? ''],
     queryFn: () => getCourseContent(jobId, courseSlug),
-    enabled: !!jobId,
+    enabled: !!jobId && draftChecked,
     staleTime: 5 * 60_000,
     refetchOnMount: 'always',
     retry: 2,
   })
 
   useEffect(() => {
-    if (draftLoadedRef.current) return
-    if (!fetchedContent) return
+    if (!draftChecked || !fetchedContent) return
     // Skip when effect re-runs due to parent re-render; still apply on refetch (new reference).
     if (appliedFetchRef.current === fetchedContent) return
 
+    if (draftLoadedRef.current) {
+      const draftContent = useEditorStore.getState().courseContent
+      if (draftContent && !shouldPreferApiOverDraft(draftContent, fetchedContent)) {
+        appliedFetchRef.current = fetchedContent
+        return
+      }
+
+      // Stale draft from an older/partial backend result — replace with API.
+      draftLoadedRef.current = false
+      debouncedSave.cancel()
+      void clearDraft(jobId).then(() => setDraftExists(false))
+    }
+
     appliedFetchRef.current = fetchedContent
     setCourseContent(fetchedContent)
-    if (!contentLoadedRef.current) {
-      contentLoadedRef.current = true
-      onContentLoadedRef.current?.(fetchedContent)
-    }
-  }, [fetchedContent, setCourseContent])
+    contentLoadedRef.current = true
+    onContentLoadedRef.current?.(fetchedContent)
+  }, [draftChecked, fetchedContent, setCourseContent, jobId, debouncedSave])
 
   useEffect(() => {
     if (!error || !isExpiredJobError(error)) return
