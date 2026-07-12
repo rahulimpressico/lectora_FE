@@ -12,7 +12,12 @@ import { deepGet } from '../../../utils/deepUpdate'
 
 type SpecSourceState = Pick<
   CourseState,
-  'wizardData' | 'durationHours' | 'difficultyLevel' | 'audience' | 'toDocument' | 'generatedToBlobPath'
+  | 'wizardData'
+  | 'durationHours'
+  | 'difficultyLevel'
+  | 'audience'
+  | 'toDocument'
+  | 'generatedToBlobPath'
 >
 
 type InputsSourceState = Pick<CourseState, 'rawDocuments' | 'toDocument'>
@@ -20,12 +25,24 @@ type InputsSourceState = Pick<CourseState, 'rawDocuments' | 'toDocument'>
 type RuleOverridesSourceState = Pick<CourseState, 'rulesData' | 'updatedRulesData' | 'modifiedRulesPaths'>
 
 export function buildCourseRunSpec(state: SpecSourceState): Omit<CourseRunSpecCreate, 'course_run_id'> {
-  const { wizardData, durationHours, difficultyLevel, audience, toDocument, generatedToBlobPath } = state
+  const {
+    wizardData,
+    durationHours,
+    difficultyLevel,
+    audience,
+    toDocument,
+    generatedToBlobPath,
+  } = state
 
   const uploadedOutlineBlobPath =
     toDocument?.status === 'success' && toDocument.blobPath ? toDocument.blobPath : generatedToBlobPath ?? null
 
   return {
+    // rule_pack_id/version are intentionally omitted — the backend resolves
+    // the pack from the course type saved on the Course Basic record and
+    // persists its id/version on the spec.
+    rule_pack_id: null,
+    rule_pack_version: null,
     course_scope: wizardData.description.trim() || null,
     duration_hours: durationHours,
     difficulty_level: difficultyLevel,
@@ -57,7 +74,7 @@ export function buildCourseRunInputs(state: InputsSourceState): Omit<CourseRunIn
       blob_path: file.blobPath,
       file_size: file.sizeBytes ?? null,
       source_intent: file.extractHint?.trim() || null,
-      uploaded_by: 'system',
+      // uploaded_by is omitted — the backend records the authenticated user.
     })
   }
 
@@ -69,7 +86,6 @@ export function buildCourseRunInputs(state: InputsSourceState): Omit<CourseRunIn
       blob_path: toDocument.blobPath,
       file_size: toDocument.sizeBytes ?? null,
       source_intent: toDocument.extractHint?.trim() || null,
-      uploaded_by: 'system',
     })
   }
 

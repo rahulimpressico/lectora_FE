@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Info, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCourseStore } from "../../store";
+import { useAuth } from "@/auth/AuthContext";
 import { useWizardNav } from "../../components/WizardNavContext";
 import { cn } from "@/lib/cn";
 import { fadeUp, staggerContainer } from "../../constants/animations";
@@ -42,6 +43,9 @@ export const CourseBasicsStep = () => {
   const setWizardData = useCourseStore((s) => s.setWizardData);
 
   const description = wizardData.description ?? "";
+
+  const { user } = useAuth();
+  const currentUserName = user?.displayName ?? user?.username ?? "";
 
   const queryClient = useQueryClient();
   const {
@@ -139,7 +143,7 @@ export const CourseBasicsStep = () => {
         ? updateCourseBasic(courseId, {
             ...payload,
             status_code: (record?.status_code as CourseStatus) ?? "DRAFT",
-            created_by: record?.created_by ?? "system",
+            created_by: record?.created_by ?? currentUserName,
           })
         : saveCourseBasic(payload);
 
@@ -190,6 +194,7 @@ export const CourseBasicsStep = () => {
     isSaving,
     courseId,
     record,
+    currentUserName,
   ]);
 
   return (

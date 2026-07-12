@@ -6,7 +6,6 @@ import {
   cancelGenerateTO,
   generateTimedOutline,
 } from "../../onboarding-flow/step-7-outline-preference/api";
-import { calcWordCount } from "../../../utils/courseConfig";
 import type { WorkflowPhase } from "../../../types";
 
 /**
@@ -24,14 +23,22 @@ export type GenerateTOOverrides = {
  *
  * There is exactly one backend endpoint — `POST /documents/generate-to`
  * (see app/api/v1/endpoints/onboarding/timed_outline.py) — a synchronous
- * call with no job/poll cycle, no separate regenerate/upload/extract
- * endpoint, and no `rules` in the response. A `.json` Timed Outline among
+ * call with no job/poll cycle and no separate regenerate/upload/extract
+ * endpoint. The response also carries `rulePack`/`ruleFamily`: the complete
+ * course-type rule pack the backend selected from rule_pack_config, stored
+ * as `rulesData` for the rules panel. A `.json` Timed Outline among
  * `blobPaths` short-circuits AI generation server-side, but the request
  * and response shape are identical either way, so "generate", "regenerate",
  * and "extract from an uploaded outline doc" are all the same call here.
  */
 export function useGenerateTO(successPhase: WorkflowPhase = "three-panel") {
-  const { setPhase, setIsGeneratingTO, setTOData } = useCourseStore();
+  const {
+    setPhase,
+    setIsGeneratingTO,
+    setTOData,
+    setRulesData,
+    setDetectedRuleFamily,
+  } = useCourseStore();
 
   const successPhaseRef = useRef(successPhase);
   successPhaseRef.current = successPhase;
@@ -50,12 +57,10 @@ export function useGenerateTO(successPhase: WorkflowPhase = "three-panel") {
         toDocument,
         durationHours,
         difficultyLevel,
-        calculatedWordCount,
         audience,
         courseTitle,
         courseTopic,
         courseTypeHint,
-        detectedRuleFamily,
         wizardData,
         customToPrompt,
       } = useCourseStore.getState();
@@ -124,18 +129,16 @@ export function useGenerateTO(successPhase: WorkflowPhase = "three-panel") {
           blobPaths,
           courseTitle: courseTitle.trim(),
           courseDescription,
+          // calculatedWordCount and ruleFamily are intentionally omitted —
+          // the backend derives them from durationHours + difficulty and
+          // from courseTypeHint respectively.
           durationHours,
-          calculatedWordCount:
-            calculatedWordCount ??
-            calcWordCount(durationHours, difficultyLevel) ??
-            0,
           audience: audience.trim(),
           learningObjectives: wizardData.objectives,
           requiredTopics: wizardData.requiredTopics,
           courseTopic: courseTopic || undefined,
           difficultyLevel,
           courseTypeHint: courseTypeHint || undefined,
-          ruleFamily: detectedRuleFamily || undefined,
           experienceLevel: wizardData.experienceLevel || undefined,
           learnerOutcomes: wizardData.learnerOutcomes || undefined,
           tone: wizardData.tone || undefined,
@@ -159,6 +162,15 @@ export function useGenerateTO(successPhase: WorkflowPhase = "three-panel") {
         courseCode,
       );
       setTOData(normalizedTo);
+      // The backend selects the course-type rule pack from rule_pack_config
+      // and returns it in full — it becomes the rules shown in the rules
+      // panel and travels with the course run (rule_pack_id on the spec).
+      if (result.rulePack) {
+        setRulesData(result.rulePack);
+      }
+      if (result.ruleFamily) {
+        setDetectedRuleFamily(result.ruleFamily);
+      }
       setPhase(successPhaseRef.current);
     },
     onSettled: () => {
