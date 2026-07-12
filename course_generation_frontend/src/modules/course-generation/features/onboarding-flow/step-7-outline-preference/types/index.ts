@@ -5,7 +5,8 @@ export interface GenerateTimedOutlineBody {
   courseTitle: string
   courseDescription: string
   durationHours: number
-  calculatedWordCount: number
+  /** Optional override — the backend derives the target word count from durationHours + difficulty. */
+  calculatedWordCount?: number
   audience: string
   learningObjectives: string[]
   requiredTopics: string[]
@@ -13,6 +14,7 @@ export interface GenerateTimedOutlineBody {
   difficulty?: string
   difficultyLevel?: string
   courseTypeHint?: string
+  /** Optional override — the backend derives the rule family from courseTypeHint. */
   ruleFamily?: string
   experienceLevel?: string
   learnerOutcomes?: string
@@ -32,6 +34,14 @@ export interface GenerateTimedOutlineResponse {
   validationPassed: boolean
   repairAttempts: number
   finalIssues: JsonObject[]
+  /** Normalized rule-family key resolved from the course type (e.g. insurance_ce). */
+  ruleFamily?: string | null
+  /**
+   * Complete content-generation rule pack selected by the backend from
+   * rule_pack_config for this course type. Displayed in full in the rules
+   * panel and persisted with the course run.
+   */
+  rulePack?: JsonObject | null
 }
 
 export interface RegenerateTimedOutlineBody {

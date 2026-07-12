@@ -4,21 +4,11 @@
  * Job lifecycle: creation, status polling, retry, and artifact listing.
  */
 import apiClient from '@/api/client'
-import type { GenerateCoursePayload, JobDetail } from '@/modules/course-generation/types'
+import type { JobDetail } from '@/modules/course-generation/types'
 
 // ─── API calls ────────────────────────────────────────────────────────────────
-
-/**
- * TODO(lectora_BE_refine): no `POST /jobs` route exists — job creation is
- * `POST /course-runs/{course_run_id}/jobs` (see `@/api/course-run/api`,
- * `submitCourseRun`/`createCourseGenerationJob`). No call sites use this.
- */
-export async function createJob(
-  payload: GenerateCoursePayload,
-): Promise<{ jobId: string }> {
-  const { data } = await apiClient.post<{ jobId: string }>('/jobs', payload)
-  return data
-}
+// Job creation is `POST /course-runs/{course_run_id}/jobs` — see
+// `@/api/course-run/api` (`submitCourseRun`/`createCourseGenerationJob`).
 
 /** Full job detail including per-stage progress — matches backend JobDetailResponse. */
 export async function getJobDetail(jobId: string): Promise<JobDetail> {

@@ -58,6 +58,13 @@ export interface CourseContent {
   courseTitle: string
   courseType: string
   generatedAt: string
+  /**
+   * Course-level learning objectives, read back from the job's stored
+   * pipeline_input.json artifact. Also mirrored as the dedicated
+   * `course-learning-objectives` section (sectionType 'learning-objectives')
+   * in `sections` — per-section `learningObjectives` stay empty by design.
+   */
+  learningObjectives?: string[]
   meta: CourseContentMeta
   sections: CourseSection[]
 }

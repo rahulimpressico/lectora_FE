@@ -11,7 +11,7 @@ export type CourseStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export interface CourseBasicCreateRequest {
   course_title: string;
   course_type: string;
-  /** Optional — backend defaults to "system" when omitted. */
+  /** Optional — backend defaults to the logged-in user when omitted. */
   created_by?: string;
 }
 
