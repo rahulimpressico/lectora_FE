@@ -1,13 +1,12 @@
 import { useMutation } from '@tanstack/react-query'
 import { saveToAzure } from '@/api/editor/api'
 import { ApiClientError } from '@/api/errors'
-import type { SaveToAzureResponse } from '../../../types/editor'
+import type { CourseContent, SaveToAzureResponse } from '../../../types/editor'
 
 export interface SaveToAzureParams {
   jobId: string
-  courseTitle?: string
+  course: CourseContent
   courseSlug?: string
-  sectionOrder?: string[]
 }
 
 export interface SaveToAzureState {
@@ -18,8 +17,8 @@ export interface SaveToAzureState {
 
 export function useSaveToAzure() {
   const mutation = useMutation({
-    mutationFn: ({ jobId, courseTitle, courseSlug, sectionOrder }: SaveToAzureParams) =>
-      saveToAzure(jobId, { courseTitle, courseSlug, sectionOrder }),
+    mutationFn: ({ jobId, course, courseSlug }: SaveToAzureParams) =>
+      saveToAzure(jobId, { course, courseSlug }),
   })
 
   const state: SaveToAzureState = mutation.isPending

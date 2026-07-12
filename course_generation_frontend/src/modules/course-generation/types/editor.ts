@@ -117,4 +117,8 @@ export interface SaveToAzureResponse {
   containerName: string
   savedAt?: string
   warning?: string | null
+  /** Immutable version allocated by the backend for this save. */
+  versionNumber?: number
+  versionId?: string
+  stateBlobPath?: string
 }

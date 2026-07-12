@@ -51,7 +51,7 @@ export async function loadDraft(jobId: string): Promise<DraftRecord | null> {
   }
 }
 
-/** Remove a draft after successful sync or explicit discard. Fails silently. */
+/** Remove a draft after successful Azure save or explicit discard. Fails silently. */
 export async function clearDraft(jobId: string): Promise<void> {
   try {
     await del(`${KEY_PREFIX}${jobId}`)
