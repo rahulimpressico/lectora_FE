@@ -177,7 +177,6 @@ function makeNewSection(overrides: Partial<CourseSection> & { level: 1 | 2 | 3 }
     id: crypto.randomUUID(),
     title: overrides.level === 1 ? 'New Section' : 'New Subtopic',
     content: '',
-    learningObjectives: [],
     wordCount: 0,
     hasKnowledgeCheck: false,
     order: 0,

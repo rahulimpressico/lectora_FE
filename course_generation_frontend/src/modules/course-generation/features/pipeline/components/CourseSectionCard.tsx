@@ -37,6 +37,7 @@ import { AIToolbar } from './AIToolbar'
 import { AIOperationModal } from './AIOperationModal'
 import { RichContentRenderer } from './RichContentRenderer'
 import type { AIOperationType, BodyParagraph, CourseSection } from '../../../types/editor'
+import { getSectionLearningObjectives } from '../../../utils/learningObjectives'
 
 interface AIContentSnapshot {
   content: string
@@ -888,7 +889,7 @@ export function CourseSectionCard({
               {/* Learning objectives */}
               {section.sectionType === 'learning-objectives' && !isEditing ? (
                 <ol className="space-y-2.5">
-                  {section.learningObjectives.map((obj, i) => (
+                  {getSectionLearningObjectives(section).map((obj, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-[10px] font-bold mt-0.5">
                         {i + 1}

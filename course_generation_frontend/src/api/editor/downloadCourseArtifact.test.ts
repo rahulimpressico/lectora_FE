@@ -36,7 +36,6 @@ const snapshot: CourseContent = {
       level: 1,
       sectionType: 'content',
       content: 'Edited body',
-      learningObjectives: [],
       wordCount: 2,
       hasKnowledgeCheck: false,
       order: 0,

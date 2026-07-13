@@ -38,7 +38,6 @@ export interface CourseSection {
   sectionType?: SectionType
   content: string
   paragraphs?: BodyParagraph[]
-  learningObjectives: string[]
   wordCount: number
   hasKnowledgeCheck: boolean
   estimatedDuration?: string

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { CourseContent, CourseSection, SectionImage } from '../../../types/editor'
+import { getSectionLearningObjectives } from '../../../utils/learningObjectives'
 
 // ─── Internal components ──────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ function PreviewSection({ section, depth, index }: { section: CourseSection; dep
 
       {section.sectionType === 'learning-objectives' ? (
         <ol className="space-y-3 mb-5">
-          {section.learningObjectives.map((obj, i) => (
+          {getSectionLearningObjectives(section).map((obj, i) => (
             <li key={i} className="flex items-start gap-3 group">
               <span className="shrink-0 mt-[2px] w-[22px] h-[22px] rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm shadow-brand-200/60 select-none">
                 {i + 1}
