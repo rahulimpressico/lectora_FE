@@ -5,8 +5,6 @@ import { useCourseStore } from '@/modules/course-generation/features/onboarding-
 import { useSettingsStore } from '@/shared/store/settingsStore'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
-import { SettingsPanel } from './panels/SettingsPanel'
-import { HelpPanel } from './panels/HelpPanel'
 
 // ─── Apply settings as DOM side-effects ──────────────────────────────────────
 
