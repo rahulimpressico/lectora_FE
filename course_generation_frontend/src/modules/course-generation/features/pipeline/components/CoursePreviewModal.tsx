@@ -109,7 +109,7 @@ function PreviewNavItem({
 
       {/* Child nav items (depth 0 only) */}
       {depth === 0 &&
-        section.children.map((child, ci) => (
+        (section.children ?? []).map((child, ci) => (
           <PreviewNavItem
             key={child.id}
             section={child}
@@ -172,11 +172,19 @@ function PreviewSection({
   section,
   depth,
   index,
+  courseLearningObjectives,
 }: {
   section: CourseSection
   depth: number
   index: number
+  courseLearningObjectives?: string[]
 }) {
+  const learningObjectives =
+    section.learningObjectives?.length
+      ? section.learningObjectives
+      : (courseLearningObjectives ?? [])
+  const children = section.children ?? []
+
   return (
     <div
       id={`preview-${section.id}`}
@@ -206,7 +214,7 @@ function PreviewSection({
       {/* ── Learning objectives ── */}
       {section.sectionType === 'learning-objectives' ? (
         <ol className="space-y-3 mb-5">
-          {section.learningObjectives.map((obj, i) => (
+          {learningObjectives.map((obj, i) => (
             <li key={i} className="flex items-start gap-3 group">
               <span className="shrink-0 mt-[2px] w-[22px] h-[22px] rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm shadow-brand-200/60 select-none">
                 {i + 1}
@@ -263,8 +271,14 @@ function PreviewSection({
       )}
 
       {/* ── Children ── */}
-      {section.children.map((child, ci) => (
-        <PreviewSection key={child.id} section={child} depth={depth + 1} index={ci} />
+      {children.map((child, ci) => (
+        <PreviewSection
+          key={child.id}
+          section={child}
+          depth={depth + 1}
+          index={ci}
+          courseLearningObjectives={courseLearningObjectives}
+        />
       ))}
     </div>
   )
@@ -471,6 +485,7 @@ export function CoursePreviewModal({
                   section={section}
                   depth={0}
                   index={i}
+                  courseLearningObjectives={courseContent.learningObjectives}
                 />
               ))}
               {/* Bottom breathing room */}

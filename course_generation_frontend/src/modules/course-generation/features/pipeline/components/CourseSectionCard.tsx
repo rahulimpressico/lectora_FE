@@ -120,7 +120,8 @@ export function CourseSectionCard({
 
 
   // Computed early so modalMutation and the render path share the same value.
-  const hasChildren = section.children.length > 0
+  const children = section.children ?? []
+  const hasChildren = children.length > 0
   const isL1 = depth === 0
   const canAddSubtopic =
     isL1 &&
@@ -133,7 +134,7 @@ export function CourseSectionCard({
   // from all subsections so AI operations have real material to work with.
   const combinedChildrenContent =
     isL1 && hasChildren
-      ? section.children
+      ? children
           .map((child) => {
             const childState = sectionEditStates.get(child.id)
             const text = (childState?.currentContent || child.content).trim()
@@ -885,10 +886,14 @@ export function CourseSectionCard({
                 </div>
               )}
 
-              {/* Learning objectives */}
+              {/* Learning objectives — prefer section array; fall back to course-level LOs */}
               {section.sectionType === 'learning-objectives' && !isEditing ? (
                 <ol className="space-y-2.5">
-                  {section.learningObjectives.map((obj, i) => (
+                  {(
+                    section.learningObjectives?.length
+                      ? section.learningObjectives
+                      : (courseContent?.learningObjectives ?? [])
+                  ).map((obj, i) => (
                     <li key={i} className="flex items-start gap-3">
                       <span className="shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-[10px] font-bold mt-0.5">
                         {i + 1}
@@ -968,7 +973,7 @@ export function CourseSectionCard({
                             droppableSnapshot.isDraggingOver && 'bg-brand-50/50',
                           )}
                         >
-                          {section.children.map((child, childIndex) => (
+                          {children.map((child, childIndex) => (
                             <Draggable
                               key={`${child.id}-${childIndex}`}
                               draggableId={`${child.id}-${childIndex}`}

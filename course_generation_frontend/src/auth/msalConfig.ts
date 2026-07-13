@@ -6,6 +6,14 @@ const apiScope = import.meta.env.VITE_AZURE_API_SCOPE?.trim() ?? ''
 const redirectUri =
   import.meta.env.VITE_AZURE_REDIRECT_URI?.trim() || window.location.origin
 
+/**
+ * Dedicated blank page for silent/popup token iframes.
+ * Using the SPA root as the silent redirect URI loads React inside the iframe
+ * and commonly causes MSAL `timed_out` / `monitor_window_timeout` errors.
+ * Register this URI on the Entra SPA app (e.g. …/auth-redirect.html).
+ */
+const silentRedirectUri = `${redirectUri.replace(/\/$/, '')}/auth-redirect.html`
+
 // Simulated access-token lifetime in minutes; clamped to 15–60, default 30.
 const DEFAULT_REFRESH_MINUTES = 30
 const rawRefreshMinutes = Number(import.meta.env.VITE_AZURE_TOKEN_REFRESH_MINUTES)
@@ -73,12 +81,12 @@ export function getLoginRequest(): PopupRequest {
 }
 
 export function getTokenRequest(): Omit<SilentRequest, 'account'> {
-  return { scopes: getAuthScopes() }
+  return { scopes: getAuthScopes(), redirectUri: silentRedirectUri }
 }
 
 /** Session-refresh request — identity scopes only (no backend API scope). */
 export function getIdentityTokenRequest(): Omit<SilentRequest, 'account'> {
-  return { scopes: identityScopes }
+  return { scopes: identityScopes, redirectUri: silentRedirectUri }
 }
 
 /**
@@ -93,7 +101,11 @@ export function getApiScope(): string {
 
 /** Silent-token request scoped to the backend API (not Graph). */
 export function getApiTokenRequest(): Omit<SilentRequest, 'account'> {
-  return { scopes: [apiScope] }
+  return {
+    scopes: [apiScope],
+    // Keep the SPA out of the hidden iframe used for silent renewal.
+    redirectUri: silentRedirectUri,
+  }
 }
 
 export function getTokenRefreshMs(): number {

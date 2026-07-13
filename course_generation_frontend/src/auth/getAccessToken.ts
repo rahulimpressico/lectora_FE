@@ -139,6 +139,24 @@ function resolveActiveAccount(): AccountInfo | null {
 }
 
 /**
+ * Silent iframe timeouts are often "interaction required" in disguise
+ * (expired AAD session, blocked 3P cookies, or missing API-scope consent).
+ * MSAL does not always wrap these as InteractionRequiredAuthError.
+ */
+const SILENT_TIMEOUT_CODES = new Set(['timed_out', 'monitor_window_timeout'])
+
+function requiresInteractiveAuth(error: unknown): boolean {
+  if (error instanceof InteractionRequiredAuthError) return true
+  if (error instanceof BrowserAuthError && SILENT_TIMEOUT_CODES.has(error.errorCode)) {
+    return true
+  }
+  return false
+}
+
+/** Deduplicate concurrent silent acquisitions (avoids iframe contention timeouts). */
+let inFlightTokenRequest: Promise<string> | null = null
+
+/**
  * Acquire a backend-API access token for the active MSAL account.
  *
  * - Resolves the active account, promoting a cached account if none is active.
@@ -148,6 +166,18 @@ function resolveActiveAccount(): AccountInfo | null {
  * Throws typed errors — never clears MSAL account state.
  */
 export async function getAccessToken(): Promise<string> {
+  if (inFlightTokenRequest) {
+    return inFlightTokenRequest
+  }
+
+  inFlightTokenRequest = acquireAccessToken().finally(() => {
+    inFlightTokenRequest = null
+  })
+
+  return inFlightTokenRequest
+}
+
+async function acquireAccessToken(): Promise<string> {
   const scope = getApiScope()
   if (!scope) {
     throw new MissingApiScopeError()
@@ -193,12 +223,16 @@ export async function getAccessToken(): Promise<string> {
       throw permissionError
     }
 
-    if (error instanceof InteractionRequiredAuthError) {
-      // Stale sessions often have identity tokens but no API-scope token yet.
-      // Trigger a one-time interactive consent flow instead of failing silently.
+    if (requiresInteractiveAuth(error)) {
+      // Stale sessions / silent iframe timeouts often mean consent or re-login
+      // is needed for the API scope. Fall back to a full-frame redirect.
       try {
         await msalInstance.acquireTokenRedirect({
           ...getApiTokenRequest(),
+          // Interactive redirects must land back in the SPA, not the blank page.
+          redirectUri:
+            import.meta.env.VITE_AZURE_REDIRECT_URI?.trim() ||
+            window.location.origin,
           account,
         })
       } catch (redirectError) {

@@ -57,7 +57,23 @@ function SectionImageView({ image }: { image: SectionImage }) {
   )
 }
 
-function PreviewSection({ section, depth, index }: { section: CourseSection; depth: number; index: number }) {
+function PreviewSection({
+  section,
+  depth,
+  index,
+  courseLearningObjectives,
+}: {
+  section: CourseSection
+  depth: number
+  index: number
+  courseLearningObjectives?: string[]
+}) {
+  const learningObjectives =
+    section.learningObjectives?.length
+      ? section.learningObjectives
+      : (courseLearningObjectives ?? [])
+  const children = section.children ?? []
+
   return (
     <div
       id={`modal-preview-${section.id}`}
@@ -85,7 +101,7 @@ function PreviewSection({ section, depth, index }: { section: CourseSection; dep
 
       {section.sectionType === 'learning-objectives' ? (
         <ol className="space-y-3 mb-5">
-          {section.learningObjectives.map((obj, i) => (
+          {learningObjectives.map((obj, i) => (
             <li key={i} className="flex items-start gap-3 group">
               <span className="shrink-0 mt-[2px] w-[22px] h-[22px] rounded-full bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm shadow-brand-200/60 select-none">
                 {i + 1}
@@ -134,8 +150,14 @@ function PreviewSection({ section, depth, index }: { section: CourseSection; dep
         </div>
       )}
 
-      {section.children.map((child, ci) => (
-        <PreviewSection key={child.id} section={child} depth={depth + 1} index={ci} />
+      {children.map((child, ci) => (
+        <PreviewSection
+          key={child.id}
+          section={child}
+          depth={depth + 1}
+          index={ci}
+          courseLearningObjectives={courseLearningObjectives}
+        />
       ))}
     </div>
   )
@@ -251,7 +273,13 @@ export function CoursePreviewPane({ courseContent, onDownload }: CoursePreviewPa
       <div ref={scrollRef} className="flex-1 overflow-y-auto bg-white">
         <div className="max-w-[680px] mx-auto px-6 lg:px-10 xl:px-12">
           {courseContent.sections.map((section, i) => (
-            <PreviewSection key={section.id} section={section} depth={0} index={i} />
+            <PreviewSection
+              key={section.id}
+              section={section}
+              depth={0}
+              index={i}
+              courseLearningObjectives={courseContent.learningObjectives}
+            />
           ))}
           <div className="h-16" />
         </div>

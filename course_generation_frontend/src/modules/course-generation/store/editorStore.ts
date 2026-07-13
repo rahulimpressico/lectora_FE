@@ -73,14 +73,22 @@ function sanitizeTitle(title: string | undefined, fallback: string): string {
 function sanitizeSection(section: CourseSection, index: number): CourseSection {
   const level = section.level ?? 1
   const fallback = level === 1 ? `Section ${index + 1}` : `Subtopic ${index + 1}`
-  return { ...section, title: sanitizeTitle(section.title, fallback) }
+  return {
+    ...section,
+    title: sanitizeTitle(section.title, fallback),
+    learningObjectives: section.learningObjectives ?? [],
+    children: section.children ?? [],
+  }
 }
 
 function sanitizeSections(sections: CourseSection[]): CourseSection[] {
-  return sections.map((s, i) => ({
-    ...sanitizeSection(s, i),
-    children: s.children.map((c, ci) => sanitizeSection(c, ci)),
-  }))
+  return sections.map((s, i) => {
+    const sanitized = sanitizeSection(s, i)
+    return {
+      ...sanitized,
+      children: (s.children ?? []).map((c, ci) => sanitizeSection(c, ci)),
+    }
+  })
 }
 
 /**
@@ -93,7 +101,9 @@ function deduplicateSections(sections: CourseSection[]): CourseSection[] {
   const seen = new Map<string, CourseSection>()
   for (const s of sections) {
     const existing = seen.get(s.id)
-    if (!existing || s.children.length >= existing.children.length) {
+    const childCount = s.children?.length ?? 0
+    const existingChildCount = existing?.children?.length ?? 0
+    if (!existing || childCount >= existingChildCount) {
       seen.set(s.id, s)
     }
   }
@@ -501,6 +511,7 @@ export const useEditorStore = create<EditorStoreState>()(
         if (!courseContent) return null
         function mergeSection(section: CourseSection): CourseSection {
           const editState = sectionEditStates.get(section.id)
+          const children = (section.children ?? []).map(mergeSection)
           if (editState?.isDirty) {
             // Normalize paragraphs for dirty sections so heading-type entries
             // from the original backend payload don't duplicate the section title
@@ -509,13 +520,13 @@ export const useEditorStore = create<EditorStoreState>()(
               ...section,
               content: editState.currentContent,
               paragraphs: [{ type: 'text', content: editState.currentContent }],
-              children: section.children.map(mergeSection),
+              children,
             }
           }
           return {
             ...section,
             content: editState !== undefined ? editState.currentContent : section.content,
-            children: section.children.map(mergeSection),
+            children,
           }
         }
         return { ...courseContent, sections: courseContent.sections.map(mergeSection) }
