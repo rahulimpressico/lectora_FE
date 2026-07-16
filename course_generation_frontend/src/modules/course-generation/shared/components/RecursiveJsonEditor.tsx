@@ -67,7 +67,21 @@ interface NodeProps {
   modifiedPaths: Set<string>
   onUpdate: (path: string[], value: JsonValue) => void
   onReset: (path: string[]) => void
+  /** Optional display label; defaults to formatKeyLabel(keyName). */
+  labelOverride?: string
 }
+
+/** Overview-only labels for course totals (paths still point at totals.* / total_*). */
+const OVERVIEW_TOTALS_FIELDS = [
+  { field: 'word_count', flatKey: 'total_word_count', label: 'Total Word Count' },
+  { field: 'minutes', flatKey: 'total_minutes', label: 'Total Minutes' },
+  { field: 'credit_hours', flatKey: 'total_credit_hours', label: 'Total Credits' },
+] as const
+
+const FLAT_TOTAL_KEYS: Set<string> = new Set(OVERVIEW_TOTALS_FIELDS.map((f) => f.flatKey))
+const FLAT_TOTAL_OVERVIEW_LABELS: Record<string, string> = Object.fromEntries(
+  OVERVIEW_TOTALS_FIELDS.map((f) => [f.flatKey, f.label]),
+)
 
 // ── Animation variants ─────────────────────────────────────────────────────────
 
@@ -565,7 +579,16 @@ function ArrayNode({ keyName, value, path, depth, modifiedPaths, onUpdate, onRes
 
 // ── Primitive node — delegates to InlineEditField ──────────────────────────────
 
-function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onUpdate, onReset }: NodeProps) {
+function PrimitiveNode({
+  keyName,
+  value,
+  originalValue,
+  path,
+  modifiedPaths,
+  onUpdate,
+  onReset,
+  labelOverride,
+}: NodeProps) {
   const pk = pathKey(path)
   const isDirty = modifiedPaths.has(pk)
   const tooltips = useTooltips()
@@ -573,7 +596,7 @@ function PrimitiveNode({ keyName, value, originalValue, path, modifiedPaths, onU
 
   return (
     <InlineEditField
-      keyLabel={formatKeyLabel(keyName)}
+      keyLabel={labelOverride ?? formatKeyLabel(keyName)}
       value={value as JsonPrimitive}
       originalValue={originalValue as JsonPrimitive}
       isDirty={isDirty}
@@ -622,8 +645,25 @@ export function RecursiveJsonEditor({
   readOnlyKeys = new Set(),
 }: RecursiveJsonEditorProps) {
   const entries = Object.entries(data).filter(([key]) => !hiddenKeys.has(key))
-  const primitiveEntries = entries.filter(([, v]) => isPrimitive(v))
-  const complexEntries   = entries.filter(([, v]) => !isPrimitive(v))
+  const nestedTotals = isJsonObject(data.totals) ? (data.totals as JsonObject) : null
+  const originalNestedTotals = isJsonObject(originalData.totals)
+    ? (originalData.totals as JsonObject)
+    : null
+
+  // When nested totals.* exists, omit flat total_* from Overview so both
+  // Overview and the Totals card share the same nested paths (no duplicate state).
+  const primitiveEntries = entries
+    .filter(([, v]) => isPrimitive(v))
+    .filter(([key]) => !(nestedTotals && FLAT_TOTAL_KEYS.has(key)))
+  const complexEntries = entries.filter(([, v]) => !isPrimitive(v))
+
+  const overviewTotalsFromNested = nestedTotals
+    ? OVERVIEW_TOTALS_FIELDS.filter(
+        ({ field }) => field in nestedTotals && isPrimitive(nestedTotals[field]),
+      )
+    : []
+
+  const overviewFieldCount = primitiveEntries.length + overviewTotalsFromNested.length
 
   return (
     <TooltipsContext.Provider value={tooltips}>
@@ -631,13 +671,13 @@ export function RecursiveJsonEditor({
     <ReadOnlyKeysContext.Provider value={readOnlyKeys}>
     <div className="space-y-3">
 
-      {/* ── Overview card: all root-level primitive fields ─────────── */}
-      {primitiveEntries.length > 0 && (
+      {/* ── Overview card: root primitives + course totals ─────────── */}
+      {overviewFieldCount > 0 && (
         <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden shadow-[0_1px_4px_0_rgb(0,0,0,0.05)]">
           <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/40 px-4 py-3">
             <span className="text-sm font-semibold text-slate-800">Overview</span>
             <span className="text-[11px] text-slate-400">
-              {primitiveEntries.length} {primitiveEntries.length === 1 ? 'field' : 'fields'}
+              {overviewFieldCount} {overviewFieldCount === 1 ? 'field' : 'fields'}
             </span>
           </div>
           <div className="divide-y divide-slate-100/80">
@@ -652,13 +692,32 @@ export function RecursiveJsonEditor({
                 modifiedPaths={modifiedPaths}
                 onUpdate={onUpdate}
                 onReset={onReset}
+                labelOverride={FLAT_TOTAL_OVERVIEW_LABELS[key]}
               />
             ))}
+            {overviewTotalsFromNested.map(({ field, label }) => {
+              const value = nestedTotals![field]
+              const originalValue = originalNestedTotals?.[field] ?? value
+              return (
+                <JsonNode
+                  key={`overview-totals-${field}`}
+                  keyName={field}
+                  value={value}
+                  originalValue={originalValue}
+                  path={['totals', field]}
+                  depth={0}
+                  modifiedPaths={modifiedPaths}
+                  onUpdate={onUpdate}
+                  onReset={onReset}
+                  labelOverride={label}
+                />
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* ── Complex sections: objects + arrays ─────────────────────── */}
+      {/* ── Complex sections: objects + arrays (Totals card unchanged) ─ */}
       {complexEntries.map(([key, value]) => (
         <JsonNode
           key={key}
